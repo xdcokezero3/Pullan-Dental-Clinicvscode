@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental - Patient Details</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../static/patient_details.css">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">Pullan Dental</div>
+        <div class="subtitle">Clinic Management System</div>
+        
+        <a href="{{ url_for('index') }}" class="nav-item">
+            <i class="fas fa-th-large"></i> Dashboard
+        </a>
+        <a href="{{ url_for('patients') }}" class="nav-item active">
+            <i class="fas fa-user-injured"></i> Patients
+        </a>
+        <a href="{{ url_for('appointments') }}" class="nav-item">
+            <i class="fas fa-calendar-check"></i> Appointments
+        </a>
+        <a href="{{ url_for('doctors') }}" class="nav-item">
+            <i class="fas fa-user-md"></i> Doctors
+        </a>
+        <a href="{{ url_for('treatments') }}" class="nav-item">
+            <i class="fas fa-procedures"></i> Treatments
+        </a>
+        <a href="{{ url_for('billing') }}" class="nav-item">
+            <i class="fas fa-file-invoice-dollar"></i> Billing
+        </a>
+        <a href="{{ url_for('settings') }}" class="nav-item">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+        
+        <a href="{{ url_for('logout') }}" class="nav-item logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search...">
+            </div>
+            <div class="user-section">
+                <div class="notification">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-count">3</span>
+                </div>
+                <div class="notification">
+                    <i class="fas fa-envelope"></i>
+                    <span class="notification-count">5</span>
+                </div>
+                <div class="user-info">
+                    <span>Dr. Smith</span>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-header">
+            <div class="left">
+                <button class="back-button" onclick="window.location.href='{{ url_for('patients') }}'">
+                    <i class="fas fa-arrow-left"></i> Back to Patients
+                </button>
+                <h1>Patient Details</h1>
+            </div>
+            <div class="action-buttons">
+                <button class="edit-btn" onclick="window.location.href='{{ url_for('edit_patient', patient_id=patient.patId) }}'">
+                    <i class="fas fa-edit"></i> Edit Patient
+                </button>
+                <button class="delete-btn" onclick="deletePatient({{ patient.patId }})">
+                    <i class="fas fa-trash"></i> Delete Patient
+                </button>
+            </div>
+        </div>
+
+        <div class="patient-card">
+            <div class="patient-header">
+                <div class="patient-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <div class="patient-name" id="patientName">{{ patient.patname }}</div>
+                    <div class="patient-id" id="patientId">ID: {{ formatted_patient_id }}</div>
+                </div>
+            </div>
+
+            <div class="patient-details">
+                <div>
+                    <div class="detail-item">
+                        <div class="detail-label">Email</div>
+                        <div class="detail-value" id="patientEmail">{{ patient.patemail or "N/A" }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Phone</div>
+                        <div class="detail-value" id="patientPhone">{{ patient.patcontact or "N/A" }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Date of Birth</div>
+                        <div class="detail-value" id="patientDOB">{{ patient.patdob.strftime('%B %d, %Y') if patient.patdob else "N/A" }}</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="detail-item">
+                        <div class="detail-label">Gender</div>
+                        <div class="detail-value" id="patientGender">{{ patient.patgender or "N/A" }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Age</div>
+                        <div class="detail-value" id="patientAge">{{ patient.patage or "N/A" }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Occupation</div>
+                        <div class="detail-value" id="patientOccupation">{{ patient.patoccupation or "N/A" }}</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="detail-item">
+                        <div class="detail-label">Address</div>
+                        <div class="detail-value" id="patientAddress">{{ patient.pataddress or "N/A" }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Religion</div>
+                        <div class="detail-value" id="patientReligion">{{ patient.patreligion or "N/A" }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Allergies</div>
+                        <div class="detail-value" id="patientAllergies">{{ patient.patallergies or "N/A" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" data-tab="appointments">Appointments</button>
+            <button class="tab-button" data-tab="medical-history">Medical History</button>
+            <button class="tab-button" data-tab="treatments">Treatments</button>
+            <button class="tab-button" data-tab="billing">Billing</button>
+        </div>
+
+        <div class="tab-content" id="appointments-tab">
+            {% if appointments %}
+                {% for appointment in appointments %}
+                <div class="appointment-item">
+                    <div>
+                        <div class="appointment-date">{{ appointment.date }} - {{ appointment.time }}</div>
+                        <div class="appointment-info">Treatment: {{ appointment.treatment }} | Doctor: {{ appointment.doctor }}</div>
+                    </div>
+                    <span class="status {{ appointment.status }}">{{ appointment.status|capitalize }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="appointment-item">
+                    <p>No appointments found for this patient.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-content" id="medical-history-tab" style="display: none;">
+            <p>Medical history content will be displayed here.</p>
+        </div>
+
+        <div class="tab-content" id="treatments-tab" style="display: none;">
+            <p>Treatments content will be displayed here.</p>
+        </div>
+
+        <div class="tab-content" id="billing-tab" style="display: none;">
+            <p>Billing content will be displayed here.</p>
+        </div>
+    </div>
+
+    <script src="patient_details.js"></script>
+</body>
+</html>

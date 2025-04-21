@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental Clinic - Dashboard</title>
+    <link rel="stylesheet" href="../static/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <li class="active"><a href="#"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="#"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="#"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="#"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="#"><i class="fas fa-file-invoice-dollar"></i> Inventory</a></li>
+                <li><a href="#"><i class="fas fa-prescription"></i> Procedures</a></li>
+                <li><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="login.html"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" placeholder="Search...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user">
+                        <span>Dr. Smith</span>
+                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Overview -->
+            <div class="dashboard-overview">
+                <h1>Dashboard Overview</h1>
+                <p class="date">Tuesday, April 15, 2025</p>
+                
+                <!-- Stats Cards -->
+                <div class="stats-cards">
+                    <div class="card patients">
+                        <div class="card-icon">
+                            <i class="fas fa-user-injured"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3>42</h3>
+                            <p>Total Patients</p>
+                        </div>
+                        <div class="card-stats">
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 12%</span>
+                            <span>vs last month</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card appointments">
+                        <div class="card-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3>15</h3>
+                            <p>Today's Appointments</p>
+                        </div>
+                        <div class="card-stats">
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 5%</span>
+                            <span>vs yesterday</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card revenue">
+                        <div class="card-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3>$3,540</h3>
+                            <p>Today's Revenue</p>
+                        </div>
+                        <div class="card-stats">
+                            <span class="negative"><i class="fas fa-arrow-down"></i> 3%</span>
+                            <span>vs yesterday</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card treatments">
+                        <div class="card-icon">
+                            <i class="fas fa-tooth"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3>28</h3>
+                            <p>Treatments This Week</p>
+                        </div>
+                        <div class="card-stats">
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 18%</span>
+                            <span>vs last week</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Appointments Section -->
+                <div class="appointments-section">
+                    <div class="section-header">
+                        <h2>Today's Appointments</h2>
+                        <a href="#" class="view-all">View All</a>
+                    </div>
+                    
+                    <div class="appointments-list">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Patient Name</th>
+                                    <th>Time</th>
+                                    <th>Treatment</th>
+                                    <th>Doctor</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="patient-info">
+                                            <img src="../img/patient1.jpg" alt="Patient">
+                                            <div>
+                                                <p class="name">Sarah Johnson</p>
+                                                <p class="id">ID: PAT-001</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>09:30 AM</td>
+                                    <td>Teeth Cleaning</td>
+                                    <td>Dr. Anderson</td>
+                                    <td><span class="status completed">Completed</span></td>
+                                    <td>
+                                        <div class="actions">
+                                            <button class="view"><i class="fas fa-eye"></i></button>
+                                            <button class="edit"><i class="fas fa-edit"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="patient-info">
+                                            <img src="../img/patient2.jpg" alt="Patient">
+                                            <div>
+                                                <p class="name">John Davis</p>
+                                                <p class="id">ID: PAT-023</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>10:15 AM</td>
+                                    <td>Root Canal</td>
+                                    <td>Dr. Smith</td>
+                                    <td><span class="status in-progress">In Progress</span></td>
+                                    <td>
+                                        <div class="actions">
+                                            <button class="view"><i class="fas fa-eye"></i></button>
+                                            <button class="edit"><i class="fas fa-edit"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="patient-info">
+                                            <img src="../img/patient3.jpg" alt="Patient">
+                                            <div>
+                                                <p class="name">Emily Wilson</p>
+                                                <p class="id">ID: PAT-045</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>11:45 AM</td>
+                                    <td>Consultation</td>
+                                    <td>Dr. Lee</td>
+                                    <td><span class="status pending">Pending</span></td>
+                                    <td>
+                                        <div class="actions">
+                                            <button class="view"><i class="fas fa-eye"></i></button>
+                                            <button class="edit"><i class="fas fa-edit"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="patient-info">
+                                            <img src="../img/patient4.jpg" alt="Patient">
+                                            <div>
+                                                <p class="name">Robert Brown</p>
+                                                <p class="id">ID: PAT-032</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>01:30 PM</td>
+                                    <td>Filling</td>
+                                    <td>Dr. Smith</td>
+                                    <td><span class="status pending">Pending</span></td>
+                                    <td>
+                                        <div class="actions">
+                                            <button class="view"><i class="fas fa-eye"></i></button>
+                                            <button class="edit"><i class="fas fa-edit"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="patient-info">
+                                            <img src="../img/patient5.jpg" alt="Patient">
+                                            <div>
+                                                <p class="name">Lisa Garcia</p>
+                                                <p class="id">ID: PAT-018</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>03:00 PM</td>
+                                    <td>Crown Fitting</td>
+                                    <td>Dr. Anderson</td>
+                                    <td><span class="status pending">Pending</span></td>
+                                    <td>
+                                        <div class="actions">
+                                            <button class="view"><i class="fas fa-eye"></i></button>
+                                            <button class="edit"><i class="fas fa-edit"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Bottom Sections -->
+                <div class="bottom-sections">
+                    <!-- Recent Patients -->
+                    <div class="recent-patients">
+                        <div class="section-header">
+                            <h2>Recent Patients</h2>
+                            <a href="#" class="view-all">View All</a>
+                        </div>
+                        
+                        <div class="patient-cards">
+                            <div class="patient-card">
+                                <img src="../img/patient1.jpg" alt="Patient">
+                                <div class="patient-details">
+                                    <h4>Sarah Johnson</h4>
+                                    <p>Last Visit: Apr 12, 2025</p>
+                                    <p>Treatment: Teeth Cleaning</p>
+                                    <button class="view-profile">View Profile</button>
+                                </div>
+                            </div>
+                            
+                            <div class="patient-card">
+                                <img src="../img/patient2.jpg" alt="Patient">
+                                <div class="patient-details">
+                                    <h4>John Davis</h4>
+                                    <p>Last Visit: Apr 15, 2025</p>
+                                    <p>Treatment: Root Canal</p>
+                                    <button class="view-profile">View Profile</button>
+                                </div>
+                            </div>
+                            
+                            <div class="patient-card">
+                                <img src="../img/patient3.jpg" alt="Patient">
+                                <div class="patient-details">
+                                    <h4>Emily Wilson</h4>
+                                    <p>Last Visit: Apr 15, 2025</p>
+                                    <p>Treatment: Consultation</p>
+                                    <button class="view-profile">View Profile</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Calendar -->
+                    <div class="calendar-section">
+                        <div class="section-header">
+                            <h2>Calendar</h2>
+                            <div class="calendar-nav">
+                                <button><i class="fas fa-chevron-left"></i></button>
+                                <span>April 2025</span>
+                                <button><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        
+                        <div class="calendar">
+                            <div class="calendar-header">
+                                <div>Sun</div>
+                                <div>Mon</div>
+                                <div>Tue</div>
+                                <div>Wed</div>
+                                <div>Thu</div>
+                                <div>Fri</div>
+                                <div>Sat</div>
+                            </div>
+                            <div class="calendar-days">
+                                <div class="prev-month">30</div>
+                                <div class="prev-month">31</div>
+                                <div>1</div>
+                                <div>2</div>
+                                <div>3</div>
+                                <div>4</div>
+                                <div>5</div>
+                                <div>6</div>
+                                <div>7</div>
+                                <div>8</div>
+                                <div>9</div>
+                                <div>10</div>
+                                <div>11</div>
+                                <div>12</div>
+                                <div>13</div>
+                                <div>14</div>
+                                <div class="current-day">15</div>
+                                <div>16</div>
+                                <div>17</div>
+                                <div>18</div>
+                                <div>19</div>
+                                <div>20</div>
+                                <div>21</div>
+                                <div>22</div>
+                                <div>23</div>
+                                <div>24</div>
+                                <div>25</div>
+                                <div>26</div>
+                                <div>27</div>
+                                <div>28</div>
+                                <div>29</div>
+                                <div>30</div>
+                                <div class="next-month">1</div>
+                                <div class="next-month">2</div>
+                                <div class="next-month">3</div>
+                            </div>
+                        </div>
+                        
+                        <div class="upcoming-events">
+                            <h3>Upcoming Events</h3>
+                            <div class="event">
+                                <div class="event-dot staff-meeting"></div>
+                                <div class="event-details">
+                                    <p class="event-title">Staff Meeting</p>
+                                    <p class="event-time">Apr 16, 9:00 AM</p>
+                                </div>
+                            </div>
+                            <div class="event">
+                                <div class="event-dot inventory"></div>
+                                <div class="event-details">
+                                    <p class="event-title">Inventory Check</p>
+                                    <p class="event-time">Apr 18, 2:00 PM</p>
+                                </div>
+                            </div>
+                            <div class="event">
+                                <div class="event-dot training"></div>
+                                <div class="event-details">
+                                    <p class="event-title">New Equipment Training</p>
+                                    <p class="event-time">Apr 20, 10:00 AM</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Simple script to handle current date
+        document.addEventListener('DOMContentLoaded', function() {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            
+            const now = new Date();
+            const day = days[now.getDay()];
+            const date = now.getDate();
+            const month = months[now.getMonth()];
+            const year = now.getFullYear();
+            
+            document.querySelector('.date').textContent = `${day}, ${month} ${date}, ${year}`;
+        });
+    </script>
+</body>
+</html>

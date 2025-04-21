@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental Clinic - Inventory</title>
+    <link rel="stylesheet" href="../css/inventory.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo-container">
+                <h1 class="logo">Pullan Dental</h1>
+                <p class="tagline">Clinic Management System</p>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="dashboard.html" class="nav-item">
+                    <i class="fas fa-th-large"></i> Dashboard
+                </a>
+                <a href="patients.html" class="nav-item">
+                    <i class="fas fa-user-injured"></i> Patients
+                </a>
+                <a href="appointments.html" class="nav-item">
+                    <i class="far fa-calendar-alt"></i> Appointments
+                </a>
+                <a href="staff.html" class="nav-item">
+                    <i class="fas fa-user-md"></i> Staff
+                </a>
+                <a href="inventory.html" class="nav-item active">
+                    <i class="fas fa-box-open"></i> Inventory
+                </a>
+                <a href="procedures.html" class="nav-item">
+                    <i class="fas fa-procedures"></i> Procedures
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+            </nav>
+            
+            <div class="logout">
+                <a href="login.html" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search...">
+                    <button class="search-btn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                
+                <div class="user-actions">
+                    <div class="notification">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user-info">
+                        <span>Dr. Smith</span>
+                        <div class="user-dropdown">
+                            <span>User</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Inventory Overview -->
+            <div class="content-section">
+                <h2 class="section-title">Inventory Management</h2>
+                <p class="date-display">Tuesday, April 15, 2025</p>
+                
+                <div class="stats-container">
+                    <div class="stat-card blue">
+                        <div class="stat-icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value">248</h3>
+                            <p class="stat-label">Total Items</p>
+                        </div>
+                        <div class="stat-trend up">
+                            <i class="fas fa-arrow-up"></i> 5%
+                            <p>vs last month</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card green">
+                        <div class="stat-icon">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value">12</h3>
+                            <p class="stat-label">Low Stock Items</p>
+                        </div>
+                        <div class="stat-trend down">
+                            <i class="fas fa-arrow-down"></i> 8%
+                            <p>vs last month</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card yellow">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-day"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value">7</h3>
+                            <p class="stat-label">Expiring Soon</p>
+                        </div>
+                        <div class="stat-trend up">
+                            <i class="fas fa-arrow-up"></i> 2%
+                            <p>vs last week</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card red">
+                        <div class="stat-icon">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value">$1,240</h3>
+                            <p class="stat-label">Pending Orders</p>
+                        </div>
+                        <div class="stat-trend up">
+                            <i class="fas fa-arrow-up"></i> 15%
+                            <p>vs last month</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Inventory Table -->
+            <div class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Inventory Items</h2>
+                    <div class="actions">
+                        <button class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add New Item
+                        </button>
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-file-export"></i> Export
+                        </button>
+                        <a href="#" class="view-all">View All</a>
+                    </div>
+                </div>
+                
+                <div class="filter-options">
+                    <div class="filter-group">
+                        <label for="type-filter">Type:</label>
+                        <select id="type-filter" class="filter-select">
+                            <option value="all">All Types</option>
+                            <option value="material">Material</option>
+                            <option value="instrument">Instrument</option>
+                            <option value="medicine">Medicine</option>
+                            <option value="supply">General Supply</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="stock-filter">Stock Level:</label>
+                        <select id="stock-filter" class="filter-select">
+                            <option value="all">All Levels</option>
+                            <option value="low">Low Stock</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">High Stock</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="expiry-filter">Expiry:</label>
+                        <select id="expiry-filter" class="filter-select">
+                            <option value="all">All</option>
+                            <option value="expiring">Expiring Soon</option>
+                            <option value="expired">Expired</option>
+                            <option value="valid">Valid</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Item Name</th>
+                                <th>Quantity</th>
+                                <th>Expiry Date</th>
+                                <th>Type</th>
+                                <th>Remarks</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>INV-001</td>
+                                <td>Dental Composite Resin</td>
+                                <td>38</td>
+                                <td>2026-01-15</td>
+                                <td>Material</td>
+                                <td>A1 Shade</td>
+                                <td><span class="status normal">Normal</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-002</td>
+                                <td>Disposable Needles</td>
+                                <td>152</td>
+                                <td>2025-11-30</td>
+                                <td>Supply</td>
+                                <td>27G Short</td>
+                                <td><span class="status high">High Stock</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-003</td>
+                                <td>Lidocaine 2%</td>
+                                <td>8</td>
+                                <td>2025-05-22</td>
+                                <td>Medicine</td>
+                                <td>With Epinephrine</td>
+                                <td><span class="status low">Low Stock</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-004</td>
+                                <td>Dental Burs</td>
+                                <td>45</td>
+                                <td>2027-08-15</td>
+                                <td>Instrument</td>
+                                <td>Diamond Round</td>
+                                <td><span class="status normal">Normal</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-005</td>
+                                <td>Dental Floss</td>
+                                <td>23</td>
+                                <td>2025-06-10</td>
+                                <td>Supply</td>
+                                <td>Mint Waxed</td>
+                                <td><span class="status normal">Normal</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-006</td>
+                                <td>Impression Material</td>
+                                <td>5</td>
+                                <td>2025-05-18</td>
+                                <td>Material</td>
+                                <td>Alginate</td>
+                                <td><span class="status expiring">Expiring Soon</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-007</td>
+                                <td>Dental Cement</td>
+                                <td>12</td>
+                                <td>2026-03-22</td>
+                                <td>Material</td>
+                                <td>Glass Ionomer</td>
+                                <td><span class="status normal">Normal</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>INV-008</td>
+                                <td>Dental Scalers</td>
+                                <td>3</td>
+                                <td>2028-10-15</td>
+                                <td>Instrument</td>
+                                <td>Ultrasonic Tips</td>
+                                <td><span class="status low">Low Stock</span></td>
+                                <td class="actions">
+                                    <button class="action-btn view"><i class="fas fa-eye"></i></button>
+                                    <button class="action-btn edit"><i class="fas fa-edit"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination">
+                    <button class="page-btn prev"><i class="fas fa-chevron-left"></i></button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <span class="page-ellipsis">...</span>
+                    <button class="page-btn">8</button>
+                    <button class="page-btn next"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            
+            <!-- Low Stock Alert Section -->
+            <div class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Low Stock Alerts</h2>
+                    <a href="#" class="view-all">View All</a>
+                </div>
+                
+                <div class="alert-cards">
+                    <div class="alert-card">
+                        <div class="alert-icon red">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <div class="alert-details">
+                            <h4>Lidocaine 2%</h4>
+                            <p>Only 8 units left</p>
+                        </div>
+                        <button class="btn btn-sm">Order Now</button>
+                    </div>
+                    
+                    <div class="alert-card">
+                        <div class="alert-icon red">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <div class="alert-details">
+                            <h4>Dental Scalers</h4>
+                            <p>Only 3 units left</p>
+                        </div>
+                        <button class="btn btn-sm">Order Now</button>
+                    </div>
+                    
+                    <div class="alert-card">
+                        <div class="alert-icon orange">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="alert-details">
+                            <h4>Sterilization Pouches</h4>
+                            <p>Only 15 units left</p>
+                        </div>
+                        <button class="btn btn-sm">Order Now</button>
+                    </div>
+                    
+                    <div class="alert-card">
+                        <div class="alert-icon orange">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="alert-details">
+                            <h4>X-Ray Films</h4>
+                            <p>Only 18 units left</p>
+                        </div>
+                        <button class="btn btn-sm">Order Now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script>
+        // Basic functionality for demonstration
+        document.addEventListener('DOMContentLoaded', function() {
+            // Filter functionality placeholder
+            const filterSelects = document.querySelectorAll('.filter-select');
+            filterSelects.forEach(select => {
+                select.addEventListener('change', function() {
+                    console.log('Filter changed:', this.id, 'Value:', this.value);
+                    // Implementation would go here
+                });
+            });
+            
+            // Add item button
+            const addButton = document.querySelector('.btn-primary');
+            if (addButton) {
+                addButton.addEventListener('click', function() {
+                    alert('Add new inventory item form would open here');
+                });
+            }
+            
+            // Action buttons
+            const actionButtons = document.querySelectorAll('.action-btn');
+            actionButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const action = this.classList.contains('view') ? 'View' : 'Edit';
+                    const row = this.closest('tr');
+                    const id = row.cells[0].textContent;
+                    const name = row.cells[1].textContent;
+                    alert(`${action} item: ${id} - ${name}`);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

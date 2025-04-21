@@ -1,0 +1,391 @@
+<!-- patient.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental - Patients</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../static/patients.css">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">Pullan Dental</div>
+        <div class="subtitle">Clinic Management System</div>
+        
+        <a href="{{ url_for('index') }}" class="nav-item">
+            <i class="fas fa-th-large"></i> Dashboard
+        </a>
+        <a href="{{ url_for('patients') }}" class="nav-item active">
+            <i class="fas fa-user-injured"></i> Patients
+        </a>
+        <a href="{{ url_for('appointments') }}" class="nav-item">
+            <i class="fas fa-calendar-check"></i> Appointments
+        </a>
+        <a href="{{ url_for('doctors') }}" class="nav-item">
+            <i class="fas fa-user-md"></i> Doctors
+        </a>
+        <a href="{{ url_for('treatments') }}" class="nav-item">
+            <i class="fas fa-procedures"></i> Treatments
+        </a>
+        <a href="{{ url_for('billing') }}" class="nav-item">
+            <i class="fas fa-file-invoice-dollar"></i> Billing
+        </a>
+        <a href="{{ url_for('settings') }}" class="nav-item">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+        
+        <a href="{{ url_for('logout') }}" class="nav-item logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Search patients...">
+            </div>
+            <div class="user-section">
+                <div class="notification">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-count">3</span>
+                </div>
+                <div class="notification">
+                    <i class="fas fa-envelope"></i>
+                    <span class="notification-count">5</span>
+                </div>
+                <div class="user-info">
+                    <span>Dr. Smith</span>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-title">
+            <h1>Patients</h1>
+            <button class="add-button" id="openAddPatientModal">
+                <i class="fas fa-plus"></i> Add New Patient
+            </button>
+        </div>
+        <div class="date">{{ current_date }}</div>
+
+        <div class="patients-table">
+            <table id="patientsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Patient Name</th>
+                        <th>Contact</th>
+                        <th>Gender</th>
+                        <th>Age</th>
+                        <th>Address</th>
+                        <th>Last Visit</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for patient in patients %}
+                    <tr>
+                        <td>{{ patient.id }}</td>
+                        <td>{{ patient.name }}</td>
+                        <td>{{ patient.contact }}</td>
+                        <td>{{ patient.gender }}</td>
+                        <td>{{ patient.age }}</td>
+                        <td>{{ patient.address }}</td>
+                        <td>{{ patient.last_visit }}</td>
+                        <td>
+                            <a href="{{ url_for('patient_details', patient_id=patient.id|replace('PAT-', '')|int) }}" class="action-button view-button" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ url_for('edit_patient', patient_id=patient.id|replace('PAT-', '')|int) }}" class="action-button edit-button" title="Edit Patient">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button class="action-button delete-button" data-id="{{ patient.id|replace('PAT-', '')|int }}" title="Delete Patient">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button>
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button class="active">1</button>
+            <button>2</button>
+            <button>3</button>
+            <button>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Patient Modal -->
+    <div id="addPatientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Patient</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addPatientForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Full Name*</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="contact">Contact Number*</label>
+                            <input type="tel" id="contact" name="contact" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dob">Date of Birth</label>
+                            <input type="date" id="dob" name="dob">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" name="gender">
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="age">Age</label>
+                            <input type="number" id="age" name="age" min="0" max="120">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label for="address">Address</label>
+                        <input type="text" id="address" name="address">
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cityzipcode">City/Zip Code</label>
+                            <input type="text" id="cityzipcode" name="cityzipcode">
+                        </div>
+                        <div class="form-group">
+                            <label for="occupation">Occupation</label>
+                            <input type="text" id="occupation" name="occupation">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="religion">Religion</label>
+                            <input type="text" id="religion" name="religion">
+                        </div>
+                        <div class="form-group">
+                            <label for="allergies">Allergies</label>
+                            <input type="text" id="allergies" name="allergies">
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn cancel-btn" id="cancelAddPatient">Cancel</button>
+                        <button type="submit" class="btn submit-btn">Add Patient</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const searchValue = this.value.toLowerCase();
+            const table = document.getElementById('patientsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {
+                let found = false;
+                const cells = rows[i].getElementsByTagName('td');
+                
+                for (let j = 0; j < cells.length; j++) {
+                    const cellText = cells[j].textContent.toLowerCase();
+                    if (cellText.indexOf(searchValue) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+                
+                rows[i].style.display = found ? '' : 'none';
+            }
+        });
+        
+        // Delete patient functionality
+        document.querySelectorAll('.delete-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const patientId = this.getAttribute('data-id');
+                if(confirm(`Are you sure you want to delete this patient?`)) {
+                    fetch(`/delete_patient/${patientId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Remove the row from the table
+                            this.closest('tr').remove();
+                            showNotification('Patient deleted successfully', 'success');
+                        } else {
+                            showNotification('Error deleting patient: ' + data.error, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('An error occurred while deleting the patient.', 'error');
+                    });
+                }
+            });
+        });
+        
+        // Modal functionality
+        const modal = document.getElementById('addPatientModal');
+        const openModalBtn = document.getElementById('openAddPatientModal');
+        const closeModalBtn = document.querySelector('.close-modal');
+        const cancelBtn = document.getElementById('cancelAddPatient');
+        
+        openModalBtn.addEventListener('click', function() {
+            modal.style.display = 'block';
+            document.body.classList.add('modal-open');
+        });
+        
+        function closeModal() {
+            modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.getElementById('addPatientForm').reset();
+        }
+        
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        window.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+        
+        // Add patient form submission
+        document.getElementById('addPatientForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('/add_patient', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add the new patient to the table
+                    const table = document.querySelector('#patientsTable tbody');
+                    const newRow = table.insertRow();
+                    
+                    const patient = data.patient;
+                    
+                    newRow.innerHTML = `
+                        <td>${patient.id}</td>
+                        <td>${patient.name}</td>
+                        <td>${patient.contact}</td>
+                        <td>${patient.gender}</td>
+                        <td>${patient.age}</td>
+                        <td>${patient.address}</td>
+                        <td>${patient.last_visit}</td>
+                        <td>
+                            <a href="/patient/${patient.raw_id}" class="action-button view-button" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="/edit_patient/${patient.raw_id}" class="action-button edit-button" title="Edit Patient">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button class="action-button delete-button" data-id="${patient.raw_id}" title="Delete Patient">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    
+                    // Add event listener to the new delete button
+                    newRow.querySelector('.delete-button').addEventListener('click', function() {
+                        const patientId = this.getAttribute('data-id');
+                        if(confirm(`Are you sure you want to delete this patient?`)) {
+                            fetch(`/delete_patient/${patientId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    this.closest('tr').remove();
+                                    showNotification('Patient deleted successfully', 'success');
+                                } else {
+                                    showNotification('Error deleting patient: ' + data.error, 'error');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                showNotification('An error occurred while deleting the patient.', 'error');
+                            });
+                        }
+                    });
+                    
+                    closeModal();
+                    showNotification('Patient added successfully', 'success');
+                } else {
+                    showNotification('Error adding patient: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('An error occurred while adding the patient.', 'error');
+            });
+        });
+        
+        // Notification function
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification-popup ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Show notification
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+            
+            // Hide and remove after a delay
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
