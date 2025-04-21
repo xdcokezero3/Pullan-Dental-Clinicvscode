@@ -10,6 +10,21 @@ app = db_app
 app.template_folder = 'templates'
 app.static_folder = 'static'
 
+class Appointment(db.Model):
+    __tablename__ = 'appointment'
+    
+    appid = db.Column(db.Integer, primary_key=True)
+    apppatient = db.Column(db.String(255))
+    apptime = db.Column(db.String(255))
+    appdate = db.Column(db.Date)
+    
+    def __repr__(self):
+        return f"<Appointment {self.appid}: {self.apppatient} on {self.appdate}>"
+    
+    def formatted_id(self):
+        """Return the appointment ID formatted as APT-XXX"""
+        return f"APT-{self.appid:03d}"
+
 @app.route('/')
 def index():
     """Redirect to the patients page"""
@@ -136,43 +151,6 @@ def delete_patient(patient_id):
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)})
 
-# Placeholder routes to prevent template errors
-@app.route('/appointments')
-def appointments():
-    """Placeholder for appointments page"""
-    return "Appointments page - Coming soon!"
-
-@app.route('/doctors')
-def doctors():
-    """Placeholder for doctors page"""
-    return "Doctors page - Coming soon!"
-
-@app.route('/treatments')
-def treatments():
-    """Placeholder for treatments page"""
-    return "Treatments page - Coming soon!"
-
-@app.route('/billing')
-def billing():
-    """Placeholder for billing page"""
-    return "Billing page - Coming soon!"
-
-@app.route('/settings')
-def settings():
-    """Placeholder for settings page"""
-    return "Settings page - Coming soon!"
-
-@app.route('/logout')
-def logout():
-    """Placeholder for logout functionality"""
-    return redirect(url_for('index'))
-
-
-# Add these routes to your Flask application
-
-from flask import render_template, request, redirect, url_for, jsonify, flash
-from datetime import datetime
-
 @app.route('/edit_patient/<int:patient_id>')
 def edit_patient(patient_id):
     """Render edit patient page"""
@@ -224,6 +202,143 @@ def update_patient(patient_id):
         # Return error response for AJAX request
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/appointments')
+def appointments():
+    """Render the appointments page with data from the database"""
+    # Get appointments from the database
+    appointments_list = Appointment.query.order_by(Appointment.appdate.desc()).all()
+    
+    # Get all patients for the "Add Appointment" form
+    all_patients = Patient.query.filter_by(is_deleted=False).all()
+    
+    # Format the appointments for display
+    formatted_appointments = []
+    for appointment in appointments_list:
+        # Format appointment data based on the existing fields
+        formatted_appointments.append({
+            'id': f"APT-{appointment.appid:03d}",
+            'patient_name': appointment.apppatient,
+            'doctor_name': "Dr. Andrews",  # Default doctor since not in your schema
+            'treatment': "General Checkup",  # Default treatment since not in your schema
+            'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+            'time': appointment.apptime,
+            'duration': "30 min",  # Default duration since not in your schema
+            'status': "Scheduled",  # Default status since not in your schema
+            'raw_id': appointment.appid
+        })
+    
+    # Get current date for the page
+    current_date = datetime.now().strftime("%A, %B %d, %Y")
+    today_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Render the template with the data
+    return render_template('appointments.html', 
+                          appointments=formatted_appointments, 
+                          all_patients=all_patients,
+                          current_date=current_date,
+                          today_date=today_date)
+
+@app.route('/add_appointment', methods=['POST'])
+def add_appointment():
+    """Add a new appointment"""
+    try:
+        # Get patient name from the patient ID
+        patient_id = request.form.get('patient_id')
+        patient = Patient.query.get(patient_id)
+        patient_name = patient.patname if patient else "Unknown Patient"
+        
+        # Create new appointment using the simple schema
+        new_appointment = Appointment(
+            apppatient=patient_name,
+            apptime=request.form.get('time'),
+            appdate=datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        )
+        
+        db.session.add(new_appointment)
+        db.session.commit()
+        
+        # Return success response
+        return jsonify({
+            "success": True,
+            "appointment": {
+                "id": f"APT-{new_appointment.appid:03d}",
+                "patient_name": new_appointment.apppatient,
+                "date": new_appointment.appdate.strftime('%B %d, %Y'),
+                "time": new_appointment.apptime
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/cancel_appointment/<int:appointment_id>', methods=['POST'])
+def cancel_appointment(appointment_id):
+    """Cancel an appointment - since we don't have a status field, we'll just delete it"""
+    try:
+        appointment = Appointment.query.get_or_404(appointment_id)
+        db.session.delete(appointment)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)})
+
+# Placeholder routes to prevent template errors
+@app.route('/doctors')
+def doctors():
+    """Placeholder for doctors page"""
+    return "Doctors page - Coming soon!"
+
+@app.route('/treatments')
+def treatments():
+    """Placeholder for treatments page"""
+    return "Treatments page - Coming soon!"
+
+@app.route('/billing')
+def billing():
+    """Placeholder for billing page"""
+    return "Billing page - Coming soon!"
+
+@app.route('/settings')
+def settings():
+    """Placeholder for settings page"""
+    return "Settings page - Coming soon!"
+
+@app.route('/logout')
+def logout():
+    """Placeholder for logout functionality"""
+    return redirect(url_for('index'))
+
+@app.route('/appointment_details/<int:appointment_id>')
+def appointment_details(appointment_id):
+    """View details of a specific appointment"""
+    appointment = Appointment.query.get_or_404(appointment_id)
+    
+    # Format the appointment details
+    formatted_appointment = {
+        'id': f"APT-{appointment.appid:03d}",
+        'patient_name': appointment.apppatient,
+        'doctor_name': "Dr. Andrews",  # Default value since not in schema
+        'treatment': "General Checkup",  # Default value since not in schema
+        'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+        'time': appointment.apptime,
+        'duration': "30 min",  # Default value since not in schema
+        'status': "Scheduled",  # Default value since not in schema
+        'notes': "No notes available"  # Default value since not in schema
+    }
+    
+    return render_template('appointment_details.html', appointment=formatted_appointment)
+
+@app.route('/edit_appointment/<int:appointment_id>')
+def edit_appointment(appointment_id):
+    """Render edit appointment page"""
+    appointment = Appointment.query.get_or_404(appointment_id)
+    all_patients = Patient.query.filter_by(is_deleted=False).all()
+    
+    return render_template('edit_appointment.html', 
+                           appointment=appointment,
+                           all_patients=all_patients)
 
 if __name__ == '__main__':
     app.run(debug=True)
