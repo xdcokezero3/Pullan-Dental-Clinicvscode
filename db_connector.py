@@ -35,6 +35,21 @@ def test_connection():
 
 # Define model classes for all tables in the database
 
+class Appointment(db.Model):
+    __tablename__ = 'appointment'
+    
+    appid = db.Column(db.Integer, primary_key=True)
+    apppatient = db.Column(db.String(255))
+    apptime = db.Column(db.String(255))
+    appdate = db.Column(db.Date)
+    
+    def __repr__(self):
+        return f"<Appointment {self.appid}: {self.apppatient} on {self.appdate}>"
+    
+    def formatted_id(self):
+        """Return the appointment ID formatted as APT-XXX"""
+        return f"APT-{self.appid:03d}"
+
 
 class DentalChart(db.Model):
     __tablename__ = 'dentalchart'

@@ -1,95 +1,124 @@
 # app.py
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-from db_connector import app as db_app, db, Patient
+from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User
 from datetime import datetime
-
 # Use the Flask app instance from the connector
 app = db_app
+
+# Add this near the top of app.py, after the Flask app is created
+app.secret_key = 'pullandentalclinic2025'  # Change this to a secure random value in production
 
 # Set template folder
 app.template_folder = 'templates'
 app.static_folder = 'static'
 
-class Appointment(db.Model):
-    __tablename__ = 'appointment'
-    
-    appid = db.Column(db.Integer, primary_key=True)
-    apppatient = db.Column(db.String(255))
-    apptime = db.Column(db.String(255))
-    appdate = db.Column(db.Date)
-    
-    def __repr__(self):
-        return f"<Appointment {self.appid}: {self.apppatient} on {self.appdate}>"
-    
-    def formatted_id(self):
-        """Return the appointment ID formatted as APT-XXX"""
-        return f"APT-{self.appid:03d}"
 
 @app.route('/')
 def index():
     """Redirect to the patients page"""
-    return redirect(url_for('patients'))
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        # Check credentials against database
+        user = User.query.filter_by(usersusername=username).first()
+        
+        if user and user.userspassword == password:
+            # In a real application, you should use a secure password hashing method
+            # instead of storing/comparing plain text passwords
+            
+            # Set up a session to keep the user logged in
+            from flask import session
+            session['user_id'] = user.usersid
+            session['username'] = user.usersusername
+            session['access_level'] = user.usersaccess
+            
+            return redirect(url_for('dashboard'))
+        
+        return render_template('login.html', error="Invalid username or password")
+
+    return render_template('login.html')
+
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+
 
 @app.route('/patients')
 def patients():
     """Render the patients page with data from the database"""
-    # Get patients from the database (exclude deleted ones)
-    patients_list = Patient.query.filter_by(is_deleted=False).all()
-    
-    # Format the data for display
-    formatted_patients = []
-    for patient in patients_list:
-        # Format date if it exists
-        last_visit = "N/A"  # Default if no visit data
+    try:
+        # Get patients from the database (exclude deleted ones)
+        patients_list = Patient.query.filter_by(is_deleted=False).all()
+        print(f"Found {len(patients_list)} patients")
         
-        formatted_patients.append({
-            'id': f"PAT-{patient.patId:03d}",
-            'name': patient.patname,
-            'contact': patient.patcontact or "N/A",
-            'gender': patient.patgender or "N/A",
-            'age': patient.patage or "N/A",
-            'address': patient.pataddress or "N/A",
-            'last_visit': last_visit
-        })
-    
-    # Get current date for the page
-    current_date = datetime.now().strftime("%A, %B %d, %Y")
-    
-    # Render the template with the data
-    return render_template('patients.html', 
-                          patients=formatted_patients, 
-                          current_date=current_date)
+        # Format the data for display
+        formatted_patients = []
+        for patient in patients_list:
+            # Format date if it exists
+            last_visit = "N/A"  # Default if no visit data
+            
+            formatted_patients.append({
+                'id': f"PAT-{patient.patId:03d}",
+                'name': patient.patname,
+                'contact': patient.patcontact or "N/A",
+                'gender': patient.patgender or "N/A",
+                'age': patient.patage or "N/A",
+                'address': patient.pataddress or "N/A",
+                'last_visit': last_visit,
+                'raw_id': patient.patId  # Add the raw ID for use in URLs
+            })
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        # Render the template with the data
+        return render_template('patients.html', 
+                              patients=formatted_patients, 
+                              current_date=current_date)
+    except Exception as e:
+        print(f"Error in patients route: {e}")
+        return f"Error loading patients: {e}", 500
 
 @app.route('/patient/<int:patient_id>')
 def patient_details(patient_id):
     """View details of a specific patient"""
-    patient = Patient.query.get_or_404(patient_id)
-    
-    # Format the patient ID with leading zeros
-    formatted_patient_id = f"PAT-{patient.patId:03d}"
-    
-    # Add some example appointments (later you would query these from a database)
-    appointments = [
-        {
-            'date': 'April 15, 2025',
-            'time': '09:30 AM',
-            'treatment': 'Teeth Cleaning',
-            'doctor': 'Dr. Andrews',
-            'status': 'completed'
-        },
-        {
-            'date': 'May 10, 2025',
-            'time': '11:00 AM',
-            'treatment': 'Follow-up',
-            'doctor': 'Dr. Andrews',
-            'status': 'upcoming'
-        }
-    ]
-    
-    return render_template('patient_details.html', 
-                          patient=patient, 
-                          formatted_patient_id=formatted_patient_id,
-                          appointments=appointments)
+    try:
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Format the patient ID with leading zeros
+        formatted_patient_id = f"PAT-{patient.patId:03d}"
+        
+        # Add some example appointments (later you would query these from a database)
+        appointments = [
+            {
+                'date': 'April 15, 2025',
+                'time': '09:30 AM',
+                'treatment': 'Teeth Cleaning',
+                'doctor': 'Dr. Andrews',
+                'status': 'completed'
+            },
+            {
+                'date': 'May 10, 2025',
+                'time': '11:00 AM',
+                'treatment': 'Follow-up',
+                'doctor': 'Dr. Andrews',
+                'status': 'upcoming'
+            }
+        ]
+        
+        return render_template('patient_details.html', 
+                              patient=patient, 
+                              formatted_patient_id=formatted_patient_id,
+                              appointments=appointments)
+    except Exception as e:
+        print(f"Error in patient_details route: {e}")
+        return f"Error loading patient details: {e}", 500
 
 @app.route('/add_patient', methods=['POST'])
 def add_patient():
@@ -135,40 +164,46 @@ def add_patient():
         })
     except Exception as e:
         db.session.rollback()
+        print(f"Error in add_patient route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 
 @app.route('/delete_patient/<int:patient_id>', methods=['POST'])
 def delete_patient(patient_id):
     """Soft delete a patient"""
-    patient = Patient.query.get_or_404(patient_id)
-    patient.is_deleted = True
-    
     try:
+        patient = Patient.query.get_or_404(patient_id)
+        patient.is_deleted = True
+        
         db.session.commit()
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
+        print(f"Error in delete_patient route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/edit_patient/<int:patient_id>')
 def edit_patient(patient_id):
     """Render edit patient page"""
-    # Get patient from database
-    patient = Patient.query.get_or_404(patient_id)
-    
-    # Format date of birth for HTML date input
-    if patient.patdob:
-        patient.patdob = patient.patdob.strftime('%Y-%m-%d')
-    
-    return render_template('patient_edit.html', patient=patient)
+    try:
+        # Get patient from database
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Format date of birth for HTML date input
+        if patient.patdob:
+            patient.patdob = patient.patdob.strftime('%Y-%m-%d')
+        
+        return render_template('patient_edit.html', patient=patient)
+    except Exception as e:
+        print(f"Error in edit_patient route: {e}")
+        return f"Error loading patient edit form: {e}", 500
 
 @app.route('/update_patient/<int:patient_id>', methods=['POST'])
 def update_patient(patient_id):
     """Update patient information"""
-    patient = Patient.query.get_or_404(patient_id)
-    
     try:
+        patient = Patient.query.get_or_404(patient_id)
+        
         # Update patient information from form
         patient.patname = request.form.get('name')
         patient.patemail = request.form.get('email')
@@ -201,43 +236,48 @@ def update_patient(patient_id):
     except Exception as e:
         # Return error response for AJAX request
         db.session.rollback()
+        print(f"Error in update_patient route: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/appointments')
 def appointments():
     """Render the appointments page with data from the database"""
-    # Get appointments from the database
-    appointments_list = Appointment.query.order_by(Appointment.appdate.desc()).all()
-    
-    # Get all patients for the "Add Appointment" form
-    all_patients = Patient.query.filter_by(is_deleted=False).all()
-    
-    # Format the appointments for display
-    formatted_appointments = []
-    for appointment in appointments_list:
-        # Format appointment data based on the existing fields
-        formatted_appointments.append({
-            'id': f"APT-{appointment.appid:03d}",
-            'patient_name': appointment.apppatient,
-            'doctor_name': "Dr. Andrews",  # Default doctor since not in your schema
-            'treatment': "General Checkup",  # Default treatment since not in your schema
-            'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
-            'time': appointment.apptime,
-            'duration': "30 min",  # Default duration since not in your schema
-            'status': "Scheduled",  # Default status since not in your schema
-            'raw_id': appointment.appid
-        })
-    
-    # Get current date for the page
-    current_date = datetime.now().strftime("%A, %B %d, %Y")
-    today_date = datetime.now().strftime("%Y-%m-%d")
-    
-    # Render the template with the data
-    return render_template('appointments.html', 
-                          appointments=formatted_appointments, 
-                          all_patients=all_patients,
-                          current_date=current_date,
-                          today_date=today_date)
+    try:
+        # Get appointments from the database
+        appointments_list = Appointment.query.order_by(Appointment.appdate.desc()).all()
+        
+        # Get all patients for the "Add Appointment" form
+        all_patients = Patient.query.filter_by(is_deleted=False).all()
+        
+        # Format the appointments for display
+        formatted_appointments = []
+        for appointment in appointments_list:
+            # Format appointment data based on the existing fields
+            formatted_appointments.append({
+                'id': f"APT-{appointment.appid:03d}",
+                'patient_name': appointment.apppatient,
+                'doctor_name': "Dr. Andrews",  # Default doctor since not in your schema
+                'treatment': "General Checkup",  # Default treatment since not in your schema
+                'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+                'time': appointment.apptime,
+                'duration': "30 min",  # Default duration since not in your schema
+                'status': "Scheduled",  # Default status since not in your schema
+                'raw_id': appointment.appid
+            })
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        today_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Render the template with the data
+        return render_template('appointments.html', 
+                              appointments=formatted_appointments, 
+                              all_patients=all_patients,
+                              current_date=current_date,
+                              today_date=today_date)
+    except Exception as e:
+        print(f"Error in appointments route: {e}")
+        return f"Error loading appointments: {e}", 500
 
 @app.route('/add_appointment', methods=['POST'])
 def add_appointment():
@@ -265,11 +305,13 @@ def add_appointment():
                 "id": f"APT-{new_appointment.appid:03d}",
                 "patient_name": new_appointment.apppatient,
                 "date": new_appointment.appdate.strftime('%B %d, %Y'),
-                "time": new_appointment.apptime
+                "time": new_appointment.apptime,
+                "raw_id": new_appointment.appid
             }
         })
     except Exception as e:
         db.session.rollback()
+        print(f"Error in add_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/cancel_appointment/<int:appointment_id>', methods=['POST'])
@@ -282,6 +324,7 @@ def cancel_appointment(appointment_id):
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
+        print(f"Error in cancel_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 # Placeholder routes to prevent template errors
@@ -313,32 +356,40 @@ def logout():
 @app.route('/appointment_details/<int:appointment_id>')
 def appointment_details(appointment_id):
     """View details of a specific appointment"""
-    appointment = Appointment.query.get_or_404(appointment_id)
-    
-    # Format the appointment details
-    formatted_appointment = {
-        'id': f"APT-{appointment.appid:03d}",
-        'patient_name': appointment.apppatient,
-        'doctor_name': "Dr. Andrews",  # Default value since not in schema
-        'treatment': "General Checkup",  # Default value since not in schema
-        'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
-        'time': appointment.apptime,
-        'duration': "30 min",  # Default value since not in schema
-        'status': "Scheduled",  # Default value since not in schema
-        'notes': "No notes available"  # Default value since not in schema
-    }
-    
-    return render_template('appointment_details.html', appointment=formatted_appointment)
+    try:
+        appointment = Appointment.query.get_or_404(appointment_id)
+        
+        # Format the appointment details
+        formatted_appointment = {
+            'id': f"APT-{appointment.appid:03d}",
+            'patient_name': appointment.apppatient,
+            'doctor_name': "Dr. Andrews",  # Default value since not in schema
+            'treatment': "General Checkup",  # Default value since not in schema
+            'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+            'time': appointment.apptime,
+            'duration': "30 min",  # Default value since not in schema
+            'status': "Scheduled",  # Default value since not in schema
+            'notes': "No notes available"  # Default value since not in schema
+        }
+        
+        return render_template('appointment_details.html', appointment=formatted_appointment)
+    except Exception as e:
+        print(f"Error in appointment_details route: {e}")
+        return f"Error loading appointment details: {e}", 500
 
 @app.route('/edit_appointment/<int:appointment_id>')
 def edit_appointment(appointment_id):
     """Render edit appointment page"""
-    appointment = Appointment.query.get_or_404(appointment_id)
-    all_patients = Patient.query.filter_by(is_deleted=False).all()
-    
-    return render_template('edit_appointment.html', 
-                           appointment=appointment,
-                           all_patients=all_patients)
+    try:
+        appointment = Appointment.query.get_or_404(appointment_id)
+        all_patients = Patient.query.filter_by(is_deleted=False).all()
+        
+        return render_template('edit_appointment.html', 
+                            appointment=appointment,
+                            all_patients=all_patients)
+    except Exception as e:
+        print(f"Error in edit_appointment route: {e}")
+        return f"Error loading appointment edit form: {e}", 500
 
 if __name__ == '__main__':
     app.run(debug=True)
