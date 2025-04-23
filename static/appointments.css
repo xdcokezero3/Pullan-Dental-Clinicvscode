@@ -1,4 +1,4 @@
-/* Patients CSS */
+/* Appointments Page CSS */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 :root {
@@ -203,31 +203,33 @@ body {
     object-fit: cover;
 }
 
-/* Page Title Styles */
+/* Page Title */
 .page-title {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .page-title h1 {
     font-size: 24px;
-    color: var(--text-color);
+    font-weight: 600;
 }
 
 .add-button {
     background-color: var(--primary-color);
     color: white;
     border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
+    border-radius: var(--border-radius);
+    padding: 10px 15px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 500;
-    transition: background-color 0.3s;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.add-button i {
+    margin-right: 8px;
 }
 
 .add-button:hover {
@@ -239,13 +241,66 @@ body {
     margin-bottom: 20px;
 }
 
-/* Table Styles */
-.patients-table {
+/* Filter Controls */
+.filter-controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    background-color: var(--white);
+    padding: 15px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-group label {
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: var(--text-light);
+}
+
+.filter-group input,
+.filter-group select {
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    outline: none;
+    width: 150px;
+}
+
+.filter-button {
+    align-self: flex-end;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+}
+
+.filter-button i {
+    margin-right: 5px;
+}
+
+.filter-button:hover {
+    background-color: #3367d6;
+}
+
+/* Appointments Table */
+.appointments-table {
     background-color: var(--white);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
+    padding: 20px;
     margin-bottom: 20px;
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 table {
@@ -253,63 +308,106 @@ table {
     border-collapse: collapse;
 }
 
-thead tr {
-    background-color: #f8f9fa;
-}
-
-th {
-    padding: 15px;
+thead th {
+    padding: 12px 15px;
     text-align: left;
-    font-weight: 500;
-    color: var(--text-light);
     border-bottom: 1px solid #eee;
+    color: var(--text-light);
+    font-weight: 500;
+    font-size: 14px;
 }
 
-td {
-    padding: 15px;
+tbody td {
+    padding: 12px 15px;
     border-bottom: 1px solid #eee;
 }
 
 tbody tr:hover {
-    background-color: #f5f7fa;
+    background-color: rgba(66, 133, 244, 0.05);
 }
 
+/* Status Badge */
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    display: inline-block;
+}
+
+.status-scheduled {
+    background-color: rgba(66, 133, 244, 0.1);
+    color: var(--primary-color);
+}
+
+.status-completed {
+    background-color: rgba(52, 168, 83, 0.1);
+    color: var(--secondary-color);
+}
+
+.status-cancelled {
+    background-color: rgba(234, 67, 53, 0.1);
+    color: var(--danger-color);
+}
+
+.status-confirmed {
+    background-color: rgba(52, 168, 83, 0.1);
+    color: var(--secondary-color);
+}
+
+.status-no-show {
+    background-color: rgba(234, 67, 53, 0.1);
+    color: var(--danger-color);
+}
+
+/* Action Buttons */
 .action-button {
-    padding: 5px;
-    background: none;
+    width: 30px;
+    height: 30px;
     border: none;
+    border-radius: 5px;
     cursor: pointer;
-    color: var(--text-light);
-    border-radius: 3px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: var(--transition);
     margin-right: 5px;
-    text-decoration: none;
 }
 
 .view-button {
+    background-color: rgba(66, 133, 244, 0.1);
     color: var(--primary-color);
 }
 
 .edit-button {
+    background-color: rgba(251, 188, 5, 0.1);
     color: var(--warning-color);
 }
 
 .delete-button {
+    background-color: rgba(234, 67, 53, 0.1);
     color: var(--danger-color);
 }
 
-.action-button:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+.view-button:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.edit-button:hover {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.delete-button:hover {
+    background-color: var(--danger-color);
+    color: white;
 }
 
 /* Pagination */
 .pagination {
     display: flex;
-    justify-content: flex-end;
-    gap: 5px;
+    justify-content: center;
+    margin-top: 20px;
 }
 
 .pagination button {
@@ -318,9 +416,10 @@ tbody tr:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #eee;
+    margin: 0 5px;
+    border: 1px solid #e0e0e0;
     background-color: var(--white);
-    border-radius: 5px;
+    border-radius: 4px;
     cursor: pointer;
     transition: var(--transition);
 }
@@ -335,7 +434,7 @@ tbody tr:hover {
     background-color: #f0f0f0;
 }
 
-/* Modal Styles */
+/* Modal */
 .modal {
     display: none;
     position: fixed;
@@ -345,22 +444,18 @@ tbody tr:hover {
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
     z-index: 1000;
-    overflow-y: auto;
+    align-items: center;
+    justify-content: center;
 }
 
 .modal-content {
     background-color: var(--white);
-    margin: 30px auto;
-    width: 80%;
-    max-width: 800px;
     border-radius: var(--border-radius);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    animation: modalFadeIn 0.3s;
-}
-
-@keyframes modalFadeIn {
-    from {opacity: 0; transform: translateY(-30px);}
-    to {opacity: 1; transform: translateY(0);}
+    width: 600px;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
@@ -372,21 +467,14 @@ tbody tr:hover {
 }
 
 .modal-header h2 {
-    margin: 0;
-    color: var(--text-color);
-    font-size: 20px;
+    font-size: 18px;
+    font-weight: 600;
 }
 
 .close-modal {
     font-size: 24px;
-    font-weight: bold;
-    color: var(--text-light);
     cursor: pointer;
-    transition: color 0.2s;
-}
-
-.close-modal:hover {
-    color: var(--text-color);
+    color: var(--text-light);
 }
 
 .modal-body {
@@ -396,44 +484,38 @@ tbody tr:hover {
 /* Form Styles */
 .form-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
+    gap: 15px;
     margin-bottom: 15px;
 }
 
 .form-group {
     flex: 1;
-    min-width: 250px;
+    display: flex;
+    flex-direction: column;
 }
 
 .form-group.full-width {
-    flex-basis: 100%;
+    width: 100%;
 }
 
 .form-group label {
-    display: block;
     margin-bottom: 5px;
-    font-weight: 500;
-    color: var(--text-color);
+    color: var(--text-light);
+    font-size: 14px;
 }
 
-.form-group input, 
+.form-group input,
 .form-group select,
 .form-group textarea {
-    width: 100%;
     padding: 10px;
-    border: 1px solid #ddd;
+    border: 1px solid #e0e0e0;
     border-radius: 4px;
-    font-size: 14px;
-    transition: border-color 0.2s;
+    outline: none;
 }
 
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-    border-color: var(--primary-color);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.25);
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
 }
 
 .form-actions {
@@ -447,38 +529,43 @@ tbody tr:hover {
     padding: 10px 15px;
     border-radius: 4px;
     cursor: pointer;
-    font-weight: 500;
     border: none;
-    transition: all 0.2s;
-}
-
-.cancel-btn {
-    background-color: #f8f9fa;
-    color: var(--text-color);
-    border: 1px solid #ddd;
-}
-
-.cancel-btn:hover {
-    background-color: #e9ecef;
+    transition: var(--transition);
+    font-weight: 500;
 }
 
 .submit-btn {
-    background-color: var(--secondary-color);
+    background-color: var(--primary-color);
     color: white;
 }
 
 .submit-btn:hover {
-    background-color: #2d9348;
+    background-color: #3367d6;
 }
 
-/* When modal is open */
-body.modal-open {
-    overflow: hidden;
+.cancel-btn {
+    background-color: #f0f0f0;
+    color: var(--text-color);
 }
 
-/* Highlight for required fields */
-.form-group input[required] {
-    border-left: 3px solid var(--secondary-color);
+.cancel-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.secondary-btn {
+    background-color: rgba(66, 133, 244, 0.1);
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    padding: 8px;
+}
+
+.secondary-btn i {
+    margin-right: 5px;
+}
+
+.secondary-btn:hover {
+    background-color: rgba(66, 133, 244, 0.2);
 }
 
 /* Notification Popup */
@@ -486,30 +573,80 @@ body.modal-open {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    padding: 15px 25px;
-    background-color: var(--white);
-    border-radius: 5px;
+    padding: 15px 20px;
+    border-radius: var(--border-radius);
+    color: white;
     box-shadow: var(--shadow);
-    transform: translateY(100px);
+    z-index: 1001;
     opacity: 0;
-    transition: transform 0.3s, opacity 0.3s;
-    z-index: 2000;
-    max-width: 350px;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .notification-popup.show {
-    transform: translateY(0);
     opacity: 1;
+    transform: translateY(0);
 }
 
 .notification-popup.success {
-    border-left: 4px solid var(--secondary-color);
+    background-color: var(--secondary-color);
 }
 
 .notification-popup.error {
-    border-left: 4px solid var(--danger-color);
+    background-color: var(--danger-color);
 }
 
 .notification-popup.info {
-    border-left: 4px solid var(--primary-color);
+    background-color: var(--primary-color);
 }
+
+/* For modal open state */
+body.modal-open {
+    overflow: hidden;
+}
+
+/* Responsive Adjustments */
+@media screen and (max-width: 1024px) {
+    .filter-controls {
+        flex-wrap: wrap;
+    }
+    
+    .filter-group {
+        margin-bottom: 10px;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .sidebar {
+        width: 70px;
+        overflow: hidden;
+    }
+    
+    .sidebar .brand h2, .sidebar .brand p {
+        display: none;
+    }
+    
+    .nav-menu li a span {
+        display: none;
+    }
+    
+    .nav-menu li a i {
+        margin-right: 0;
+        font-size: 18px;
+    }
+    
+    .main-content {
+        margin-left: 70px;
+    }
+    
+    .header {
+        padding: 10px;
+    }
+    
+    .search-bar {
+        width: 200px;
+    }
+    
+    .user span {
+        display: none;
+    }

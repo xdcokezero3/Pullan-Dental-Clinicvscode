@@ -34,6 +34,7 @@ def test_connection():
 
 
 # Define model classes for all tables in the database
+
 class Appointment(db.Model):
     __tablename__ = 'appointment'
     
@@ -44,6 +45,10 @@ class Appointment(db.Model):
     
     def __repr__(self):
         return f"<Appointment {self.appid}: {self.apppatient} on {self.appdate}>"
+    
+    def formatted_id(self):
+        """Return the appointment ID formatted as APT-XXX"""
+        return f"APT-{self.appid:03d}"
 
 
 class DentalChart(db.Model):

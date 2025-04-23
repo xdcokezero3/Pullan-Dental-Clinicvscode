@@ -111,3 +111,32 @@ body {
 .login-btn:hover {
     background-color: #3A7BC8;
 }
+
+.register-section {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.register-text {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+}
+
+.register-btn {
+    background-color: #ffffff;
+    color: #4A90E2;
+    border: 1px solid #4A90E2;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.register-btn:hover {
+    background-color: #f0f7ff;
+}

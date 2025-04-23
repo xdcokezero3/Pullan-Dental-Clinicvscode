@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental - Staff Directory</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='staff.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="wrapper">
+        <!-- Sidebar from dashboard.html -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li class="active"><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Top Navigation -->
+            <div class="top-nav">
+                <div class="search-container">
+                    <input type="text" id="staffSearch" placeholder="Search staff..." class="search-input">
+                    <button class="search-btn"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notification">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user-dropdown">
+                        <span>Dr. Smith</span>
+                        <div class="dropdown-content">
+                            <span>User</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff Management Content -->
+            <div class="content-container">
+                <div class="content-header">
+                    <div>
+                        <h1>Staff Directory</h1>
+                        <p class="current-date">{{ current_date }}</p>
+                    </div>
+                    <button class="btn-primary" id="addStaffBtn"><i class="fas fa-plus"></i> Add Staff Member</button>
+                </div>
+                
+                <!-- Filter Bar -->
+                <div class="filter-bar">
+                    <div class="filter-item">
+                        <span class="filter-label">Role:</span>
+                        <select id="roleFilter" class="filter-select">
+                            <option value="all">All Roles</option>
+                            <option value="Dentist">Dentist</option>
+                            <option value="Assistant">Assistant</option>
+                            <option value="Receptionist">Receptionist</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <span class="filter-label">Access:</span>
+                        <select id="accessFilter" class="filter-select">
+                            <option value="all">All Access Levels</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Staff">Staff</option>
+                            <option value="Limited">Limited</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tab-container">
+                    <div class="tabs">
+                        <div class="tab active" data-tab="grid-view">Grid View</div>
+                        <div class="tab" data-tab="list-view">List View</div>
+                    </div>
+                    
+                    <!-- Grid View Tab -->
+                    <div class="tab-content active" id="grid-view">
+                        <!-- Staff Cards -->
+                        <div class="staff-grid">
+                            {% for staff in staff_members %}
+                            <div class="staff-card" data-role="{{ staff.role }}" data-access="{{ staff.access_level }}">
+                                <div class="staff-card-header">
+                                    <div class="staff-avatar">
+                                        {% if staff.role == 'Dentist' %}
+                                            <i class="fas fa-user-md"></i>
+                                        {% elif staff.role == 'Assistant' %}
+                                            <i class="fas fa-user-nurse"></i>
+                                        {% else %}
+                                            <i class="fas fa-user-tie"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div class="staff-details">
+                                        <h3>{{ staff.name }}</h3>
+                                        <p>{{ staff.role }}</p>
+                                    </div>
+                                    <div class="staff-access-badge role-{{ staff.access_level.lower() }}">
+                                        {{ staff.access_level }}
+                                    </div>
+                                    <div class="staff-actions">
+                                        <button class="btn-icon edit-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon delete-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div class="staff-card-body">
+                                    <div class="staff-info">
+                                        <p><i class="fas fa-envelope"></i> {{ staff.email }}</p>
+                                        <p><i class="fas fa-phone"></i> {{ staff.contact }}</p>
+                                        <p><i class="fas fa-id-badge"></i> ID: {{ staff.id }}</p>
+                                        <p><i class="fas fa-calendar-alt"></i> Joined: {{ staff.join_date.strftime('%b %d, %Y') }}</p>
+                                    </div>
+                                    <div class="staff-schedule">
+                                        <h4>Schedule</h4>
+                                        <div class="schedule-days">
+                                            {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] %}
+                                                <span class="day-pill">{{ day }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="staff-stats">
+                                        <div class="stat-item">
+                                            <div class="stat-value">{{ staff.appointment_count }}</div>
+                                            <div class="stat-label">Appointments</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-value">{{ staff.patient_count }}</div>
+                                            <div class="stat-label">Patients</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="staff-card-footer">
+                                    <button class="btn-secondary view-staff" data-id="{{ staff.raw_id }}">View Profile</button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- List View Tab -->
+                    <div class="tab-content" id="list-view">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Role</th>
+                                    <th>Email</th>
+                                    <th>Contact</th>
+                                    <th>Access Level</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for staff in staff_members %}
+                                <tr data-role="{{ staff.role }}" data-access="{{ staff.access_level }}">
+                                    <td>{{ staff.id }}</td>
+                                    <td>{{ staff.name }}</td>
+                                    <td>{{ staff.role }}</td>
+                                    <td>{{ staff.email }}</td>
+                                    <td>{{ staff.contact }}</td>
+                                    <td><span class="badge role-{{ staff.access_level.lower() }}">{{ staff.access_level }}</span></td>
+                                    <td>
+                                        <button class="btn-icon view-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon edit-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon delete-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- If no staff members -->
+                {% if not staff_members %}
+                <div class="no-data">
+                    <i class="fas fa-user-md"></i>
+                    <h3>No Staff Members</h3>
+                    <p>Add staff members to your clinic to get started</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Staff Modal -->
+    <div id="addStaffModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Staff Member</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="staffForm" method="POST" action="{{ url_for('add_staff') }}">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Full Name</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="phone">Phone Number</label>
+                            <input type="tel" id="phone" name="phone" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="role">Role</label>
+                            <select id="role" name="role" required>
+                                <option value="Dentist">Dentist</option>
+                                <option value="Assistant">Assistant</option>
+                                <option value="Receptionist">Receptionist</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="access_level">Access Level</label>
+                            <select id="access_level" name="access_level" required>
+                                <option value="Admin">Admin</option>
+                                <option value="Staff">Staff</option>
+                                <option value="Limited">Limited</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Initial Password</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" id="cancelAddStaff">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Staff Member</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='staff.js') }}"></script>
+</body>
+</html>

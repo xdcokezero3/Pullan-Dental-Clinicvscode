@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental Clinic - Appointments</title>
+    <link rel="stylesheet" href="../static/appointments.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li class="active"><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Search...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user">
+                        <span>Dr. Smith</span>
+                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-title">
+                <h1>Appointments</h1>
+                <button class="add-button" id="openAddAppointmentModal">
+                    <i class="fas fa-plus"></i> Schedule Appointment
+                </button>
+            </div>
+            <p class="date">{{ current_date }}</p>
+
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="dateFilter">Date:</label>
+                    <input type="date" id="dateFilter" value="{{ today_date }}">
+                </div>
+                <div class="filter-group">
+                    <label for="patientFilter">Patient:</label>
+                    <input type="text" id="patientFilter" placeholder="Filter by patient...">
+                </div>
+                <button id="applyFilters" class="filter-button">
+                    <i class="fas fa-filter"></i> Apply Filters
+                </button>
+            </div>
+
+            <div class="appointments-table">
+                <table id="appointmentsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Patient Name</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appointment in appointments %}
+                        <tr>
+                            <td>{{ appointment.id }}</td>
+                            <td>{{ appointment.patient_name }}</td>
+                            <td>{{ appointment.date }}</td>
+                            <td>{{ appointment.time }}</td>
+                            <td>
+                                <a href="{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}" class="action-button view-button" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('edit_appointment', appointment_id=appointment.raw_id) }}" class="action-button edit-button" title="Edit Appointment">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button class="action-button delete-button" data-id="{{ appointment.raw_id }}" title="Cancel Appointment">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button>
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="active">1</button>
+                <button>2</button>
+                <button>3</button>
+                <button>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Appointment Modal -->
+    <div id="addAppointmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Schedule New Appointment</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addAppointmentForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="patient">Patient*</label>
+                            <select id="patient" name="patient_id" required>
+                                <option value="">Select Patient</option>
+                                {% for patient in all_patients %}
+                                <option value="{{ patient.patId }}">{{ patient.patname }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <button type="button" id="selectExistingPatient" class="btn secondary-btn">
+                                <i class="fas fa-user-injured"></i> Select Existing
+                            </button>
+                            <button type="button" id="addNewPatient" class="btn secondary-btn">
+                                <i class="fas fa-user-plus"></i> Add New
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="appointmentDate">Date*</label>
+                            <input type="date" id="appointmentDate" name="date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="appointmentTime">Time*</label>
+                            <input type="time" id="appointmentTime" name="time" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn cancel-btn" id="cancelAddAppointment">Cancel</button>
+                        <button type="submit" class="btn submit-btn">Schedule Appointment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const searchValue = this.value.toLowerCase();
+            const table = document.getElementById('appointmentsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {
+                let found = false;
+                const cells = rows[i].getElementsByTagName('td');
+                
+                for (let j = 0; j < cells.length; j++) {
+                    const cellText = cells[j].textContent.toLowerCase();
+                    if (cellText.indexOf(searchValue) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+                
+                rows[i].style.display = found ? '' : 'none';
+            }
+        });
+        
+        // Delete/Cancel appointment functionality
+        document.querySelectorAll('.delete-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const appointmentId = this.getAttribute('data-id');
+                if(confirm(`Are you sure you want to cancel this appointment?`)) {
+                    // Send delete request to the server
+                    fetch(`/cancel_appointment/${appointmentId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Remove row from table
+                            const row = this.closest('tr');
+                            row.parentNode.removeChild(row);
+                            showNotification('Appointment cancelled successfully', 'success');
+                        } else {
+                            showNotification('Error cancelling appointment: ' + data.error, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('An error occurred while cancelling the appointment.', 'error');
+                    });
+                }
+            });
+        });
+        
+        // Filter functionality
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            const dateFilter = document.getElementById('dateFilter').value;
+            const patientFilter = document.getElementById('patientFilter').value.toLowerCase();
+            
+            // Simple client-side filtering
+            const table = document.getElementById('appointmentsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('td');
+                const dateText = cells[2].textContent.toLowerCase(); // Date is in column 3
+                const patientText = cells[1].textContent.toLowerCase(); // Patient is in column 2
+                
+                let dateMatch = true;
+                if (dateFilter) {
+                    // This is a simple match - in a real app you'd want to do actual date comparison
+                    dateMatch = dateText.includes(dateFilter);
+                }
+                
+                let patientMatch = true;
+                if (patientFilter) {
+                    patientMatch = patientText.includes(patientFilter);
+                }
+                
+                rows[i].style.display = (dateMatch && patientMatch) ? '' : 'none';
+            }
+            
+            showNotification('Filters applied', 'info');
+        });
+        
+        // Modal functionality
+        const modal = document.getElementById('addAppointmentModal');
+        const openModalBtn = document.getElementById('openAddAppointmentModal');
+        const closeModalBtn = document.querySelector('.close-modal');
+        const cancelBtn = document.getElementById('cancelAddAppointment');
+        
+        openModalBtn.addEventListener('click', function() {
+            modal.style.display = 'block';
+            document.body.classList.add('modal-open');
+            
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('appointmentDate').value = today;
+        });
+        
+        function closeModal() {
+            modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.getElementById('addAppointmentForm').reset();
+        }
+        
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        window.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+        
+        // Patient selection buttons
+        document.getElementById('selectExistingPatient').addEventListener('click', function() {
+            document.getElementById('patient').focus();
+        });
+        
+        document.getElementById('addNewPatient').addEventListener('click', function() {
+            window.location.href = "{{ url_for('patients') }}?show_add_modal=true";
+        });
+        
+        // Add appointment form submission
+        document.getElementById('addAppointmentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('/add_appointment', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add the new appointment to the table
+                    closeModal();
+                    showNotification('Appointment scheduled successfully', 'success');
+                    
+                    // Reload the page to show the new appointment
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showNotification('Error scheduling appointment: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('An error occurred while scheduling the appointment.', 'error');
+            });
+        });
+        
+        // Notification function
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification-popup ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Show notification
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+            
+            // Hide and remove after a delay
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
