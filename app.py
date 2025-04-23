@@ -568,11 +568,266 @@ def update_staff(staff_id):
         print(f"Error in update_staff route: {e}")
         return jsonify({'success': False, 'error': str(e)})
         
+# Add these inventory routes to app.py, after the existing routes
+
 @app.route('/inventory')
 def inventory():
-    """Placeholder for inventory page"""
-    return "Inventory page - Coming soon!"
+    """Render the inventory management page with data from database"""
+    try:
+        # Get inventory items from the database
+        inventory_items = Inventory.query.all()
+        
+        # Format the data for display
+        formatted_items = []
+        for item in inventory_items:
+            formatted_items.append({
+                'id': f"INV-{item.invid:03d}",  # Changed from itemId to invid
+                'name': item.invname,           # Changed from name to invname
+                'type': item.invtype,           # Changed from type to invtype
+                'quantity': item.invquantity,   # Changed from quantity to invquantity
+                'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",  # Changed from expiry_date to invdoe
+                'min_quantity': 5,              # This field doesn't exist in your model, so using a default value
+                'status': "Low" if item.invquantity < 5 else "OK",  # Using default minimum quantity of 5
+                'remarks': item.invremarks or "",  # Changed from remarks to invremarks
+                'raw_id': item.invid           # Changed from itemId to invid
+            })
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        # Get stats for dashboard
+        total_items = len(inventory_items)
+        low_stock = sum(1 for item in inventory_items if item.invquantity < 5)  # Using default min of 5
+        expired = sum(1 for item in inventory_items if item.invdoe and item.invdoe < datetime.now().date())
+        
+        # Calculate rough total value (just for display purposes)
+        total_value = sum(item.invquantity * 10 for item in inventory_items)  # Rough estimate of $10 per item
+        
+        # Render the template with the data
+        return render_template('inventory.html', 
+                              inventory_items=formatted_items,
+                              total_items=total_items,
+                              low_stock_count=low_stock,
+                              expired_count=expired,
+                              total_value=total_value,
+                              current_date=current_date)
+    except Exception as e:
+        print(f"Error in inventory route: {e}")
+        return f"Error loading inventory: {e}", 500
+    
+@app.route('/inventory_item/<int:item_id>')
+def get_inventory_item(item_id):
+    """Get details of a specific inventory item"""
+    try:
+        item = Inventory.query.get_or_404(item_id)
+        
+        # Format the item for JSON response
+        formatted_item = {
+            'id': f"INV-{item.invid:03d}",
+            'name': item.invname, 
+            'type': item.invtype,
+            'quantity': item.invquantity,
+            'expiry_date': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "",
+            'min_quantity': 5,  # Default value
+            'remarks': item.invremarks or "",
+            'raw_id': item.invid
+        }
+        
+        return jsonify({"success": True, "item": formatted_item})
+    except Exception as e:
+        print(f"Error in get_inventory_item route: {e}")
+        return jsonify({"success": False, "error": str(e)})
 
+@app.route('/add_inventory', methods=['POST'])
+def add_inventory():
+    """Add a new inventory item"""
+    try:
+        # Create new inventory item
+        new_item = Inventory(
+            invname=request.form.get('name'),
+            invtype=request.form.get('type'),
+            invquantity=int(request.form.get('quantity', 0)),
+            invremarks=request.form.get('remarks', '')
+        )
+        
+        # Process expiry date if provided
+        expiry_date = request.form.get('expiry_date')
+        if expiry_date:
+            new_item.invdoe = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+        
+        db.session.add(new_item)
+        db.session.commit()
+        
+        # Get updated stats
+        total_items = Inventory.query.count()
+        low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
+        expired = Inventory.query.filter(
+            Inventory.invdoe.isnot(None), 
+            Inventory.invdoe < datetime.now().date()
+        ).count()
+        
+        # Format the item for JSON response
+        formatted_item = {
+            'id': f"INV-{new_item.invid:03d}",
+            'name': new_item.invname,
+            'type': new_item.invtype,
+            'quantity': new_item.invquantity,
+            'expiry': new_item.invdoe.strftime('%Y-%m-%d') if new_item.invdoe else "N/A",
+            'min_quantity': 5,  # Default value
+            'status': "Low" if new_item.invquantity < 5 else "OK",
+            'remarks': new_item.invremarks or "",
+            'raw_id': new_item.invid
+        }
+        
+        # Stats for the dashboard
+        inventory_stats = {
+            'total_items': total_items,
+            'low_stock': low_stock,
+            'expired': expired,
+            'total_value': total_items * 10  # Rough estimate
+        }
+        
+        return jsonify({
+            "success": True, 
+            "item": formatted_item,
+            "stats": inventory_stats
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in add_inventory route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update_inventory/<int:item_id>', methods=['POST'])
+def update_inventory(item_id):
+    """Update an inventory item"""
+    try:
+        item = Inventory.query.get_or_404(item_id)
+        
+        # Update item details
+        item.invname = request.form.get('name')
+        item.invtype = request.form.get('type')
+        item.invquantity = int(request.form.get('quantity', 0))
+        item.invremarks = request.form.get('remarks', '')
+        
+        # Process expiry date if provided
+        expiry_date = request.form.get('expiry_date')
+        if expiry_date:
+            item.invdoe = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+        else:
+            item.invdoe = None
+        
+        db.session.commit()
+        
+        # Get updated stats
+        total_items = Inventory.query.count()
+        low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
+        expired = Inventory.query.filter(
+            Inventory.invdoe.isnot(None), 
+            Inventory.invdoe < datetime.now().date()
+        ).count()
+        
+        # Format the item for JSON response
+        formatted_item = {
+            'id': f"INV-{item.invid:03d}",
+            'name': item.invname,
+            'type': item.invtype,
+            'quantity': item.invquantity,
+            'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
+            'min_quantity': 5,  # Default value
+            'status': "Low" if item.invquantity < 5 else "OK",
+            'remarks': item.invremarks or "",
+            'raw_id': item.invid
+        }
+        
+        # Stats for the dashboard
+        inventory_stats = {
+            'total_items': total_items,
+            'low_stock': low_stock,
+            'expired': expired,
+            'total_value': total_items * 10  # Rough estimate
+        }
+        
+        return jsonify({
+            "success": True, 
+            "item": formatted_item,
+            "stats": inventory_stats
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in update_inventory route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/delete_inventory/<int:item_id>', methods=['POST'])
+def delete_inventory(item_id):
+    """Delete an inventory item"""
+    try:
+        item = Inventory.query.get_or_404(item_id)
+        db.session.delete(item)
+        db.session.commit()
+        
+        # Get updated stats
+        total_items = Inventory.query.count()
+        low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
+        expired = Inventory.query.filter(
+            Inventory.invdoe.isnot(None), 
+            Inventory.invdoe < datetime.now().date()
+        ).count()
+        
+        # Stats for the dashboard
+        inventory_stats = {
+            'total_items': total_items,
+            'low_stock': low_stock,
+            'expired': expired,
+            'total_value': total_items * 10  # Rough estimate
+        }
+        
+        return jsonify({"success": True, "stats": inventory_stats})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in delete_inventory route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/filter_inventory/<filter_type>')
+def filter_inventory(filter_type):
+    """Filter inventory items by type"""
+    try:
+        query = Inventory.query
+        
+        # Apply filter
+        if filter_type == 'low_stock':
+            query = query.filter(Inventory.invquantity < 5)
+        elif filter_type == 'expired':
+            query = query.filter(
+                Inventory.invdoe.isnot(None), 
+                Inventory.invdoe < datetime.now().date()
+            )
+        elif filter_type != 'all':
+            # If filter is not 'all', assume it's a type filter
+            query = query.filter_by(invtype=filter_type)
+        
+        # Get filtered items
+        inventory_items = query.all()
+        
+        # Format the data for response
+        formatted_items = []
+        for item in inventory_items:
+            formatted_items.append({
+                'id': f"INV-{item.invid:03d}",
+                'name': item.invname,
+                'type': item.invtype,
+                'quantity': item.invquantity,
+                'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
+                'min_quantity': 5,  # Default value
+                'status': "Low" if item.invquantity < 5 else "OK",
+                'remarks': item.invremarks or "",
+                'raw_id': item.invid
+            })
+        
+        return jsonify({"success": True, "items": formatted_items})
+    except Exception as e:
+        print(f"Error in filter_inventory route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+    
 @app.route('/register')
 def register():
     return render_template('register.html')
