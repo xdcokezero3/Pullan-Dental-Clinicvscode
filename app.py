@@ -41,8 +41,11 @@ def login():
         
         return render_template('login.html', error="Invalid username or password")
 
-    return render_template('login.html')
-
+    # Check for success message from registration
+    registration_success = request.args.get('registration_success')
+    
+    return render_template('login.html', 
+                          registration_success=registration_success)
 
 @app.route('/dashboard')
 def dashboard():
@@ -78,7 +81,7 @@ def patients():
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
         # Render the template with the data
-        return render_template('patients.html', 
+        return render_template('patients/patients.html', 
                               patients=formatted_patients, 
                               current_date=current_date)
     except Exception as e:
@@ -112,7 +115,7 @@ def patient_details(patient_id):
             }
         ]
         
-        return render_template('patient_details.html', 
+        return render_template('patients/patient_details.html', 
                               patient=patient, 
                               formatted_patient_id=formatted_patient_id,
                               appointments=appointments)
@@ -193,7 +196,7 @@ def edit_patient(patient_id):
         if patient.patdob:
             patient.patdob = patient.patdob.strftime('%Y-%m-%d')
         
-        return render_template('patient_edit.html', patient=patient)
+        return render_template('patients/patient_edit.html', patient=patient)
     except Exception as e:
         print(f"Error in edit_patient route: {e}")
         return f"Error loading patient edit form: {e}", 500
@@ -270,7 +273,7 @@ def appointments():
         today_date = datetime.now().strftime("%Y-%m-%d")
         
         # Render the template with the data
-        return render_template('appointments.html', 
+        return render_template('appointments/appointments.html', 
                               appointments=formatted_appointments, 
                               all_patients=all_patients,
                               current_date=current_date,
@@ -390,6 +393,253 @@ def edit_appointment(appointment_id):
     except Exception as e:
         print(f"Error in edit_appointment route: {e}")
         return f"Error loading appointment edit form: {e}", 500
+    
 
+
+@app.route('/staff')
+def staff():
+    """Render the staff management page"""
+    try:
+        # Get all users from the database
+        staff_members = User.query.all()
+        
+        # Format the data for display
+        formatted_staff = []
+        for staff in staff_members:
+            formatted_staff.append({
+                'id': f"STF-{staff.usersid:03d}",
+                'raw_id': staff.usersid,
+                'name': staff.usersrealname or staff.usersusername,
+                'email': staff.usersemail or "N/A",
+                'contact': staff.userscontact or "N/A",
+                'role': staff.usersoccupation or "Staff",
+                'access_level': staff.usersaccess or "User",
+                'join_date': staff.usersdob or datetime.utcnow(),
+                'appointment_count': Appointment.query.filter_by(apppatient=staff.usersrealname).count(),
+                'patient_count': Patient.query.filter_by(patname=staff.usersrealname).count()
+            })
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        return render_template('staff.html', 
+                             staff_members=formatted_staff, 
+                             current_date=current_date)
+    except Exception as e:
+        print(f"Error in staff route: {e}")
+        return f"Error loading staff page: {e}", 500    
+
+@app.route('/add_staff', methods=['POST'])
+def add_staff():
+    """Add a new staff member"""
+    try:
+        # Create new user with staff details
+        new_staff = User(
+            usersusername=request.form.get('username'),
+            userspassword=request.form.get('password'),  # In production, use password hashing
+            usersrealname=request.form.get('name'),
+            usersemail=request.form.get('email'),
+            usershomeaddress=request.form.get('address'),
+            userscityzipcode=request.form.get('cityzipcode'),
+            userscontact=request.form.get('contact'),
+            usersreligion=request.form.get('religion'),
+            usersgender=request.form.get('gender'),
+            # Only allow 'admin' or default to 'user'
+            usersaccess='admin' if request.form.get('access') == 'admin' else 'user'
+        )
+        
+        # Process date of birth if provided
+        dob_str = request.form.get('dob')
+        if dob_str:
+            new_staff.usersdob = datetime.strptime(dob_str, '%Y-%m-%d').date()
+        
+        # Process age if provided
+        age_str = request.form.get('age')
+        if age_str and age_str.isdigit():
+            new_staff.usersage = int(age_str)
+        
+        db.session.add(new_staff)
+        db.session.commit()
+        
+        # Return success response
+        return jsonify({
+            "success": True,
+            "staff": {
+                "id": f"STF-{new_staff.usersid:03d}",
+                "name": new_staff.usersrealname,
+                "role": "Staff",  # Default role
+                "access_level": new_staff.usersaccess,
+                "raw_id": new_staff.usersid
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in add_staff route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+    
+@app.route('/delete_staff/<int:staff_id>', methods=['POST'])
+def delete_staff(staff_id):
+    """Delete a staff member"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Don't allow deleting self
+        from flask import session
+        if session.get('user_id') == staff_id:
+            return jsonify({"success": False, "error": "Cannot delete your own account"})
+        
+        # Delete the user
+        db.session.delete(staff)
+        db.session.commit()
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in delete_staff route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/staff_details/<int:staff_id>')
+def staff_details(staff_id):
+    """View details of a specific staff member"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        return render_template('staff_details.html', staff=staff)
+    except Exception as e:
+        print(f"Error in staff_details route: {e}")
+        return f"Error loading staff details: {e}", 500
+
+@app.route('/edit_staff/<int:staff_id>')
+def edit_staff(staff_id):
+    """Render edit staff page"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Format date of birth for HTML date input
+        if staff.usersdob:
+            staff.usersdob_formatted = staff.usersdob.strftime('%Y-%m-%d')
+        
+        return render_template('edit_staff.html', staff=staff)
+    except Exception as e:
+        print(f"Error in edit_staff route: {e}")
+        return f"Error loading staff edit form: {e}", 500
+
+@app.route('/update_staff/<int:staff_id>', methods=['POST'])
+def update_staff(staff_id):
+    """Update staff information"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Update staff information from form
+        staff.usersrealname = request.form.get('name')
+        staff.usersemail = request.form.get('email')
+        staff.userscontact = request.form.get('contact')
+        staff.usershomeaddress = request.form.get('address')
+        staff.userscityzipcode = request.form.get('cityzipcode')
+        staff.usersreligion = request.form.get('religion')
+        staff.usersgender = request.form.get('gender')
+        # Only allow 'admin' or default to 'user'
+        staff.usersaccess = 'admin' if request.form.get('access') == 'admin' else 'user'
+        
+        # Process date of birth if provided
+        dob_str = request.form.get('dob')
+        if dob_str:
+            staff.usersdob = datetime.strptime(dob_str, '%Y-%m-%d').date()
+        
+        # Process age if provided
+        age_str = request.form.get('age')
+        if age_str and age_str.isdigit():
+            staff.usersage = int(age_str)
+        
+        # Update password if provided
+        new_password = request.form.get('password')
+        if new_password:
+            staff.userspassword = new_password  # In production, use password hashing
+        
+        # Save changes to database
+        db.session.commit()
+        
+        # Return success response for AJAX request
+        return jsonify({'success': True})
+    
+    except Exception as e:
+        # Return error response for AJAX request
+        db.session.rollback()
+        print(f"Error in update_staff route: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+        
+@app.route('/inventory')
+def inventory():
+    """Placeholder for inventory page"""
+    return "Inventory page - Coming soon!"
+
+@app.route('/register')
+def register():
+    return render_template('register.html')
+
+@app.route('/register_process', methods=['POST'])
+def register_process():
+    """Process new user registration"""
+    try:
+        # Get form data
+        username = request.form.get('usersusername')
+        password = request.form.get('userspassword')
+        confirm_password = request.form.get('confirm_password')
+        realname = request.form.get('usersrealname')
+        email = request.form.get('usersemail')
+        home_address = request.form.get('usershomeaddress')
+        city_zipcode = request.form.get('userscityzipcode')
+        contact = request.form.get('userscontact')
+        religion = request.form.get('usersreligion')
+        gender = request.form.get('usersgender')
+        occupation = request.form.get('usersoccupation')
+        
+        # Validate passwords match
+        if password != confirm_password:
+            return render_template('register.html', error="Passwords do not match")
+        
+        # Check if username already exists
+        existing_user = User.query.filter_by(usersusername=username).first()
+        if existing_user:
+            return render_template('register.html', error="Username already exists")
+        
+        # Create new user with default access level
+        new_user = User(
+            usersusername=username,
+            userspassword=password,  # In production, you should hash this password
+            usersrealname=realname,
+            usersemail=email,
+            usershomeaddress=home_address,
+            userscityzipcode=city_zipcode,
+            userscontact=contact,
+            usersreligion=religion,
+            usersgender=gender,
+            usersoccupation=occupation,
+            usersaccess='user'  # Default access level
+        )
+        
+        # Process date of birth if provided
+        dob_str = request.form.get('usersdob')
+        if dob_str:
+            new_user.usersdob = datetime.strptime(dob_str, '%Y-%m-%d').date()
+        
+        # Process age if provided
+        age_str = request.form.get('usersage')
+        if age_str and age_str.isdigit():
+            new_user.usersage = int(age_str)
+        
+        # Save user to database
+        db.session.add(new_user)
+        db.session.commit()
+        
+        # Redirect to login page with success message
+        return redirect(url_for('login', registration_success=True))
+    
+    except Exception as e:
+        # If any error occurs, rollback the session
+        db.session.rollback()
+        print(f"Error in register_process route: {e}")
+        return render_template('register.html', error=f"Registration failed: {str(e)}")
+    
 if __name__ == '__main__':
     app.run(debug=True)

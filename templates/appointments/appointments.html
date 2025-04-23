@@ -1,134 +1,127 @@
-<!-- appointments.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pullan Dental - Appointments</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Pullan Dental Clinic - Appointments</title>
     <link rel="stylesheet" href="../static/appointments.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
 </head>
 <body>
-    <div class="sidebar">
-        <div class="logo">Pullan Dental</div>
-        <div class="subtitle">Clinic Management System</div>
-        
-        <a href="{{ url_for('index') }}" class="nav-item">
-            <i class="fas fa-th-large"></i> Dashboard
-        </a>
-        <a href="{{ url_for('patients') }}" class="nav-item">
-            <i class="fas fa-user-injured"></i> Patients
-        </a>
-        <a href="{{ url_for('appointments') }}" class="nav-item active">
-            <i class="fas fa-calendar-check"></i> Appointments
-        </a>
-        <a href="{{ url_for('doctors') }}" class="nav-item">
-            <i class="fas fa-user-md"></i> Doctors
-        </a>
-        <a href="{{ url_for('treatments') }}" class="nav-item">
-            <i class="fas fa-procedures"></i> Treatments
-        </a>
-        <a href="{{ url_for('billing') }}" class="nav-item">
-            <i class="fas fa-file-invoice-dollar"></i> Billing
-        </a>
-        <a href="{{ url_for('settings') }}" class="nav-item">
-            <i class="fas fa-cog"></i> Settings
-        </a>
-        
-        <a href="{{ url_for('logout') }}" class="nav-item logout">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </a>
-    </div>
-
-    <div class="main-content">
-        <div class="header">
-            <div class="search-container">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Search appointments...">
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
             </div>
-            <div class="user-section">
-                <div class="notification">
-                    <i class="fas fa-bell"></i>
-                    <span class="notification-count">3</span>
-                </div>
-                <div class="notification">
-                    <i class="fas fa-envelope"></i>
-                    <span class="notification-count">5</span>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li class="active"><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Search...">
+                    <i class="fas fa-search"></i>
                 </div>
                 <div class="user-info">
-                    <span>Dr. Smith</span>
-                    <i class="fas fa-chevron-down"></i>
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user">
+                        <span>Dr. Smith</span>
+                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="page-title">
-            <h1>Appointments</h1>
-            <button class="add-button" id="openAddAppointmentModal">
-                <i class="fas fa-plus"></i> Schedule Appointment
-            </button>
-        </div>
-        <div class="date">{{ current_date }}</div>
-
-        <div class="filter-controls">
-            <div class="filter-group">
-                <label for="dateFilter">Date:</label>
-                <input type="date" id="dateFilter" value="{{ today_date }}">
+            <div class="page-title">
+                <h1>Appointments</h1>
+                <button class="add-button" id="openAddAppointmentModal">
+                    <i class="fas fa-plus"></i> Schedule Appointment
+                </button>
             </div>
-            <div class="filter-group">
-                <label for="patientFilter">Patient:</label>
-                <input type="text" id="patientFilter" placeholder="Filter by patient...">
+            <p class="date">{{ current_date }}</p>
+
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="dateFilter">Date:</label>
+                    <input type="date" id="dateFilter" value="{{ today_date }}">
+                </div>
+                <div class="filter-group">
+                    <label for="patientFilter">Patient:</label>
+                    <input type="text" id="patientFilter" placeholder="Filter by patient...">
+                </div>
+                <button id="applyFilters" class="filter-button">
+                    <i class="fas fa-filter"></i> Apply Filters
+                </button>
             </div>
-            <button id="applyFilters" class="filter-button">
-                <i class="fas fa-filter"></i> Apply Filters
-            </button>
-        </div>
 
-        <div class="appointments-table">
-            <table id="appointmentsTable">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Patient Name</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for appointment in appointments %}
-                    <tr>
-                        <td>{{ appointment.id }}</td>
-                        <td>{{ appointment.patient_name }}</td>
-                        <td>{{ appointment.date }}</td>
-                        <td>{{ appointment.time }}</td>
-                        <td>
-                            <a href="{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}" class="action-button view-button" title="View Details">
-                                <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="{{ url_for('edit_appointment', appointment_id=appointment.raw_id) }}" class="action-button edit-button" title="Edit Appointment">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button class="action-button delete-button" data-id="{{ appointment.raw_id }}" title="Cancel Appointment">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+            <div class="appointments-table">
+                <table id="appointmentsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Patient Name</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appointment in appointments %}
+                        <tr>
+                            <td>{{ appointment.id }}</td>
+                            <td>{{ appointment.patient_name }}</td>
+                            <td>{{ appointment.date }}</td>
+                            <td>{{ appointment.time }}</td>
+                            <td>
+                                <a href="{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}" class="action-button view-button" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('edit_appointment', appointment_id=appointment.raw_id) }}" class="action-button edit-button" title="Edit Appointment">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button class="action-button delete-button" data-id="{{ appointment.raw_id }}" title="Cancel Appointment">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
-        <div class="pagination">
-            <button>
-                <i class="fas fa-chevron-left"></i>
-            </button>
-            <button class="active">1</button>
-            <button>2</button>
-            <button>3</button>
-            <button>
-                <i class="fas fa-chevron-right"></i>
-            </button>
+            <div class="pagination">
+                <button>
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="active">1</button>
+                <button>2</button>
+                <button>3</button>
+                <button>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
     </div>
 
