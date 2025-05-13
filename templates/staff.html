@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pullan Dental - Staff Directory</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='staff.css') }}">
+    <link rel="stylesheet" href="../static/css/staff.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <!-- Add CSRF token for POST requests -->
+    <!-- No CSRF token required -->
 </head>
 <body>
     <div class="wrapper">
@@ -82,9 +84,8 @@
                         <span class="filter-label">Access:</span>
                         <select id="accessFilter" class="filter-select">
                             <option value="all">All Access Levels</option>
-                            <option value="Admin">Admin</option>
-                            <option value="Staff">Staff</option>
-                            <option value="Limited">Limited</option>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
                         </select>
                     </div>
                 </div>
@@ -129,7 +130,7 @@
                                         <p><i class="fas fa-envelope"></i> {{ staff.email }}</p>
                                         <p><i class="fas fa-phone"></i> {{ staff.contact }}</p>
                                         <p><i class="fas fa-id-badge"></i> ID: {{ staff.id }}</p>
-                                        <p><i class="fas fa-calendar-alt"></i> Joined: {{ staff.join_date.strftime('%b %d, %Y') }}</p>
+                                        <p><i class="fas fa-calendar-alt"></i> Joined: {{ staff.join_date.strftime('%b %d, %Y') if staff.join_date else 'N/A' }}</p>
                                     </div>
                                     <div class="staff-schedule">
                                         <h4>Schedule</h4>
@@ -141,11 +142,11 @@
                                     </div>
                                     <div class="staff-stats">
                                         <div class="stat-item">
-                                            <div class="stat-value">{{ staff.appointment_count }}</div>
+                                            <div class="stat-value">{{ staff.appointment_count|default(0) }}</div>
                                             <div class="stat-label">Appointments</div>
                                         </div>
                                         <div class="stat-item">
-                                            <div class="stat-value">{{ staff.patient_count }}</div>
+                                            <div class="stat-value">{{ staff.patient_count|default(0) }}</div>
                                             <div class="stat-label">Patients</div>
                                         </div>
                                     </div>
@@ -213,7 +214,7 @@
                 <span class="close">&times;</span>
             </div>
             <div class="modal-body">
-                <form id="staffForm" method="POST" action="{{ url_for('add_staff') }}">
+                <form id="staffForm">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="name">Full Name</label>
@@ -226,9 +227,62 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="phone">Phone Number</label>
-                            <input type="tel" id="phone" name="phone" required>
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" required>
                         </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="contact">Phone Number</label>
+                            <input type="tel" id="contact" name="contact" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" name="gender">
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <input type="text" id="address" name="address">
+                        </div>
+                        <div class="form-group">
+                            <label for="cityzipcode">City/Zip Code</label>
+                            <input type="text" id="cityzipcode" name="cityzipcode">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dob">Date of Birth</label>
+                            <input type="date" id="dob" name="dob">
+                        </div>
+                        <div class="form-group">
+                            <label for="age">Age</label>
+                            <input type="number" id="age" name="age" min="18" max="100">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="religion">Religion</label>
+                            <input type="text" id="religion" name="religion">
+                        </div>
+                        <div class="form-group">
+                            <label for="access">Access Level</label>
+                            <select id="access" name="access" required>
+                                <option value="admin">Admin</option>
+                                <option value="user" selected>User</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="role">Role</label>
                             <select id="role" name="role" required>
@@ -238,29 +292,293 @@
                             </select>
                         </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="access_level">Access Level</label>
-                            <select id="access_level" name="access_level" required>
-                                <option value="Admin">Admin</option>
-                                <option value="Staff">Staff</option>
-                                <option value="Limited">Limited</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="password">Initial Password</label>
-                            <input type="password" id="password" name="password" required>
-                        </div>
-                    </div>
                     <div class="modal-footer">
                         <button type="button" class="btn-secondary" id="cancelAddStaff">Cancel</button>
-                        <button type="submit" class="btn-primary">Save Staff Member</button>
+                        <button type="submit" class="btn-primary" id="saveStaffBtn">Save Staff Member</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='staff.js') }}"></script>
+    <script>
+        /**
+ * Pullan Dental - Staff Management JavaScript
+ * Handles staff directory functionality including filtering, search, modals, and tab switching
+ */
+
+document.addEventListener('DOMContentLoaded', function() {
+    // DOM Elements
+    const staffSearch = document.getElementById('staffSearch');
+    const roleFilter = document.getElementById('roleFilter');
+    const accessFilter = document.getElementById('accessFilter');
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const addStaffBtn = document.getElementById('addStaffBtn');
+    const addStaffModal = document.getElementById('addStaffModal');
+    const closeModalBtn = document.querySelector('.close');
+    const cancelAddStaffBtn = document.getElementById('cancelAddStaff');
+    const staffForm = document.getElementById('staffForm');
+    const editStaffBtns = document.querySelectorAll('.edit-staff');
+    const deleteStaffBtns = document.querySelectorAll('.delete-staff');
+    const viewStaffBtns = document.querySelectorAll('.view-staff');
+    
+    let currentStaffId = null; // Track which staff member is being edited
+
+    // Search Functionality
+    staffSearch.addEventListener('input', function() {
+        filterStaff();
+    });
+
+    // Filter Functionality
+    roleFilter.addEventListener('change', filterStaff);
+    accessFilter.addEventListener('change', filterStaff);
+
+    function filterStaff() {
+        const searchTerm = staffSearch.value.toLowerCase();
+        const selectedRole = roleFilter.value;
+        const selectedAccess = accessFilter.value;
+        
+        // Grid view filtering
+        const staffCards = document.querySelectorAll('.staff-card');
+        staffCards.forEach(card => {
+            const name = card.querySelector('h3').textContent.toLowerCase();
+            const email = card.querySelector('.staff-info p:nth-child(1)').textContent.toLowerCase();
+            const role = card.getAttribute('data-role');
+            const access = card.getAttribute('data-access');
+            
+            const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
+            const matchesRole = selectedRole === 'all' || role === selectedRole;
+            const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
+            
+            if (matchesSearch && matchesRole && matchesAccess) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        // List view filtering
+        const tableRows = document.querySelectorAll('.data-table tbody tr');
+        tableRows.forEach(row => {
+            const name = row.cells[1].textContent.toLowerCase();
+            const email = row.cells[3].textContent.toLowerCase();
+            const role = row.getAttribute('data-role');
+            const access = row.getAttribute('data-access');
+            
+            const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
+            const matchesRole = selectedRole === 'all' || role === selectedRole;
+            const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
+            
+            if (matchesSearch && matchesRole && matchesAccess) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    // Tab Switching
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            tabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            const tabId = this.getAttribute('data-tab');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                if (content.id === tabId) {
+                    content.classList.add('active');
+                }
+            });
+        });
+    });
+
+    // Modal Functionality
+    function openModal(isEdit = false) {
+        addStaffModal.style.display = 'block';
+        // Reset form when opening for new staff
+        if (!isEdit) {
+            staffForm.reset();
+            document.querySelector('.modal-header h2').textContent = 'Add New Staff Member';
+            currentStaffId = null;
+        } else {
+            document.querySelector('.modal-header h2').textContent = 'Edit Staff Member';
+        }
+    }
+
+    function closeModal() {
+        addStaffModal.style.display = 'none';
+        currentStaffId = null;
+    }
+
+    addStaffBtn.addEventListener('click', () => openModal(false));
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelAddStaffBtn.addEventListener('click', closeModal);
+
+    // Close modal when clicking outside
+    window.addEventListener('click', function(event) {
+        if (event.target === addStaffModal) {
+            closeModal();
+        }
+    });
+
+    // Form Submission
+    staffForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Collect form data
+        const formData = new FormData(staffForm);
+        
+        // Determine if we're adding or updating a staff member
+        const url = currentStaffId ? `/update_staff/${currentStaffId}` : '/add_staff';
+        const method = currentStaffId ? 'POST' : 'POST';
+        
+        // Submit the form via AJAX
+        fetch(url, {
+            method: method,
+            body: formData,
+            headers: {
+                // No CSRF token needed
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(currentStaffId ? 'Staff updated successfully' : 'Staff added successfully');
+                // Reload the page to show the updated staff list
+                window.location.reload();
+            } else {
+                alert(`Error: ${data.error || 'Unknown error occurred'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while processing your request');
+        });
+    });
+
+    // Staff Action Buttons - Event delegation for dynamically added buttons
+    document.addEventListener('click', function(e) {
+        // View staff button
+        if (e.target.closest('.view-staff')) {
+            const btn = e.target.closest('.view-staff');
+            const staffId = btn.getAttribute('data-id');
+            window.location.href = `/staff_details/${staffId}`;
+        }
+        
+        // Edit staff button
+        if (e.target.closest('.edit-staff')) {
+            const btn = e.target.closest('.edit-staff');
+            const staffId = btn.getAttribute('data-id');
+            currentStaffId = staffId;
+            
+            // Fetch staff details and populate the form
+            fetch(`/staff_details/${staffId}?format=json`)
+            .then(response => response.json())
+            .then(staff => {
+                // Populate the form with staff data
+                document.getElementById('name').value = staff.usersrealname || '';
+                document.getElementById('email').value = staff.usersemail || '';
+                document.getElementById('username').value = staff.usersusername || '';
+                document.getElementById('contact').value = staff.userscontact || '';
+                document.getElementById('address').value = staff.usershomeaddress || '';
+                document.getElementById('cityzipcode').value = staff.userscityzipcode || '';
+                document.getElementById('religion').value = staff.usersreligion || '';
+                document.getElementById('gender').value = staff.usersgender || 'Male';
+                document.getElementById('access').value = staff.usersaccess || 'user';
+                
+                // Handle date fields
+                if (staff.usersdob) {
+                    document.getElementById('dob').value = staff.usersdob_formatted || '';
+                }
+                
+                if (staff.usersage) {
+                    document.getElementById('age').value = staff.usersage || '';
+                }
+                
+                // Don't populate password field for security reasons
+                document.getElementById('password').value = '';
+                
+                // Open the modal in edit mode
+                openModal(true);
+            })
+            .catch(error => {
+                console.error('Error fetching staff details:', error);
+                alert('Could not load staff details');
+            });
+        }
+        
+        // Delete staff button
+        if (e.target.closest('.delete-staff')) {
+            const btn = e.target.closest('.delete-staff');
+            const staffId = btn.getAttribute('data-id');
+            const staffCard = btn.closest('.staff-card');
+            const staffRow = btn.closest('tr');
+            const staffName = staffCard ? 
+                              staffCard.querySelector('.staff-details h3').textContent : 
+                              (staffRow ? staffRow.cells[1].textContent : 'this staff member');
+            
+            if (confirm(`Are you sure you want to delete ${staffName}?`)) {
+                // Send delete request to server
+                fetch(`/delete_staff/${staffId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                        // No CSRF token needed
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the staff card/row from the DOM
+                        if (staffCard) staffCard.remove();
+                        if (staffRow) staffRow.remove();
+                        
+                        // Show success message
+                        alert('Staff member successfully deleted');
+                    } else {
+                        alert('Error deleting staff member: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while trying to delete the staff member');
+                });
+            }
+        }
+    });
+
+    // Helper function to get CSRF token is not needed anymore
+    /* 
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+    */
+
+    // Calculate age from DOB automatically
+    const dobInput = document.getElementById('dob');
+    const ageInput = document.getElementById('age');
+    
+    dobInput.addEventListener('change', function() {
+        if (this.value) {
+            const dob = new Date(this.value);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const monthDiff = today.getMonth() - dob.getMonth();
+            
+            // Adjust age if birthday hasn't occurred yet this year
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            
+            ageInput.value = age;
+        }
+    });
+
+    // Initial filtering (in case there are default values)
+    filterStaff();
+});
+    </script>
 </body>
 </html>

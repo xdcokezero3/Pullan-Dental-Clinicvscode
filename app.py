@@ -396,38 +396,43 @@ def edit_appointment(appointment_id):
     
 
 
+
 @app.route('/staff')
 def staff():
-    """Render the staff management page"""
+    """Staff management page"""
     try:
-        # Get all users from the database
-        staff_members = User.query.all()
+        # Get all staff members (users with admin or user access)
+        staff_users = User.query.filter(User.usersaccess.in_(['admin', 'user'])).all()
         
-        # Format the data for display
-        formatted_staff = []
-        for staff in staff_members:
-            formatted_staff.append({
-                'id': f"STF-{staff.usersid:03d}",
-                'raw_id': staff.usersid,
-                'name': staff.usersrealname or staff.usersusername,
-                'email': staff.usersemail or "N/A",
-                'contact': staff.userscontact or "N/A",
-                'role': staff.usersoccupation or "Staff",
-                'access_level': staff.usersaccess or "User",
-                'join_date': staff.usersdob or datetime.utcnow(),
-                'appointment_count': Appointment.query.filter_by(apppatient=staff.usersrealname).count(),
-                'patient_count': Patient.query.filter_by(patname=staff.usersrealname).count()
+        # Format staff data for the template
+        staff_members = []
+        for user in staff_users:
+            # Determine role based on some attribute or default to "Staff"
+            # You might want to add a dedicated role field to your User model
+            role = "Staff"  # Default
+            if hasattr(user, 'usersrole') and user.usersrole:
+                role = user.usersrole
+            
+            staff_members.append({
+                'id': f"STF-{user.usersid:03d}",
+                'raw_id': user.usersid,
+                'name': user.usersrealname,
+                'email': user.usersemail,
+                'contact': user.userscontact,
+                'role': role,
+                'access_level': user.usersaccess.capitalize(),
+                'join_date': user.userscreatedat if hasattr(user, 'userscreatedat') else datetime.now(),
+                'appointment_count': 0,  # You would calculate this from your appointments table
+                'patient_count': 0,      # You would calculate this from your patients table
             })
         
-        # Get current date for the page
-        current_date = datetime.now().strftime("%A, %B %d, %Y")
-        
         return render_template('staff.html', 
-                             staff_members=formatted_staff, 
-                             current_date=current_date)
+                              staff_members=staff_members,
+                              current_date=datetime.now().strftime('%B %d, %Y'))
+    
     except Exception as e:
-        print(f"Error in staff route: {e}")
-        return f"Error loading staff page: {e}", 500    
+        print(f"Error loading staff page: {e}")
+        return f"Error loading staff page: {e}", 500
 
 @app.route('/add_staff', methods=['POST'])
 def add_staff():
@@ -445,7 +450,9 @@ def add_staff():
             usersreligion=request.form.get('religion'),
             usersgender=request.form.get('gender'),
             # Only allow 'admin' or default to 'user'
-            usersaccess='admin' if request.form.get('access') == 'admin' else 'user'
+            usersaccess=request.form.get('access'),
+            # Store role if your User model has this field
+            usersrole=request.form.get('role')
         )
         
         # Process date of birth if provided
@@ -467,8 +474,8 @@ def add_staff():
             "staff": {
                 "id": f"STF-{new_staff.usersid:03d}",
                 "name": new_staff.usersrealname,
-                "role": "Staff",  # Default role
-                "access_level": new_staff.usersaccess,
+                "role": request.form.get('role', 'Staff'),
+                "access_level": new_staff.usersaccess.capitalize(),
                 "raw_id": new_staff.usersid
             }
         })
@@ -484,7 +491,6 @@ def delete_staff(staff_id):
         staff = User.query.get_or_404(staff_id)
         
         # Don't allow deleting self
-        from flask import session
         if session.get('user_id') == staff_id:
             return jsonify({"success": False, "error": "Cannot delete your own account"})
         
@@ -504,10 +510,38 @@ def staff_details(staff_id):
     try:
         staff = User.query.get_or_404(staff_id)
         
+        # Check if JSON format is requested (for AJAX)
+        if request.args.get('format') == 'json':
+            # For API requests, return JSON data
+            staff_data = {
+                'usersid': staff.usersid,
+                'usersusername': staff.usersusername,
+                'usersrealname': staff.usersrealname,
+                'usersemail': staff.usersemail,
+                'userscontact': staff.userscontact,
+                'usershomeaddress': staff.usershomeaddress,
+                'userscityzipcode': staff.userscityzipcode,
+                'usersreligion': staff.usersreligion,
+                'usersgender': staff.usersgender,
+                'usersaccess': staff.usersaccess,
+                'usersrole': staff.usersrole if hasattr(staff, 'usersrole') else 'Staff'
+            }
+            
+            # Add date of birth if available
+            if hasattr(staff, 'usersdob') and staff.usersdob:
+                staff_data['usersdob_formatted'] = staff.usersdob.strftime('%Y-%m-%d')
+            
+            # Add age if available
+            if hasattr(staff, 'usersage') and staff.usersage:
+                staff_data['usersage'] = staff.usersage
+                
+            return jsonify(staff_data)
+        
+        # For browser requests, render HTML template
         return render_template('staff_details.html', staff=staff)
     except Exception as e:
         print(f"Error in staff_details route: {e}")
-        return f"Error loading staff details: {e}", 500
+        return jsonify({"success": False, "error": str(e)}) if request.args.get('format') == 'json' else f"Error loading staff details: {e}", 500
 
 @app.route('/edit_staff/<int:staff_id>')
 def edit_staff(staff_id):
@@ -516,7 +550,7 @@ def edit_staff(staff_id):
         staff = User.query.get_or_404(staff_id)
         
         # Format date of birth for HTML date input
-        if staff.usersdob:
+        if hasattr(staff, 'usersdob') and staff.usersdob:
             staff.usersdob_formatted = staff.usersdob.strftime('%Y-%m-%d')
         
         return render_template('edit_staff.html', staff=staff)
@@ -538,8 +572,11 @@ def update_staff(staff_id):
         staff.userscityzipcode = request.form.get('cityzipcode')
         staff.usersreligion = request.form.get('religion')
         staff.usersgender = request.form.get('gender')
-        # Only allow 'admin' or default to 'user'
-        staff.usersaccess = 'admin' if request.form.get('access') == 'admin' else 'user'
+        staff.usersaccess = request.form.get('access')
+        
+        # Update role if your User model has this field
+        if hasattr(staff, 'usersrole'):
+            staff.usersrole = request.form.get('role', 'Staff')
         
         # Process date of birth if provided
         dob_str = request.form.get('dob')
@@ -567,7 +604,7 @@ def update_staff(staff_id):
         db.session.rollback()
         print(f"Error in update_staff route: {e}")
         return jsonify({'success': False, 'error': str(e)})
-        
+            
 # Add these inventory routes to app.py, after the existing routes
 
 @app.route('/inventory')

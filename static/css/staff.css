@@ -577,10 +577,12 @@ body {
 .modal-content {
     background-color: var(--white);
     margin: 5% auto;
-    width: 600px;
-    max-width: 90%;
+    width: 600px; /* Default width */
+    max-width: 90%; /* Responsive width */
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
+    overflow-y: auto; /* Enable vertical scrolling if content overflows */
+    max-height: 80vh; /* Limit modal height to 80% of viewport height */
 }
 
 .modal-header {
@@ -603,6 +605,8 @@ body {
 
 .modal-body {
     padding: 20px;
+    overflow-y: auto; /* Enable vertical scrolling if content overflows */
+    max-height: calc(80vh - 150px); /* Adjust based on header and footer heights */
 }
 
 .form-row {
@@ -623,7 +627,8 @@ body {
     font-size: 14px;
 }
 
-.form-group input, .form-group select {
+.form-group input,
+.form-group select {
     padding: 10px 12px;
     border: 1px solid #ddd;
     border-radius: var(--border-radius);
