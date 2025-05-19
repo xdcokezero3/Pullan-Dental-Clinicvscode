@@ -51,7 +51,8 @@ def login():
 def dashboard():
     return render_template('dashboard.html')
 
-
+#___________________________________________________________________________________________
+#Patient Routes
 @app.route('/patients')
 def patients():
     """Render the patients page with data from the database"""
@@ -242,6 +243,8 @@ def update_patient(patient_id):
         print(f"Error in update_patient route: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+# ______________________________________________________________________________________________________
+# Appointments management routes
 @app.route('/appointments')
 def appointments():
     """Render the appointments page with data from the database"""
@@ -329,33 +332,7 @@ def cancel_appointment(appointment_id):
         db.session.rollback()
         print(f"Error in cancel_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
-
-# Placeholder routes to prevent template errors
-@app.route('/doctors')
-def doctors():
-    """Placeholder for doctors page"""
-    return "Doctors page - Coming soon!"
-
-@app.route('/treatments')
-def treatments():
-    """Placeholder for treatments page"""
-    return "Treatments page - Coming soon!"
-
-@app.route('/billing')
-def billing():
-    """Placeholder for billing page"""
-    return "Billing page - Coming soon!"
-
-@app.route('/settings')
-def settings():
-    """Placeholder for settings page"""
-    return "Settings page - Coming soon!"
-
-@app.route('/logout')
-def logout():
-    """Placeholder for logout functionality"""
-    return redirect(url_for('index'))
-
+    
 @app.route('/appointment_details/<int:appointment_id>')
 def appointment_details(appointment_id):
     """View details of a specific appointment"""
@@ -393,10 +370,33 @@ def edit_appointment(appointment_id):
     except Exception as e:
         print(f"Error in edit_appointment route: {e}")
         return f"Error loading appointment edit form: {e}", 500
+
+
+@app.route('/treatments')
+def treatments():
+    """Placeholder for treatments page"""
+    return "Treatments page - Coming soon!"
+
+@app.route('/billing')
+def billing():
+    """Placeholder for billing page"""
+    return "Billing page - Coming soon!"
+
+@app.route('/settings')
+def settings():
+    """Placeholder for settings page"""
+    return "Settings page - Coming soon!"
+
+@app.route('/logout')
+def logout():
+    """Placeholder for logout functionality"""
+    return redirect(url_for('index'))
+
     
 
 
-
+#_______________________________________________________________________
+#Staff Management Routes
 @app.route('/staff')
 def staff():
     """Staff management page"""
@@ -606,7 +606,7 @@ def update_staff(staff_id):
         return jsonify({'success': False, 'error': str(e)})
             
 # Add these inventory routes to app.py, after the existing routes
-
+#Inventory Management Routes
 @app.route('/inventory')
 def inventory():
     """Render the inventory management page with data from database"""
@@ -865,6 +865,10 @@ def filter_inventory(filter_type):
         print(f"Error in filter_inventory route: {e}")
         return jsonify({"success": False, "error": str(e)})
     
+
+
+#_____________________________
+# User Registration
 @app.route('/register')
 def register():
     return render_template('register.html')
