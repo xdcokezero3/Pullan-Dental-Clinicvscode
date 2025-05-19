@@ -1,3 +1,4 @@
+// Patient Details JavaScript
 document.addEventListener("DOMContentLoaded", function() {
     // Tab switching functionality
     const tabButtons = document.querySelectorAll(".tab-button");

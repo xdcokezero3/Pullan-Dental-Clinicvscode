@@ -1,3 +1,4 @@
+<!-- Patient_edit -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -263,29 +264,29 @@
         <div class="logo">Pullan Dental</div>
         <div class="subtitle">Clinic Management System</div>
         
-        <a href="{{ url_for('index') }}" class="nav-item">
+        <a href="/" class="nav-item">
             <i class="fas fa-th-large"></i> Dashboard
         </a>
-        <a href="{{ url_for('patients') }}" class="nav-item active">
+        <a href="/patients" class="nav-item active">
             <i class="fas fa-user-injured"></i> Patients
         </a>
-        <a href="{{ url_for('appointments') }}" class="nav-item">
+        <a href="/appointments" class="nav-item">
             <i class="fas fa-calendar-check"></i> Appointments
         </a>
-        <a href="{{ url_for('doctors') }}" class="nav-item">
+        <a href="#" class="nav-item">
             <i class="fas fa-user-md"></i> Doctors
         </a>
-        <a href="{{ url_for('treatments') }}" class="nav-item">
+        <a href="#" class="nav-item">
             <i class="fas fa-procedures"></i> Treatments
         </a>
-        <a href="{{ url_for('billing') }}" class="nav-item">
+        <a href="#" class="nav-item">
             <i class="fas fa-file-invoice-dollar"></i> Billing
         </a>
-        <a href="{{ url_for('settings') }}" class="nav-item">
+        <a href="#" class="nav-item">
             <i class="fas fa-cog"></i> Settings
         </a>
         
-        <a href="{{ url_for('logout') }}" class="nav-item logout">
+        <a href="/logout" class="nav-item logout">
             <i class="fas fa-sign-out-alt"></i> Logout
         </a>
     </div>
@@ -314,7 +315,7 @@
 
         <div class="page-header">
             <div class="left">
-                <button class="back-button" onclick="window.location.href='{{ url_for('patient_details', patient_id=patient.patId) }}'">
+                <button class="back-button" onclick="window.location.href='/patient/{{ patient.patId }}'">
                     <i class="fas fa-arrow-left"></i> Back to Patient Details
                 </button>
                 <h1>Edit Patient</h1>
@@ -329,7 +330,7 @@
                 <h2>{{ patient.patname }}</h2>
             </div>
 
-            <form id="editPatientForm" action="{{ url_for('update_patient', patient_id=patient.patId) }}" method="POST">
+            <form id="editPatientForm" action="/update_patient/{{ patient.patId }}" method="POST">
                 <div class="form-row">
                     <div class="form-group">
                         <label for="name" class="required-field">Full Name</label>
@@ -392,7 +393,7 @@
                 </div>
                 
                 <div class="form-actions">
-                    <button type="button" class="btn btn-cancel" onclick="window.location.href='{{ url_for('patient_details', patient_id=patient.patId) }}'">Cancel</button>
+                    <button type="button" class="btn btn-cancel" onclick="window.location.href='/patient/{{ patient.patId }}'">Cancel</button>
                     <button type="submit" class="btn btn-save">Save Changes</button>
                 </div>
             </form>
@@ -417,7 +418,7 @@
                     
                     // Redirect to patient details page after a short delay
                     setTimeout(() => {
-                        window.location.href = "{{ url_for('patient_details', patient_id=patient.patId) }}";
+                        window.location.href = "/patient/" + {{ patient.patId }};
                     }, 2000);
                 } else {
                     showNotification('Error updating patient: ' + data.error, 'error');
