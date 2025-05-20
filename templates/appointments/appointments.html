@@ -1,4 +1,4 @@
-<!-- appointments.html -->
+<!-- Appointment.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -62,6 +62,12 @@
                 </button>
             </div>
             <p class="date">{{ current_date }}</p>
+
+            <div class="page-actions">
+                <a href="{{ url_for('rescheduled_appointments') }}" class="view-rescheduled-button">
+                    <i class="fas fa-calendar-check"></i> View Rescheduled Appointments
+                </a>
+            </div>
 
             <div class="filter-controls">
                 <div class="filter-group">
@@ -174,6 +180,51 @@
                     <div class="form-actions">
                         <button type="button" class="btn cancel-btn" id="cancelAddAppointment">Cancel</button>
                         <button type="submit" class="btn submit-btn">Schedule Appointment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reschedule Appointment Modal -->
+    <div id="rescheduleAppointmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reschedule Appointment</h2>
+                <span class="close-modal" id="closeRescheduleModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="rescheduleAppointmentForm">
+                    <input type="hidden" id="appointmentId" name="appointment_id">
+                    
+                    <div class="form-group full-width">
+                        <label>Current Details:</label>
+                        <div class="current-details">
+                            <p><strong>Patient:</strong> <span id="currentPatient"></span></p>
+                            <p><strong>Date:</strong> <span id="currentDate"></span></p>
+                            <p><strong>Time:</strong> <span id="currentTime"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="newAppointmentDate">New Date*</label>
+                            <input type="date" id="newAppointmentDate" name="date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newAppointmentTime">New Time*</label>
+                            <input type="time" id="newAppointmentTime" name="time" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label for="rescheduleReason">Reason for Rescheduling</label>
+                        <textarea id="rescheduleReason" name="reason" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn cancel-btn" id="cancelReschedule">Cancel</button>
+                        <button type="submit" class="btn submit-btn">Save Changes</button>
                     </div>
                 </form>
             </div>
@@ -357,6 +408,102 @@
                 }, 300);
             }, 3000);
         }
+
+        // Reschedule modal functionality
+        const rescheduleModal = document.getElementById('rescheduleAppointmentModal');
+        const closeRescheduleModalBtn = document.getElementById('closeRescheduleModal');
+        const cancelRescheduleBtn = document.getElementById('cancelReschedule');
+
+        // Replace edit button click events with reschedule functionality
+        document.querySelectorAll('.edit-button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const appointmentId = this.getAttribute('href').split('/').pop();
+                const row = this.closest('tr');
+                const patient = row.cells[1].textContent;
+                const date = row.cells[2].textContent;
+                const time = row.cells[3].textContent;
+                
+                // Fill the reschedule form with current data
+                document.getElementById('appointmentId').value = appointmentId;
+                document.getElementById('currentPatient').textContent = patient;
+                document.getElementById('currentDate').textContent = date;
+                document.getElementById('currentTime').textContent = time;
+                
+                // Set default values for new date and time
+                // Since we don't have the date in YYYY-MM-DD format in the table, 
+                // just use today's date as default
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('newAppointmentDate').value = today;
+                
+                // Try to parse the existing time or set it to empty
+                let timeValue = '';
+                if (time.match(/^\d{1,2}:\d{2}/)) {
+                    timeValue = time.trim();
+                }
+                document.getElementById('newAppointmentTime').value = timeValue;
+                document.getElementById('rescheduleReason').value = '';
+                
+                // Show the modal
+                rescheduleModal.style.display = 'block';
+                document.body.classList.add('modal-open');
+            });
+        });
+
+        function closeRescheduleModal() {
+            rescheduleModal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.getElementById('rescheduleAppointmentForm').reset();
+        }
+
+        // Close modal events
+        closeRescheduleModalBtn.addEventListener('click', closeRescheduleModal);
+        cancelRescheduleBtn.addEventListener('click', closeRescheduleModal);
+
+        window.addEventListener('click', function(event) {
+            if (event.target === rescheduleModal) {
+                closeRescheduleModal();
+            }
+        });
+
+        // Reschedule form submission
+        document.getElementById('rescheduleAppointmentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const appointmentId = formData.get('appointment_id');
+            
+            // Send the reschedule request to the server
+            fetch('/reschedule_appointment', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeRescheduleModal();
+                    
+                    // Update the row in the table with the new date and time
+                    const row = document.querySelector(`.edit-button[href$="${appointmentId}"]`).closest('tr');
+                    
+                    // Format the date nicely for display
+                    const newDate = new Date(formData.get('date'));
+                    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+                    row.cells[2].textContent = newDate.toLocaleDateString('en-US', options);
+                    
+                    // Format the time
+                    row.cells[3].textContent = formData.get('time');
+                    
+                    showNotification('Appointment rescheduled successfully', 'success');
+                } else {
+                    showNotification('Error rescheduling appointment: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('An error occurred while rescheduling the appointment.', 'error');
+            });
+        });
     </script>
 </body>
 </html>

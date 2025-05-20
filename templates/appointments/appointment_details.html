@@ -119,7 +119,7 @@
                             </div>
                         </div>
                         <div class="view-patient-link">
-                            <a href="{{ url_for('patient_details', patient_id=appointment.patient_id) }}">
+                            <a href="{{ url_for('patient_details', patient_id=appointment.raw_patient_id) }}">
                                 <i class="fas fa-external-link-alt"></i> View Full Patient Record
                             </a>
                         </div>

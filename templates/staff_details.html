@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental - Staff Details</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../static/css/staff_details.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="wrapper">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li class="active"><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Top Navigation -->
+            <div class="top-nav">
+                <div class="breadcrumb">
+                    <a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a>
+                    <span class="separator">/</span>
+                    <span class="current">Staff Details</span>
+                </div>
+                <div class="top-nav-right">
+                    <div class="notification">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user-dropdown">
+                        <span>Dr. Smith</span>
+                        <div class="dropdown-content">
+                            <span>User</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff Details Content -->
+            <div class="content-container">
+                <div class="content-header">
+                    <div>
+                        <h1>Staff Member Details</h1>
+                        <p class="current-date">{{ current_date }}</p>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('edit_staff', staff_id=staff.usersid) }}" class="btn-primary"><i class="fas fa-edit"></i> Edit Profile</a>
+                        <button class="btn-danger" id="deleteStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-trash"></i> Delete Staff</button>
+                    </div>
+                </div>
+                
+                <!-- Staff Profile -->
+                <div class="staff-profile">
+                    <!-- Profile Header -->
+                    <div class="profile-header">
+                        <div class="profile-avatar">
+                            {% if staff.usersoccupation == 'Dentist' %}
+                                <i class="fas fa-user-md"></i>
+                            {% elif staff.usersoccupation == 'Assistant' %}
+                                <i class="fas fa-user-nurse"></i>
+                            {% else %}
+                                <i class="fas fa-user-tie"></i>
+                            {% endif %}
+                        </div>
+                        <div class="profile-title">
+                            <h2>{{ staff.usersrealname }}</h2>
+                            <p class="staff-role">{{ staff.usersoccupation or 'Staff' }}</p>
+                            <span class="access-badge role-{{ staff.usersaccess }}">{{ staff.usersaccess|capitalize }}</span>
+                            <p class="staff-id">ID: STF-{{ '%03d' % staff.usersid }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Profile Details in Tabs -->
+                    <div class="profile-tabs">
+                        <div class="tabs">
+                            <div class="tab active" data-tab="personal-info">Personal Information</div>
+                            <div class="tab" data-tab="work-info">Work Information</div>
+                            <div class="tab" data-tab="activity">Activity</div>
+                        </div>
+                        
+                        <!-- Personal Information Tab -->
+                        <div class="tab-content active" id="personal-info">
+                            <div class="info-grid">
+                                <div class="info-section">
+                                    <h3>Contact Information</h3>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-envelope"></i> Email:</span>
+                                        <span class="info-value">{{ staff.usersemail or 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-phone"></i> Phone:</span>
+                                        <span class="info-value">{{ staff.userscontact or 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-home"></i> Address:</span>
+                                        <span class="info-value">{{ staff.usershomeaddress or 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-map-marker-alt"></i> City/Zip:</span>
+                                        <span class="info-value">{{ staff.userscityzipcode or 'Not provided' }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="info-section">
+                                    <h3>Personal Details</h3>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-birthday-cake"></i> Date of Birth:</span>
+                                        <span class="info-value">{{ staff.usersdob.strftime('%B %d, %Y') if staff.usersdob else 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-user"></i> Age:</span>
+                                        <span class="info-value">{{ staff.usersage or 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-venus-mars"></i> Gender:</span>
+                                        <span class="info-value">{{ staff.usersgender or 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-pray"></i> Religion:</span>
+                                        <span class="info-value">{{ staff.usersreligion or 'Not provided' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Work Information Tab -->
+                        <div class="tab-content" id="work-info">
+                            <div class="info-grid">
+                                <div class="info-section">
+                                    <h3>Position Details</h3>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-id-badge"></i> Username:</span>
+                                        <span class="info-value">{{ staff.usersusername or 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-user-tag"></i> Role:</span>
+                                        <span class="info-value">{{ staff.usersoccupation or 'Staff' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-key"></i> Access Level:</span>
+                                        <span class="info-value access-tag">{{ staff.usersaccess|capitalize }}</span>
+                                    </div>
+                                    {% if staff.userscreatedat %}
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-calendar-plus"></i> Joined:</span>
+                                        <span class="info-value">{{ staff.userscreatedat.strftime('%B %d, %Y') }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="info-section">
+                                    <h3>Schedule</h3>
+                                    <div class="schedule-week">
+                                        <div class="day-block active">
+                                            <span class="day-name">Mon</span>
+                                            <span class="day-hours">9:00 - 17:00</span>
+                                        </div>
+                                        <div class="day-block active">
+                                            <span class="day-name">Tue</span>
+                                            <span class="day-hours">9:00 - 17:00</span>
+                                        </div>
+                                        <div class="day-block active">
+                                            <span class="day-name">Wed</span>
+                                            <span class="day-hours">9:00 - 17:00</span>
+                                        </div>
+                                        <div class="day-block active">
+                                            <span class="day-name">Thu</span>
+                                            <span class="day-hours">9:00 - 17:00</span>
+                                        </div>
+                                        <div class="day-block active">
+                                            <span class="day-name">Fri</span>
+                                            <span class="day-hours">9:00 - 17:00</span>
+                                        </div>
+                                        <div class="day-block">
+                                            <span class="day-name">Sat</span>
+                                            <span class="day-hours">Off</span>
+                                        </div>
+                                        <div class="day-block">
+                                            <span class="day-name">Sun</span>
+                                            <span class="day-hours">Off</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity Tab -->
+                        <div class="tab-content" id="activity">
+                            <div class="activity-stats">
+                                <div class="stat-card">
+                                    <div class="stat-value">0</div>
+                                    <div class="stat-label">Appointments</div>
+                                    <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">0</div>
+                                    <div class="stat-label">Patients</div>
+                                    <div class="stat-icon"><i class="fas fa-user-injured"></i></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">0</div>
+                                    <div class="stat-label">Procedures</div>
+                                    <div class="stat-icon"><i class="fas fa-teeth"></i></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">0</div>
+                                    <div class="stat-label">Hours Worked</div>
+                                    <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                                </div>
+                            </div>
+                            
+                            <div class="recent-activity">
+                                <h3>Recent Activity</h3>
+                                <div class="activity-empty">
+                                    <i class="fas fa-chart-line"></i>
+                                    <p>No recent activity to display</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Delete</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p class="warning-text">Are you sure you want to delete this staff member? This action cannot be undone.</p>
+                <div class="staff-info-summary">
+                    <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
+                    <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
+                    <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
+                </div>
+                <div class="modal-actions">
+                    <button id="cancelDeleteBtn" class="btn-secondary">Cancel</button>
+                    <button id="confirmDeleteBtn" class="btn-danger">Delete Staff</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Pullan Dental - Staff Details JavaScript
+         * Handles tabs switching, delete confirmation, etc.
+         */
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const deleteStaffBtn = document.getElementById('deleteStaffBtn');
+            const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+            const closeModalBtn = document.querySelector('.close');
+            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+            
+            // Tab Switching
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs
+                    tabs.forEach(t => t.classList.remove('active'));
+                    // Add active class to clicked tab
+                    this.classList.add('active');
+                    
+                    // Switch tab content
+                    const tabId = this.getAttribute('data-tab');
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                        if (content.id === tabId) {
+                            content.classList.add('active');
+                        }
+                    });
+                });
+            });
+            
+            // Modal Functionality
+            function openModal() {
+                deleteConfirmModal.style.display = 'block';
+            }
+            
+            function closeModal() {
+                deleteConfirmModal.style.display = 'none';
+            }
+            
+            deleteStaffBtn.addEventListener('click', openModal);
+            closeModalBtn.addEventListener('click', closeModal);
+            cancelDeleteBtn.addEventListener('click', closeModal);
+            
+            // Close modal when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === deleteConfirmModal) {
+                    closeModal();
+                }
+            });
+            
+            // Handle Delete Staff Action
+            confirmDeleteBtn.addEventListener('click', function() {
+                const staffId = deleteStaffBtn.getAttribute('data-id');
+                
+                // Send delete request to server
+                fetch(`/delete_staff/${staffId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect to staff list after successful deletion
+                        window.location.href = '/staff';
+                    } else {
+                        // Show error message
+                        alert('Error deleting staff member: ' + (data.error || 'Unknown error'));
+                        closeModal();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while trying to delete the staff member');
+                    closeModal();
+                });
+            });
+        });
+    </script>
+</body>
+</html>

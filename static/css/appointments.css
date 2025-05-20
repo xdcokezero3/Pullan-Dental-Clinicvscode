@@ -650,3 +650,182 @@ body.modal-open {
     .user span {
         display: none;
     }
+}
+
+/* Reschedule Modal Styles */
+.current-details {
+    background-color: #f9f9f9;
+    border-left: 3px solid #2196F3;
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+.current-details p {
+    margin: 5px 0;
+}
+
+#rescheduleAppointmentModal .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+#rescheduleAppointmentModal .form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+#rescheduleAppointmentModal .form-group.full-width {
+    flex-basis: 100%;
+    width: 100%;
+}
+
+#rescheduleAppointmentModal label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #333;
+}
+
+#rescheduleAppointmentModal input[type="date"],
+#rescheduleAppointmentModal input[type="time"],
+#rescheduleAppointmentModal textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#rescheduleAppointmentModal .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#rescheduleAppointmentModal .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.3s;
+}
+
+#rescheduleAppointmentModal .cancel-btn {
+    background-color: #f1f1f1;
+    color: #333;
+}
+
+#rescheduleAppointmentModal .submit-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+
+#rescheduleAppointmentModal .cancel-btn:hover {
+    background-color: #e0e0e0;
+}
+
+#rescheduleAppointmentModal .submit-btn:hover {
+    background-color: #3e8e41;
+}
+
+/* Rescheduled Appointments Page Styles */
+.appointment-details {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.detail-section {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+}
+
+.detail-section:last-child {
+    border-bottom: none;
+}
+
+.detail-section h3 {
+    font-size: 16px;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.detail-section p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.detail-section strong {
+    font-weight: 500;
+    min-width: 100px;
+    display: inline-block;
+}
+
+/* Table modifications for rescheduled appointments */
+#rescheduledAppointmentsTable th:nth-child(7), /* Reason column */
+#rescheduledAppointmentsTable td:nth-child(7) {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#rescheduledAppointmentsTable th:nth-child(3), /* Original Date column */
+#rescheduledAppointmentsTable td:nth-child(3),
+#rescheduledAppointmentsTable th:nth-child(5), /* New Date column */
+#rescheduledAppointmentsTable td:nth-child(5) {
+    min-width: 130px;
+}
+
+#rescheduledAppointmentsTable th:nth-child(4), /* Original Time column */
+#rescheduledAppointmentsTable td:nth-child(4),
+#rescheduledAppointmentsTable th:nth-child(6), /* New Time column */
+#rescheduledAppointmentsTable td:nth-child(6) {
+    min-width: 80px;
+}
+
+/* Mobile optimization for rescheduled appointments */
+@media screen and (max-width: 768px) {
+    #rescheduledAppointmentsTable {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
+/* Add these styles to appointments.css */
+.page-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 15px;
+}
+
+.view-rescheduled-button {
+    display: flex;
+    align-items: center;
+    background-color: #f0f0f0;
+    color: var(--text-color);
+    padding: 8px 15px;
+    border-radius: var(--border-radius);
+    text-decoration: none;
+    transition: var(--transition);
+    font-size: 14px;
+    border: 1px solid #ddd;
+}
+
+.view-rescheduled-button i {
+    margin-right: 8px;
+    color: var(--primary-color);
+}
+
+.view-rescheduled-button:hover {
+    background-color: #e0e0e0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}

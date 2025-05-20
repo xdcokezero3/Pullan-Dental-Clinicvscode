@@ -1,3 +1,4 @@
+<!-- Staff.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,8 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/staff.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <!-- Add CSRF token for POST requests -->
-    <!-- No CSRF token required -->
 </head>
 <body>
     <div class="wrapper">
@@ -115,7 +114,7 @@
                                     </div>
                                     <div class="staff-details">
                                         <h3>{{ staff.name }}</h3>
-                                        <p>{{ staff.role }}</p>
+                                        <p>{{ staff.occupation }}</p>
                                     </div>
                                     <div class="staff-access-badge role-{{ staff.access_level.lower() }}">
                                         {{ staff.access_level }}
@@ -166,7 +165,7 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Name</th>
-                                    <th>Role</th>
+                                    <th>Occupation</th>
                                     <th>Email</th>
                                     <th>Contact</th>
                                     <th>Access Level</th>
@@ -178,7 +177,7 @@
                                 <tr data-role="{{ staff.role }}" data-access="{{ staff.access_level }}">
                                     <td>{{ staff.id }}</td>
                                     <td>{{ staff.name }}</td>
-                                    <td>{{ staff.role }}</td>
+                                    <td>{{ staff.occupation }}</td>
                                     <td>{{ staff.email }}</td>
                                     <td>{{ staff.contact }}</td>
                                     <td><span class="badge role-{{ staff.access_level.lower() }}">{{ staff.access_level }}</span></td>
@@ -284,12 +283,8 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="role">Role</label>
-                            <select id="role" name="role" required>
-                                <option value="Dentist">Dentist</option>
-                                <option value="Assistant">Assistant</option>
-                                <option value="Receptionist">Receptionist</option>
-                            </select>
+                            <label for="occupation">Occupation</label>
+                            <input type="text" id="occupation" name="occupation" required>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -487,6 +482,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('religion').value = staff.usersreligion || '';
                 document.getElementById('gender').value = staff.usersgender || 'Male';
                 document.getElementById('access').value = staff.usersaccess || 'user';
+                
+                // Set the occupation field
+                document.getElementById('occupation').value = staff.usersoccupation || '';
                 
                 // Handle date fields
                 if (staff.usersdob) {

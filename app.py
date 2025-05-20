@@ -320,24 +320,34 @@ def add_appointment():
         print(f"Error in add_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
-@app.route('/cancel_appointment/<int:appointment_id>', methods=['POST'])
-def cancel_appointment(appointment_id):
+
+@app.route('/cancel_appointment', methods=['POST'])
+def cancel_appointment():
     """Cancel an appointment - since we don't have a status field, we'll just delete it"""
     try:
-        appointment = Appointment.query.get_or_404(appointment_id)
+        appointment_id = request.form.get('appointment_id')
+        if not appointment_id:
+            return jsonify({"success": False, "error": "No appointment ID provided"})
+            
+        appointment = Appointment.query.get_or_404(int(appointment_id))
         db.session.delete(appointment)
         db.session.commit()
+        
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
         print(f"Error in cancel_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
-    
+
 @app.route('/appointment_details/<int:appointment_id>')
 def appointment_details(appointment_id):
     """View details of a specific appointment"""
     try:
         appointment = Appointment.query.get_or_404(appointment_id)
+        
+        # Let's assume you need to look up the patient based on the name
+        patient = Patient.query.filter_by(patname=appointment.apppatient).first()
+        patient_id = patient.patId if patient else None
         
         # Format the appointment details
         formatted_appointment = {
@@ -349,14 +359,24 @@ def appointment_details(appointment_id):
             'time': appointment.apptime,
             'duration': "30 min",  # Default value since not in schema
             'status': "Scheduled",  # Default value since not in schema
-            'notes': "No notes available"  # Default value since not in schema
+            'notes': "No notes available",  # Default value since not in schema
+            'raw_id': appointment.appid,  # Add the raw ID for use in forms and links
+            'patient_id': f"PAT-{patient.patId:03d}" if patient else "Unknown",  # Formatted patient ID
+            'raw_patient_id': patient_id,  # <-- Add this raw patient ID
+            'patient_phone': patient.patcontact if patient else "N/A",
+            'patient_email': patient.patemail if patient else "N/A"
         }
         
-        return render_template('appointment_details.html', appointment=formatted_appointment)
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        return render_template('appointments/appointment_details.html', 
+                             appointment=formatted_appointment,
+                             current_date=current_date)
     except Exception as e:
         print(f"Error in appointment_details route: {e}")
         return f"Error loading appointment details: {e}", 500
-
+            
 @app.route('/edit_appointment/<int:appointment_id>')
 def edit_appointment(appointment_id):
     """Render edit appointment page"""
@@ -370,7 +390,114 @@ def edit_appointment(appointment_id):
     except Exception as e:
         print(f"Error in edit_appointment route: {e}")
         return f"Error loading appointment edit form: {e}", 500
-
+    
+@app.route('/reschedule_appointment', methods=['POST'])
+def reschedule_appointment():
+    """Reschedule an existing appointment and record the change"""
+    try:
+        appointment_id = request.form.get('appointment_id')
+        new_date = request.form.get('date')
+        new_time = request.form.get('time')
+        reason = request.form.get('reason', '')
+        
+        # Input validation
+        if not appointment_id or not new_date or not new_time:
+            return jsonify({"success": False, "error": "Missing required fields"})
+        
+        # Get the appointment
+        appointment = Appointment.query.get_or_404(int(appointment_id))
+        
+        # Get the next ID for the reschedule record
+        # First try to get the maximum ID from the rappointment table
+        max_id_result = db.session.query(db.func.max(RescheduleAppointment.rappid)).first()
+        next_id = 1  # Default if table is empty
+        if max_id_result[0] is not None:
+            next_id = max_id_result[0] + 1
+        
+        # Record the rescheduling in rappointment table
+        reschedule_record = RescheduleAppointment(
+            rappid=next_id,  # Set the primary key
+            rapppatient=appointment.apppatient,
+            rapptime=appointment.apptime,
+            rappdate=appointment.appdate,
+            rappnewtime=new_time,
+            rappnewdate=datetime.strptime(new_date, '%Y-%m-%d').date(),
+            rappreason=reason
+        )
+        
+        # Update the original appointment
+        old_date = appointment.appdate
+        old_time = appointment.apptime
+        
+        appointment.appdate = datetime.strptime(new_date, '%Y-%m-%d').date()
+        appointment.apptime = new_time
+        
+        # Save both changes to database
+        db.session.add(reschedule_record)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Appointment for {appointment.apppatient} rescheduled from {old_date.strftime('%B %d, %Y')} at {old_time} to {appointment.appdate.strftime('%B %d, %Y')} at {appointment.apptime}"
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in reschedule_appointment route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+        
+@app.route('/mark_appointment_completed/<int:appointment_id>', methods=['POST'])
+def mark_appointment_completed(appointment_id):
+    """Mark an appointment as completed
+    
+    Note: Since our schema doesn't have a status field, we'll just pretend to update it
+    In a real application, you would add a status field to the Appointment model
+    """
+    try:
+        # Get the appointment to make sure it exists
+        appointment = Appointment.query.get_or_404(appointment_id)
+        
+        # Since we don't have a status field, we'll just return success
+        # In a real application, you would update the status field here
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"Error in mark_appointment_completed route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+    
+@app.route('/rescheduled_appointments')
+def rescheduled_appointments():
+    """Render the rescheduled appointments page with data from the database"""
+    try:
+        # Get rescheduled appointments from the database
+        rescheduled_list = RescheduleAppointment.query.order_by(RescheduleAppointment.rappnewdate.desc()).all()
+        
+        # Format the rescheduled appointments for display
+        formatted_rescheduled = []
+        for reschedule in rescheduled_list:
+            # Format appointment data based on the existing fields
+            formatted_rescheduled.append({
+                'id': f"RSC-{reschedule.rappid:03d}",
+                'patient_name': reschedule.rapppatient,
+                'original_date': reschedule.rappdate.strftime('%B %d, %Y') if reschedule.rappdate else "N/A",
+                'original_time': reschedule.rapptime or "N/A",
+                'new_date': reschedule.rappnewdate.strftime('%B %d, %Y') if reschedule.rappnewdate else "N/A",
+                'new_time': reschedule.rappnewtime or "N/A",
+                'reason': reschedule.rappreason or "No reason provided",
+                'raw_id': reschedule.rappid
+            })
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        today_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Render the template with the data
+        return render_template('appointments/rescheduled_appointments.html', 
+                                rescheduled_appointments=formatted_rescheduled,
+                                current_date=current_date,
+                                today_date=today_date)
+    except Exception as e:
+        print(f"Error in rescheduled_appointments route: {e}")
+        return f"Error loading rescheduled appointments: {e}", 500
 
 @app.route('/treatments')
 def treatments():
@@ -419,12 +546,14 @@ def staff():
                 'name': user.usersrealname,
                 'email': user.usersemail,
                 'contact': user.userscontact,
-                'role': role,
+                'role': role,  # Keep this for filtering functionality
+                'occupation': user.usersoccupation if hasattr(user, 'usersoccupation') and user.usersoccupation else "Staff",
                 'access_level': user.usersaccess.capitalize(),
                 'join_date': user.userscreatedat if hasattr(user, 'userscreatedat') else datetime.now(),
-                'appointment_count': 0,  # You would calculate this from your appointments table
-                'patient_count': 0,      # You would calculate this from your patients table
+                'appointment_count': 0,
+                'patient_count': 0,
             })
+
         
         return render_template('staff.html', 
                               staff_members=staff_members,
@@ -451,8 +580,8 @@ def add_staff():
             usersgender=request.form.get('gender'),
             # Only allow 'admin' or default to 'user'
             usersaccess=request.form.get('access'),
-            # Store role if your User model has this field
-            usersrole=request.form.get('role')
+            # Store in occupation field
+            usersoccupation=request.form.get('occupation')
         )
         
         # Process date of birth if provided
@@ -524,7 +653,7 @@ def staff_details(staff_id):
                 'usersreligion': staff.usersreligion,
                 'usersgender': staff.usersgender,
                 'usersaccess': staff.usersaccess,
-                'usersrole': staff.usersrole if hasattr(staff, 'usersrole') else 'Staff'
+                'usersoccupation': staff.usersoccupation if hasattr(staff, 'usersoccupation') else 'Staff'
             }
             
             # Add date of birth if available
@@ -537,12 +666,17 @@ def staff_details(staff_id):
                 
             return jsonify(staff_data)
         
+        # Get current date for the page
+        current_date = datetime.now().strftime("%B %d, %Y")
+        
         # For browser requests, render HTML template
-        return render_template('staff_details.html', staff=staff)
+        return render_template('staff_details.html', 
+                              staff=staff,
+                              current_date=current_date)
     except Exception as e:
         print(f"Error in staff_details route: {e}")
         return jsonify({"success": False, "error": str(e)}) if request.args.get('format') == 'json' else f"Error loading staff details: {e}", 500
-
+    
 @app.route('/edit_staff/<int:staff_id>')
 def edit_staff(staff_id):
     """Render edit staff page"""
@@ -573,10 +707,10 @@ def update_staff(staff_id):
         staff.usersreligion = request.form.get('religion')
         staff.usersgender = request.form.get('gender')
         staff.usersaccess = request.form.get('access')
+
         
-        # Update role if your User model has this field
-        if hasattr(staff, 'usersrole'):
-            staff.usersrole = request.form.get('role', 'Staff')
+        # Update occupation field
+        staff.usersoccupation = request.form.get('occupation')
         
         # Process date of birth if provided
         dob_str = request.form.get('dob')

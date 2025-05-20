@@ -1,0 +1,298 @@
+<!-- Rescheduled Appointments -->
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullan Dental Clinic - Rescheduled Appointments</title>
+    <link rel="stylesheet" href="../static/css/appointments.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Search...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user">
+                        <span>Dr. Smith</span>
+                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-title">
+                <h1>Rescheduled Appointments</h1>
+                <a href="{{ url_for('appointments') }}" class="add-button">
+                    <i class="fas fa-calendar"></i> Back to Appointments
+                </a>
+            </div>
+            <p class="date">{{ current_date }}</p>
+
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="dateFilter">Date:</label>
+                    <input type="date" id="dateFilter" value="{{ today_date }}">
+                </div>
+                <div class="filter-group">
+                    <label for="patientFilter">Patient:</label>
+                    <input type="text" id="patientFilter" placeholder="Filter by patient...">
+                </div>
+                <button id="applyFilters" class="filter-button">
+                    <i class="fas fa-filter"></i> Apply Filters
+                </button>
+            </div>
+
+            <div class="appointments-table">
+                <table id="rescheduledAppointmentsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Patient Name</th>
+                            <th>Original Date</th>
+                            <th>Original Time</th>
+                            <th>New Date</th>
+                            <th>New Time</th>
+                            <th>Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appointment in rescheduled_appointments %}
+                        <tr>
+                            <td>{{ appointment.id }}</td>
+                            <td>{{ appointment.patient_name }}</td>
+                            <td>{{ appointment.original_date }}</td>
+                            <td>{{ appointment.original_time }}</td>
+                            <td>{{ appointment.new_date }}</td>
+                            <td>{{ appointment.new_time }}</td>
+                            <td>{{ appointment.reason }}</td>
+                            <td>
+                                <button class="action-button view-button view-details-btn" data-id="{{ appointment.raw_id }}" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button>
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="active">1</button>
+                <button>2</button>
+                <button>3</button>
+                <button>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Details Modal -->
+    <div id="viewDetailsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Rescheduled Appointment Details</h2>
+                <span class="close-modal" id="closeViewDetailsModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="appointment-details">
+                    <div class="detail-section">
+                        <h3>Patient Information</h3>
+                        <p><strong>Name:</strong> <span id="detailPatientName"></span></p>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Original Appointment</h3>
+                        <p><strong>Date:</strong> <span id="detailOriginalDate"></span></p>
+                        <p><strong>Time:</strong> <span id="detailOriginalTime"></span></p>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Rescheduled To</h3>
+                        <p><strong>Date:</strong> <span id="detailNewDate"></span></p>
+                        <p><strong>Time:</strong> <span id="detailNewTime"></span></p>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Reason for Rescheduling</h3>
+                        <p id="detailReason"></p>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>Rescheduling Information</h3>
+                        <p><strong>Date Changed:</strong> <span id="detailDateChanged"></span></p>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn cancel-btn" id="closeDetailsBtn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const searchValue = this.value.toLowerCase();
+            const table = document.getElementById('rescheduledAppointmentsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {
+                let found = false;
+                const cells = rows[i].getElementsByTagName('td');
+                
+                for (let j = 0; j < cells.length; j++) {
+                    const cellText = cells[j].textContent.toLowerCase();
+                    if (cellText.indexOf(searchValue) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+                
+                rows[i].style.display = found ? '' : 'none';
+            }
+        });
+        
+        // Filter functionality
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            const dateFilter = document.getElementById('dateFilter').value;
+            const patientFilter = document.getElementById('patientFilter').value.toLowerCase();
+            
+            // Simple client-side filtering
+            const table = document.getElementById('rescheduledAppointmentsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('td');
+                // Check both original and new dates for the date filter
+                const originalDateText = cells[2].textContent.toLowerCase();
+                const newDateText = cells[4].textContent.toLowerCase();
+                const patientText = cells[1].textContent.toLowerCase();
+                
+                let dateMatch = true;
+                if (dateFilter) {
+                    // Match if either original or new date contains the filter text
+                    dateMatch = originalDateText.includes(dateFilter) || newDateText.includes(dateFilter);
+                }
+                
+                let patientMatch = true;
+                if (patientFilter) {
+                    patientMatch = patientText.includes(patientFilter);
+                }
+                
+                rows[i].style.display = (dateMatch && patientMatch) ? '' : 'none';
+            }
+            
+            showNotification('Filters applied', 'info');
+        });
+        
+        // View Details Modal
+        const viewDetailsModal = document.getElementById('viewDetailsModal');
+        const closeViewDetailsModalBtn = document.getElementById('closeViewDetailsModal');
+        const closeDetailsBtn = document.getElementById('closeDetailsBtn');
+        
+        // Open View Details Modal
+        document.querySelectorAll('.view-details-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const appointmentId = this.getAttribute('data-id');
+                const row = this.closest('tr');
+                
+                // Fill the modal with data from the row
+                document.getElementById('detailPatientName').textContent = row.cells[1].textContent;
+                document.getElementById('detailOriginalDate').textContent = row.cells[2].textContent;
+                document.getElementById('detailOriginalTime').textContent = row.cells[3].textContent;
+                document.getElementById('detailNewDate').textContent = row.cells[4].textContent;
+                document.getElementById('detailNewTime').textContent = row.cells[5].textContent;
+                document.getElementById('detailReason').textContent = row.cells[6].textContent || "No reason provided";
+                
+                // Set the date changed (we don't have this data in the table, so just use current date)
+                document.getElementById('detailDateChanged').textContent = new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                // Show the modal
+                viewDetailsModal.style.display = 'block';
+                document.body.classList.add('modal-open');
+            });
+        });
+        
+        function closeViewDetailsModal() {
+            viewDetailsModal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+        
+        // Close modal events
+        closeViewDetailsModalBtn.addEventListener('click', closeViewDetailsModal);
+        closeDetailsBtn.addEventListener('click', closeViewDetailsModal);
+        
+        window.addEventListener('click', function(event) {
+            if (event.target === viewDetailsModal) {
+                closeViewDetailsModal();
+            }
+        });
+        
+        // Notification function
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification-popup ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Show notification
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+            
+            // Hide and remove after a delay
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
