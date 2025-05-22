@@ -1,7 +1,15 @@
-# app.py
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+# app.py - Fixed version with DNS resolution handling
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session
 from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User
-from datetime import datetime
+from datetime import datetime, date
+import os
+import time
+import subprocess
+import json
+import pymysql
+import re
+import socket
+
 # Use the Flask app instance from the connector
 app = db_app
 
@@ -12,6 +20,31 @@ app.secret_key = 'pullandentalclinic2025'  # Change this to a secure random valu
 app.template_folder = 'templates'
 app.static_folder = 'static'
 
+# DNS Resolution fix for backup functionality
+def resolve_host(host):
+    """Resolve hostname issues for backup functionality"""
+    try:
+        # Test if the host can be resolved
+        socket.gethostbyname(host)
+        return host
+    except socket.gaierror:
+        # If localhost fails, try 127.0.0.1
+        if host == 'localhost':
+            try:
+                socket.gethostbyname('127.0.0.1')
+                return '127.0.0.1'
+            except socket.gaierror:
+                pass
+        # If 127.0.0.1 fails, try localhost
+        elif host == '127.0.0.1':
+            try:
+                socket.gethostbyname('localhost')
+                return 'localhost'
+            except socket.gaierror:
+                pass
+    
+    # Return original host if nothing works
+    return host
 
 @app.route('/')
 def index():
@@ -1071,5 +1104,421 @@ def register_process():
         print(f"Error in register_process route: {e}")
         return render_template('register.html', error=f"Registration failed: {str(e)}")
     
+
+
+# Add this to app.py - Configuration for backup directory
+BACKUP_DIRECTORY = 'database_backups'
+# Create the backup directory if it doesn't exist
+if not os.path.exists(BACKUP_DIRECTORY):
+    os.makedirs(BACKUP_DIRECTORY)
+
+@app.route('/backup_restore')
+def backup_restore():
+    """Render the backup and restore page"""
+    # Get list of existing backups
+    backups = []
+    try:
+        if os.path.exists(BACKUP_DIRECTORY):
+            backup_files = [f for f in os.listdir(BACKUP_DIRECTORY) if f.endswith('.sql')]
+            for backup_file in backup_files:
+                # Extract the timestamp from the filename
+                timestamp_str = backup_file.split('_')[1].split('.')[0]
+                backup_time = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S')
+                
+                # Get file size in MB
+                file_path = os.path.join(BACKUP_DIRECTORY, backup_file)
+                file_size = os.path.getsize(file_path) / (1024 * 1024)  # Convert bytes to MB
+                
+                backups.append({
+                    'filename': backup_file,
+                    'timestamp': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'size': f"{file_size:.2f} MB"
+                })
+                
+            # Sort backups by timestamp (newest first)
+            backups.sort(key=lambda x: x['timestamp'], reverse=True)
+    except Exception as e:
+        print(f"Error listing backups: {e}")
+    
+    # Get current date for the page
+    current_date = datetime.now().strftime("%A, %B %d, %Y")
+    
+    return render_template('backup_restore.html', 
+                          backups=backups,
+                          current_date=current_date)
+
+@app.route('/create_backup', methods=['POST'])
+def create_backup():
+    """Create a backup of the database with DNS resolution fix"""
+    try:
+        # Check if the user has admin access
+        if session.get('access_level') != 'admin':
+            return jsonify({"success": False, "error": "You don't have permission to perform this action"})
+        
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        backup_filename = f"backup_{timestamp}.sql"
+        backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
+        
+        # Get database credentials from app config
+        db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+        
+        # Parse the database URI more carefully
+        if 'mysql+pymysql://' in db_uri:
+            parts = db_uri.replace('mysql+pymysql://', '').split('@')
+        else:
+            parts = db_uri.replace('mysql://', '').split('@')
+            
+        user_pass = parts[0].split(':')
+        host_db = parts[1].split('/')
+        
+        username = user_pass[0]
+        password = user_pass[1]
+        original_host = host_db[0].split(':')[0]  # Remove port if present
+        port = int(host_db[0].split(':')[1]) if ':' in host_db[0] else 3306
+        database = host_db[1]
+        
+        # Resolve host DNS issues
+        resolved_host = resolve_host(original_host)
+        print(f"Original host: {original_host}, Resolved host: {resolved_host}")
+        
+        # Test the connection first with resolved host
+        try:
+            connection = pymysql.connect(
+                host=resolved_host,
+                user=username,
+                password=password,
+                database=database,
+                port=port,
+                charset='utf8mb4',
+                cursorclass=pymysql.cursors.DictCursor,
+                connect_timeout=10
+            )
+            connection.close()
+            print("Database connection successful for backup")
+        except Exception as e:
+            return jsonify({
+                "success": False, 
+                "error": f"Cannot connect to MySQL server: {str(e)}. Please check that your MySQL server is running and your connection details are correct."
+            })
+            
+        # Now proceed with the backup using the resolved host
+        try:
+            create_direct_backup(username, password, resolved_host, database, backup_path, port)
+            
+            # Get backup file size
+            file_size = os.path.getsize(backup_path) / (1024 * 1024)  # Convert bytes to MB
+            
+            return jsonify({
+                "success": True, 
+                "message": "Backup created successfully",
+                "backup": {
+                    "filename": backup_filename,
+                    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "size": f"{file_size:.2f} MB"
+                }
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False, 
+                "error": f"Error creating backup: {str(e)}"
+            })
+            
+    except Exception as e:
+        print(f"Error in create_backup route: {e}")
+        return jsonify({
+            "success": False, 
+            "error": f"Error processing backup request: {str(e)}"
+        })
+
+def create_direct_backup(username, password, host, database_name, backup_path, port=3306):
+    """Create a database backup directly using PyMySQL without external tools - with DNS fix"""
+    connection = None
+    try:
+        # Connect to the database with improved error handling and resolved host
+        try:
+            connection = pymysql.connect(
+                host=host,
+                user=username,
+                password=password,
+                database=database_name,
+                port=port,
+                charset='utf8mb4',
+                cursorclass=pymysql.cursors.DictCursor,
+                connect_timeout=10
+            )
+            print(f"Successfully connected to MySQL at {host}:{port}")
+        except pymysql.err.OperationalError as e:
+            if e.args[0] == 2003:  # Connection refused error
+                raise Exception(f"Cannot connect to MySQL server at {host}:{port}. Is MySQL running? Error: {e}")
+            elif e.args[0] == 1045:  # Access denied error
+                raise Exception(f"Access denied. Please check your username and password. Error: {e}")
+            else:
+                raise Exception(f"Database connection failed: {e}")
+        
+        with open(backup_path, 'w', encoding='utf8') as f:
+            # Write backup header
+            f.write(f"-- Database Backup for: {database_name}\n")
+            f.write(f"-- Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("-- By: Pullan Dental Clinic Management System\n\n")
+            
+            f.write("SET FOREIGN_KEY_CHECKS=0;\n\n")
+            
+            # Add DROP DATABASE and CREATE DATABASE statements
+            f.write(f"DROP DATABASE IF EXISTS `{database_name}`;\n")
+            f.write(f"CREATE DATABASE `{database_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;\n")
+            f.write(f"USE `{database_name}`;\n\n")
+            
+            # Get all tables
+            with connection.cursor() as cursor:
+                cursor.execute("SHOW TABLES")
+                tables = cursor.fetchall()
+                
+                if not tables:
+                    f.write("-- No tables found in database\n")
+                
+                # For each table, get CREATE TABLE statement and data
+                for table in tables:
+                    table_name = list(table.values())[0]
+                    
+                    # Get the CREATE TABLE statement
+                    cursor.execute(f"SHOW CREATE TABLE `{table_name}`")
+                    create_table = cursor.fetchone()
+                    create_table_sql = list(create_table.values())[1]
+                    
+                    # Write the DROP TABLE and CREATE TABLE statements
+                    f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
+                    f.write(f"{create_table_sql};\n\n")
+                    
+                    # Get table data
+                    cursor.execute(f"SELECT * FROM `{table_name}`")
+                    rows = cursor.fetchall()
+                    
+                    if rows:
+                        # Get column names
+                        columns = list(rows[0].keys())
+                        
+                        # Write INSERT statements in batches
+                        batch_size = 100
+                        for i in range(0, len(rows), batch_size):
+                            batch = rows[i:i+batch_size]
+                            
+                            # Generate INSERT statement header
+                            insert_header = f"INSERT INTO `{table_name}` (`{'`, `'.join(columns)}`) VALUES\n"
+                            f.write(insert_header)
+                            
+                            # Generate values for each row
+                            values_list = []
+                            for row in batch:
+                                values = []
+                                for column in columns:
+                                    value = row[column]
+                                    if value is None:
+                                        values.append("NULL")
+                                    elif isinstance(value, (int, float)):
+                                        values.append(str(value))
+                                    elif isinstance(value, (datetime, date)):
+                                        values.append(f"'{value.strftime('%Y-%m-%d %H:%M:%S')}'")
+                                    else:
+                                        # Escape string values
+                                        escaped_value = str(value).replace("'", "''")
+                                        values.append(f"'{escaped_value}'")
+                                            
+                                values_list.append(f"({', '.join(values)})")
+                            
+                            # Write values with commas and semicolon
+                            f.write(',\n'.join(values_list))
+                            f.write(';\n\n')
+            
+            f.write("SET FOREIGN_KEY_CHECKS=1;\n")
+            
+        print(f"Database backup completed successfully: {backup_path}")
+        
+    except Exception as e:
+        raise Exception(f"Direct database backup failed: {str(e)}")
+    finally:
+        # Make sure to close the connection even if an error occurs
+        if connection:
+            connection.close()
+
+
+@app.route('/restore_backup/<filename>', methods=['POST'])
+def restore_backup(filename):
+    """Restore the database from a backup file with DNS resolution fix"""
+    try:
+        # Check if the user has admin access
+        if session.get('access_level') != 'admin':
+            return jsonify({"success": False, "error": "You don't have permission to perform this action"})
+            
+        backup_path = os.path.join(BACKUP_DIRECTORY, filename)
+        
+        if not os.path.exists(backup_path):
+            return jsonify({"success": False, "error": "Backup file not found"})
+            
+        # Get database credentials from app config with DNS resolution
+        db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+        
+        if 'mysql+pymysql://' in db_uri:
+            parts = db_uri.replace('mysql+pymysql://', '').split('@')
+        else:
+            parts = db_uri.replace('mysql://', '').split('@')
+            
+        user_pass = parts[0].split(':')
+        host_db = parts[1].split('/')
+        
+        username = user_pass[0]
+        password = user_pass[1]
+        original_host = host_db[0].split(':')[0]
+        port = int(host_db[0].split(':')[1]) if ':' in host_db[0] else 3306
+        
+        # Resolve DNS issues
+        resolved_host = resolve_host(original_host)
+
+        # Try using mysql client external command first
+        try:
+            # Determine the correct path to mysql client based on the OS
+            if os.name == 'nt':  # Windows
+                # Try common MySQL installation paths on Windows
+                possible_paths = [
+                    r'C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe',
+                    r'C:\Program Files\MySQL\MySQL Server 5.7\bin\mysql.exe',
+                    r'C:\xampp\mysql\bin\mysql.exe',
+                    r'C:\wamp64\bin\mysql\mysql8.0.31\bin\mysql.exe',
+                    r'C:\wamp64\bin\mysql\mysql5.7.36\bin\mysql.exe',
+                    r'C:\laragon\bin\mysql\mysql-8.0.30-winx64\bin\mysql.exe'
+                ]
+                
+                mysql_path = 'mysql'  # Default fallback
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        mysql_path = path
+                        break
+            else:
+                # On Unix-like systems, assume mysql is in PATH
+                mysql_path = 'mysql'
+            
+            # Restore the backup using mysql client with resolved host
+            cmd = [
+                mysql_path,
+                f'--user={username}',
+                f'--password={password}',
+                f'--host={resolved_host}',
+                f'--port={port}'
+            ]
+            
+            with open(backup_path, 'r') as backup_file:
+                process = subprocess.Popen(
+                    cmd,
+                    stdin=backup_file,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                stdout, stderr = process.communicate()
+                
+            if process.returncode != 0:
+                raise Exception(f"mysql restore failed: {stderr.decode('utf-8')}")
+                
+        except Exception as e:
+            print(f"External mysql restore failed: {e}")
+            print("Falling back to direct database restore method...")
+            
+            # Fallback to direct database connection and script execution
+            restore_direct_backup(username, password, resolved_host, backup_path, port)
+            
+        return jsonify({
+            "success": True,
+            "message": "Database restored successfully from backup"
+        })
+    except Exception as e:
+        print(f"Error restoring backup: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+def restore_direct_backup(username, password, host, backup_path, port=3306):
+    """Restore a database backup directly using PyMySQL without external tools - with DNS fix"""
+    try:
+        # Read the backup file
+        with open(backup_path, 'r', encoding='utf8') as f:
+            backup_content = f.read()
+        
+        # Extract the database name from the backup content
+        database_pattern = re.search(r'CREATE DATABASE `([^`]+)`', backup_content)
+        if not database_pattern:
+            raise Exception("Could not find database name in backup file")
+            
+        database_name = database_pattern.group(1)
+        
+        # Connect to MySQL server (without specifying database) with resolved host
+        connection = pymysql.connect(
+            host=host,
+            user=username,
+            password=password,
+            port=port,
+            charset='utf8mb4',
+            connect_timeout=10
+        )
+        
+        # Split the backup file into individual SQL statements
+        statements = re.split(r';\s*\n', backup_content)
+        
+        with connection.cursor() as cursor:
+            for statement in statements:
+                statement = statement.strip()
+                if statement:
+                    try:
+                        cursor.execute(statement)
+                    except Exception as e:
+                        print(f"Warning: Error executing statement: {e}")
+                        print(f"Statement: {statement[:100]}...")
+                        # Continue with next statement instead of failing completely
+                        continue
+            
+            connection.commit()
+            
+        connection.close()
+        print(f"Database restore completed successfully from: {backup_path}")
+        
+    except Exception as e:
+        raise Exception(f"Direct database restore failed: {str(e)}")
+
+@app.route('/download_backup/<filename>')
+def download_backup(filename):
+    """Download a backup file"""
+    try:
+        backup_path = os.path.join(BACKUP_DIRECTORY, filename)
+        
+        if not os.path.exists(backup_path):
+            return "Backup file not found", 404
+            
+        return send_file(
+            backup_path,
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        print(f"Error downloading backup: {e}")
+        return f"Error downloading backup: {e}", 500
+
+@app.route('/delete_backup/<filename>', methods=['POST'])
+def delete_backup(filename):
+    """Delete a backup file"""
+    try:
+        # Check if the user has admin access
+        if session.get('access_level') != 'admin':
+            return jsonify({"success": False, "error": "You don't have permission to perform this action"})
+            
+        backup_path = os.path.join(BACKUP_DIRECTORY, filename)
+        
+        if not os.path.exists(backup_path):
+            return jsonify({"success": False, "error": "Backup file not found"})
+            
+        os.remove(backup_path)
+        
+        return jsonify({
+            "success": True,
+            "message": "Backup deleted successfully"
+        })
+    except Exception as e:
+        print(f"Error deleting backup: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 if __name__ == '__main__':
     app.run(debug=True)

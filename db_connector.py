@@ -1,39 +1,196 @@
-# db_connector.py
+# db_connector.py - Fresh Start with Robust MySQL Connection
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import pymysql
+import os
+import time
 from datetime import date
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 
-# This is needed for PyMySQL to work with SQLAlchemy
+# Install PyMySQL as MySQLdb replacement
 pymysql.install_as_MySQLdb()
 
+# Create Flask app
 app = Flask(__name__)
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:root@127.0.0.1:3306/pullandentalclinic'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Database configuration class
+class DatabaseConfig:
+    """Centralized database configuration with multiple fallback options"""
+    
+    # Default configuration - modify these if needed
+    DB_USER = 'root'
+    DB_PASSWORD = 'root' 
+    DB_NAME = 'pullandentalclinic'
+    DB_PORT = 3306
+    
+    # Host options to try in order
+    HOST_OPTIONS = [
+        'localhost',
+        '127.0.0.1',
+        '::1',  # IPv6 localhost
+    ]
+    
+    @classmethod
+    def test_connection(cls, host, user, password, database, port):
+        """Test if we can connect to MySQL with given parameters"""
+        try:
+            # Test basic connection
+            connection = pymysql.connect(
+                host=host,
+                user=user,
+                password=password,
+                database=database,
+                port=port,
+                connect_timeout=10,
+                read_timeout=10,
+                write_timeout=10,
+                charset='utf8mb4'
+            )
+            
+            # Test query execution
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                result = cursor.fetchone()
+                if result[0] != 1:
+                    raise Exception("Query test failed")
+            
+            connection.close()
+            return True
+            
+        except Exception as e:
+            print(f"Connection test failed for {host}: {str(e)}")
+            return False
+    
+    @classmethod
+    def get_working_uri(cls):
+        """Find a working database URI by testing different configurations"""
+        print("Testing database connections...")
+        
+        for host in cls.HOST_OPTIONS:
+            print(f"Testing connection to {host}:{cls.DB_PORT}...")
+            
+            if cls.test_connection(host, cls.DB_USER, cls.DB_PASSWORD, cls.DB_NAME, cls.DB_PORT):
+                uri = f"mysql+pymysql://{cls.DB_USER}:{cls.DB_PASSWORD}@{host}:{cls.DB_PORT}/{cls.DB_NAME}"
+                print(f"✅ Successfully connected to MySQL at {host}:{cls.DB_PORT}")
+                return uri
+        
+        # If all direct connections fail, try without specifying database
+        print("Direct database connections failed. Trying to connect to MySQL server...")
+        for host in cls.HOST_OPTIONS:
+            try:
+                connection = pymysql.connect(
+                    host=host,
+                    user=cls.DB_USER,
+                    password=cls.DB_PASSWORD,
+                    port=cls.DB_PORT,
+                    connect_timeout=10
+                )
+                
+                # Try to create database if it doesn't exist
+                with connection.cursor() as cursor:
+                    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {cls.DB_NAME}")
+                    cursor.execute(f"USE {cls.DB_NAME}")
+                
+                connection.close()
+                uri = f"mysql+pymysql://{cls.DB_USER}:{cls.DB_PASSWORD}@{host}:{cls.DB_PORT}/{cls.DB_NAME}"
+                print(f"✅ Connected to MySQL server and created/used database at {host}:{cls.DB_PORT}")
+                return uri
+                
+            except Exception as e:
+                print(f"Failed to connect to MySQL server at {host}: {str(e)}")
+                continue
+        
+        # Last resort - return a default URI and let SQLAlchemy handle the error
+        print("❌ All connection attempts failed!")
+        print("Please check:")
+        print("1. MySQL service is running")
+        print("2. Username and password are correct")
+        print("3. Database exists")
+        print("4. Port 3306 is not blocked")
+        
+        return f"mysql+pymysql://{cls.DB_USER}:{cls.DB_PASSWORD}@localhost:{cls.DB_PORT}/{cls.DB_NAME}"
 
-# Create SQLAlchemy instance
+# Get working database URI
+database_uri = DatabaseConfig.get_working_uri()
+
+# Configure Flask app with database settings
+app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 10,
+    'pool_timeout': 20,
+    'pool_recycle': 3600,  # 1 hour
+    'pool_pre_ping': True,  # Verify connections before using
+    'max_overflow': 20,
+    'connect_args': {
+        'connect_timeout': 10,
+        'read_timeout': 10,
+        'write_timeout': 10,
+        'charset': 'utf8mb4'
+    }
+}
+
+# Initialize SQLAlchemy
 db = SQLAlchemy(app)
 
-# Function to get database connection
-def get_db_connection():
-    return db
-
-# Optional: Function to test the database connection
-def test_connection():
+# Test function for database connectivity
+def test_database_connection():
+    """Comprehensive database connection test"""
+    print("\n" + "="*50)
+    print("TESTING DATABASE CONNECTION")
+    print("="*50)
+    
     try:
-        # Try to execute a simple query
-        result = db.engine.execute("SELECT 1")
-        for row in result:
-            print("Connection successful:", row[0])
+        # Test 1: Basic SQLAlchemy connection
+        with app.app_context():
+            result = db.engine.execute(text("SELECT 1"))
+            row = result.fetchone()
+            if row[0] == 1:
+                print("✅ SQLAlchemy connection: SUCCESS")
+            else:
+                print("❌ SQLAlchemy connection: FAILED")
+                return False
+        
+        # Test 2: Database existence
+        with app.app_context():
+            result = db.engine.execute(text("SELECT DATABASE()"))
+            db_name = result.fetchone()[0]
+            print(f"✅ Connected to database: {db_name}")
+        
+        # Test 3: Check if tables can be created
+        with app.app_context():
+            db.engine.execute(text("CREATE TABLE IF NOT EXISTS connection_test (id INT PRIMARY KEY)"))
+            db.engine.execute(text("DROP TABLE connection_test"))
+            print("✅ Table creation/deletion: SUCCESS")
+        
+        print("✅ All database tests passed!")
         return True
+        
     except Exception as e:
-        print("Connection failed:", e)
+        print(f"❌ Database connection failed: {str(e)}")
         return False
 
-
-# Define model classes for all tables in the database
+# Database Models
+class Patient(db.Model):
+    __tablename__ = 'patients'
+    
+    patId = db.Column(db.Integer, primary_key=True)
+    patname = db.Column(db.String(255))
+    patemail = db.Column(db.String(255))
+    pataddress = db.Column(db.String(255))
+    patcityzipcode = db.Column(db.String(255))
+    patcontact = db.Column(db.String(20))
+    patreligion = db.Column(db.String(20))
+    patdob = db.Column(db.Date)
+    patgender = db.Column(db.String(10))
+    patage = db.Column(db.Integer)
+    patoccupation = db.Column(db.String(255))
+    patallergies = db.Column(db.String(255))
+    is_deleted = db.Column(db.Boolean, default=False)
+    
+    def __repr__(self):
+        return f"<Patient {self.patId}: {self.patname}>"
 
 class Appointment(db.Model):
     __tablename__ = 'appointment'
@@ -47,9 +204,57 @@ class Appointment(db.Model):
         return f"<Appointment {self.appid}: {self.apppatient} on {self.appdate}>"
     
     def formatted_id(self):
-        """Return the appointment ID formatted as APT-XXX"""
         return f"APT-{self.appid:03d}"
 
+class RescheduleAppointment(db.Model):
+    __tablename__ = 'rappointment'
+    
+    rappid = db.Column(db.Integer, primary_key=True)
+    rapppatient = db.Column(db.String(255))
+    rapptime = db.Column(db.String(255))
+    rappdate = db.Column(db.Date)
+    rappnewtime = db.Column(db.String(255))
+    rappnewdate = db.Column(db.Date)
+    rappreason = db.Column(db.String(255))
+    
+    def __repr__(self):
+        return f"<RescheduleAppointment {self.rappid}: {self.rapppatient}>"
+
+class Inventory(db.Model):
+    __tablename__ = 'inventory'
+    
+    invid = db.Column(db.Integer, primary_key=True)
+    invname = db.Column(db.String(255))
+    invquantity = db.Column(db.Integer)
+    invdoe = db.Column(db.Date)
+    invtype = db.Column(db.String(255))
+    invremarks = db.Column(db.String(255))
+    is_deleted = db.Column(db.Boolean, default=False)
+    
+    def __repr__(self):
+        return f"<Inventory {self.invid}: {self.invname} ({self.invquantity})>"
+
+class User(db.Model):
+    __tablename__ = 'users'
+    
+    usersid = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    usersusername = db.Column(db.String(255), unique=True, nullable=False)
+    userspassword = db.Column(db.String(255), nullable=False)
+    usersrealname = db.Column(db.String(255))
+    usersemail = db.Column(db.String(255))
+    usershomeaddress = db.Column(db.String(255))
+    userscityzipcode = db.Column(db.String(255))
+    userscontact = db.Column(db.String(255))
+    usersreligion = db.Column(db.String(255))
+    usersdob = db.Column(db.Date)
+    usersgender = db.Column(db.String(255))
+    usersage = db.Column(db.Integer)
+    usersoccupation = db.Column(db.String(255))
+    usersaccess = db.Column(db.String(255))
+    key = db.Column(db.LargeBinary)
+    
+    def __repr__(self):
+        return f"<User {self.usersid}: {self.usersusername}>"
 
 class DentalChart(db.Model):
     __tablename__ = 'dentalchart'
@@ -82,58 +287,6 @@ class DentalChart(db.Model):
     def __repr__(self):
         return f"<DentalChart {self.dcID}: {self.dcpatname}>"
 
-
-class Inventory(db.Model):
-    __tablename__ = 'inventory'
-    
-    invid = db.Column(db.Integer, primary_key=True)
-    invname = db.Column(db.String(255))
-    invquantity = db.Column(db.Integer)
-    invdoe = db.Column(db.Date)
-    invtype = db.Column(db.String(255))
-    invremarks = db.Column(db.String(255))
-    is_deleted = db.Column(db.Boolean, default=False)
-    
-    def __repr__(self):
-        return f"<Inventory {self.invid}: {self.invname} ({self.invquantity})>"
-
-
-class Patient(db.Model):
-    __tablename__ = 'patients'
-    
-    patId = db.Column(db.Integer, primary_key=True)
-    patname = db.Column(db.String(255))
-    patemail = db.Column(db.String(255))
-    pataddress = db.Column(db.String(255))
-    patcityzipcode = db.Column(db.String(255))
-    patcontact = db.Column(db.String(20))
-    patreligion = db.Column(db.String(20))
-    patdob = db.Column(db.Date)
-    patgender = db.Column(db.String(10))
-    patage = db.Column(db.Integer)
-    patoccupation = db.Column(db.String(255))
-    patallergies = db.Column(db.String(255))
-    is_deleted = db.Column(db.Boolean, default=False)
-    
-    def __repr__(self):
-        return f"<Patient {self.patId}: {self.patname}>"
-
-
-class RescheduleAppointment(db.Model):
-    __tablename__ = 'rappointment'
-    
-    rappid = db.Column(db.Integer, primary_key=True)
-    rapppatient = db.Column(db.String(255))
-    rapptime = db.Column(db.String(255))
-    rappdate = db.Column(db.Date)
-    rappnewtime = db.Column(db.String(255))
-    rappnewdate = db.Column(db.Date)
-    rappreason = db.Column(db.String(255))
-    
-    def __repr__(self):
-        return f"<RescheduleAppointment {self.rappid}: {self.rapppatient}>"
-
-
 class Report(db.Model):
     __tablename__ = 'reports'
     
@@ -152,31 +305,10 @@ class Report(db.Model):
     def __repr__(self):
         return f"<Report {self.repid}: {self.reppatient} on {self.repdate}>"
 
-
-class User(db.Model):
-    __tablename__ = 'users'
-    
-    usersid = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    usersusername = db.Column(db.String(255), unique=True, nullable=False)
-    userspassword = db.Column(db.String(255), nullable=False)
-    usersrealname = db.Column(db.String(255))
-    usersemail = db.Column(db.String(255))
-    usershomeaddress = db.Column(db.String(255))
-    userscityzipcode = db.Column(db.String(255))
-    userscontact = db.Column(db.String(255))
-    usersreligion = db.Column(db.String(255))
-    usersdob = db.Column(db.Date)
-    usersgender = db.Column(db.String(255))
-    usersage = db.Column(db.Integer)
-    usersoccupation = db.Column(db.String(255))
-    usersaccess = db.Column(db.String(255))
-    key = db.Column(db.LargeBinary)
-    
-    def __repr__(self):
-        return f"<User {self.usersid}: {self.usersusername}>"
-
-
-# Example functions demonstrating how to use the models
+# Utility functions
+def get_db_connection():
+    """Get database connection instance"""
+    return db
 
 def add_patient(name, email, address, cityzipcode, contact, religion, dob, gender, age, occupation, allergies):
     """Add a new patient to the database"""
@@ -202,14 +334,12 @@ def add_patient(name, email, address, cityzipcode, contact, religion, dob, gende
         db.session.rollback()
         return False, str(e)
 
-
 def get_all_patients(include_deleted=False):
     """Get all patients from the database"""
     if include_deleted:
         return Patient.query.all()
     else:
         return Patient.query.filter_by(is_deleted=False).all()
-
 
 def get_upcoming_appointments(from_date=None):
     """Get all upcoming appointments"""
@@ -218,8 +348,38 @@ def get_upcoming_appointments(from_date=None):
     
     return Appointment.query.filter(Appointment.appdate >= from_date).order_by(Appointment.appdate, Appointment.apptime).all()
 
+# Initialize database tables
+def init_database():
+    """Initialize database tables"""
+    try:
+        with app.app_context():
+            print("Creating database tables...")
+            db.create_all()
+            print("✅ Database tables created successfully!")
+            return True
+    except Exception as e:
+        print(f"❌ Error creating database tables: {str(e)}")
+        return False
 
-# If this file is run directly, test the connection
+# Main execution
 if __name__ == "__main__":
+    print("Pullan Dental Clinic - Database Connector")
+    print("="*50)
+    
     with app.app_context():
-        test_connection()
+        # Test connection
+        if test_database_connection():
+            print("\n🎉 Database connection successful!")
+            
+            # Initialize tables
+            if init_database():
+                print("🎉 Database setup complete!")
+            else:
+                print("❌ Database setup failed!")
+        else:
+            print("\n❌ Database connection failed!")
+            print("\nTroubleshooting steps:")
+            print("1. Check if MySQL service is running")
+            print("2. Verify username and password")
+            print("3. Ensure database 'pullandentalclinic' exists")
+            print("4. Check if port 3306 is accessible")
