@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Logs - Pullan Dental Clinic</title>
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        .logs-container {
+            padding: 20px;
+        }
+        
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .logs-header h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            margin: 0;
+        }
+        
+        .logs-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-card i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+        
+        .stat-card h3 {
+            font-size: 2rem;
+            margin: 0;
+            color: #2c3e50;
+        }
+        
+        .stat-card p {
+            margin: 5px 0 0 0;
+            color: #7f8c8d;
+        }
+        
+        .logs-filters {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .filter-group label {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .filter-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        
+        .filter-btn:hover {
+            background: #2980b9;
+        }
+        
+        .clear-btn {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 20px;
+            margin-left: 10px;
+        }
+        
+        .clear-btn:hover {
+            background: #7f8c8d;
+        }
+        
+        .logs-table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .logs-table thead {
+            background: #f8f9fa;
+        }
+        
+        .logs-table th,
+        .logs-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .logs-table th {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .logs-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .action-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .action-login { background: #d4edda; color: #155724; }
+        .action-logout { background: #f8d7da; color: #721c24; }
+        .action-create { background: #d1ecf1; color: #0c5460; }
+        .action-update { background: #fff3cd; color: #856404; }
+        .action-delete { background: #f5c6cb; color: #721c24; }
+        .action-backup { background: #e2e3e5; color: #41464b; }
+        .action-restore { background: #ffeaa7; color: #6c5ce7; }
+        .action-default { background: #e9ecef; color: #495057; }
+        
+        .no-logs {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            gap: 10px;
+        }
+        
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .pagination button:hover {
+            background: #f8f9fa;
+        }
+        
+        .pagination button.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        
+        .pagination button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .export-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        
+        .export-btn:hover {
+            background: #229954;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li class="active"><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" placeholder="Search logs...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="user">
+                        <span>{{ session.get('username', 'Admin') }}</span>
+                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- User Logs Content -->
+            <div class="logs-container">
+                <div class="logs-header">
+                    <h1><i class="fas fa-history"></i> User Activity Logs</h1>
+                    <div>
+                        <button class="export-btn" onclick="exportLogs()">
+                            <i class="fas fa-download"></i> Export Logs
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Stats Cards -->
+                <div class="logs-stats">
+                    <div class="stat-card">
+                        <i class="fas fa-list"></i>
+                        <h3>{{ total_logs }}</h3>
+                        <p>Total Logs</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-calendar-day"></i>
+                        <h3>{{ today_logs }}</h3>
+                        <p>Today's Activity</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-users"></i>
+                        <h3>{{ active_users }}</h3>
+                        <p>Active Users</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>{{ critical_actions }}</h3>
+                        <p>Critical Actions</p>
+                    </div>
+                </div>
+                
+                <!-- Filters -->
+                <div class="logs-filters">
+                    <form method="GET" action="{{ url_for('user_logs') }}">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="user_filter">User:</label>
+                                <select name="user_id" id="user_filter">
+                                    <option value="">All Users</option>
+                                    {% for user in all_users %}
+                                    <option value="{{ user.usersid }}" {% if request.args.get('user_id') == user.usersid|string %}selected{% endif %}>
+                                        {{ user.usersrealname }} ({{ user.usersusername }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="action_filter">Action:</label>
+                                <select name="action" id="action_filter">
+                                    <option value="">All Actions</option>
+                                    <option value="Login" {% if request.args.get('action') == 'Login' %}selected{% endif %}>Login</option>
+                                    <option value="Logout" {% if request.args.get('action') == 'Logout' %}selected{% endif %}>Logout</option>
+                                    <option value="Create Patient" {% if request.args.get('action') == 'Create Patient' %}selected{% endif %}>Create Patient</option>
+                                    <option value="Update Patient" {% if request.args.get('action') == 'Update Patient' %}selected{% endif %}>Update Patient</option>
+                                    <option value="Delete Patient" {% if request.args.get('action') == 'Delete Patient' %}selected{% endif %}>Delete Patient</option>
+                                    <option value="Create Appointment" {% if request.args.get('action') == 'Create Appointment' %}selected{% endif %}>Create Appointment</option>
+                                    <option value="Update Appointment" {% if request.args.get('action') == 'Update Appointment' %}selected{% endif %}>Update Appointment</option>
+                                    <option value="Delete Appointment" {% if request.args.get('action') == 'Delete Appointment' %}selected{% endif %}>Delete Appointment</option>
+                                    <option value="Database Backup" {% if request.args.get('action') == 'Database Backup' %}selected{% endif %}>Database Backup</option>
+                                    <option value="Database Restore" {% if request.args.get('action') == 'Database Restore' %}selected{% endif %}>Database Restore</option>
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="date_from">From Date:</label>
+                                <input type="date" name="date_from" id="date_from" value="{{ request.args.get('date_from', '') }}">
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="date_to">To Date:</label>
+                                <input type="date" name="date_to" id="date_to" value="{{ request.args.get('date_to', '') }}">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="filter-btn">
+                            <i class="fas fa-filter"></i> Apply Filters
+                        </button>
+                        <a href="{{ url_for('user_logs') }}" class="clear-btn">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </a>
+                    </form>
+                </div>
+                
+                <!-- Logs Table -->
+                <div class="logs-table-container">
+                    {% if logs %}
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th>Log ID</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Timestamp</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>{{ log.log_id }}</td>
+                                <td>
+                                    {% if log.user_name %}
+                                        <strong>{{ log.user_name }}</strong><br>
+                                        <small>{{ log.username }}</small>
+                                    {% else %}
+                                        <span class="text-muted">User ID: {{ log.user_id or 'Unknown' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="action-badge 
+                                        {% if log.action == 'Login' %}action-login
+                                        {% elif log.action == 'Logout' %}action-logout
+                                        {% elif 'Create' in log.action %}action-create
+                                        {% elif 'Update' in log.action %}action-update
+                                        {% elif 'Delete' in log.action %}action-delete
+                                        {% elif 'Backup' in log.action %}action-backup
+                                        {% elif 'Restore' in log.action %}action-restore
+                                        {% else %}action-default
+                                        {% endif %}">
+                                        {{ log.action }}
+                                    </span>
+                                </td>
+                                <td>{{ log.formatted_timestamp }}</td>
+                                <td>
+                                    {% if log.details %}
+                                        <small>{{ log.details[:100] }}{% if log.details|length > 100 %}...{% endif %}</small>
+                                    {% else %}
+                                        <span class="text-muted">No details available</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    <!-- Pagination -->
+                    <div class="pagination">
+                        {% if page > 1 %}
+                        <a href="{{ url_for('user_logs', page=page-1, **request.args) }}">
+                            <button>&laquo; Previous</button>
+                        </a>
+                        {% endif %}
+                        
+                        {% for p in range(1, total_pages + 1) %}
+                            {% if p == page %}
+                                <button class="active">{{ p }}</button>
+                            {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                                <a href="{{ url_for('user_logs', page=p, **request.args) }}">
+                                    <button>{{ p }}</button>
+                                </a>
+                            {% elif p == page - 3 or p == page + 3 %}
+                                <button disabled>...</button>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if page < total_pages %}
+                        <a href="{{ url_for('user_logs', page=page+1, **request.args) }}">
+                            <button>Next &raquo;</button>
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="no-logs">
+                        <i class="fas fa-info-circle" style="font-size: 3rem; color: #bdc3c7; margin-bottom: 20px;"></i>
+                        <h3>No logs found</h3>
+                        <p>No user activity logs match the current filters.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function exportLogs() {
+            // Get current filter parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const exportUrl = '{{ url_for("export_logs") }}?' + urlParams.toString();
+            
+            // Create a temporary link and click it to download
+            const link = document.createElement('a');
+            link.href = exportUrl;
+            link.download = 'user_logs_export.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Auto-refresh logs every 30 seconds
+        setInterval(function() {
+            if (document.hidden) return; // Don't refresh if tab is not active
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

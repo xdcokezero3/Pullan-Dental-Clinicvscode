@@ -1,10 +1,10 @@
-# db_connector.py - Fresh Start with Robust MySQL Connection
+# db_connector.py - Fresh Start with Robust MySQL Connection + UserLog Model
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import pymysql
 import os
 import time
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
@@ -256,6 +256,22 @@ class User(db.Model):
     def __repr__(self):
         return f"<User {self.usersid}: {self.usersusername}>"
 
+class UserLog(db.Model):
+    __tablename__ = 'user_logs'
+    
+    log_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer)
+    action = db.Column(db.String(255))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    details = db.Column(db.Text)
+    
+    def __repr__(self):
+        return f"<UserLog {self.log_id}: {self.action} by user {self.user_id}>"
+    
+    def formatted_timestamp(self):
+        """Return formatted timestamp for display"""
+        return self.timestamp.strftime('%Y-%m-%d %H:%M:%S') if self.timestamp else "N/A"
+
 class DentalChart(db.Model):
     __tablename__ = 'dentalchart'
     
@@ -309,6 +325,22 @@ class Report(db.Model):
 def get_db_connection():
     """Get database connection instance"""
     return db
+
+def log_user_action(user_id, action, details=None):
+    """Log user action to the database"""
+    try:
+        new_log = UserLog(
+            user_id=user_id,
+            action=action,
+            details=details
+        )
+        db.session.add(new_log)
+        db.session.commit()
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error logging user action: {e}")
+        return False
 
 def add_patient(name, email, address, cityzipcode, contact, religion, dob, gender, age, occupation, allergies):
     """Add a new patient to the database"""

@@ -1,6 +1,6 @@
-# app.py - Fixed version with DNS resolution handling
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session
-from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User
+# app.py - Fixed version with DNS resolution handling + User Logs System
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
+from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, log_user_action
 from datetime import datetime, date
 import os
 import time
@@ -9,6 +9,9 @@ import json
 import pymysql
 import re
 import socket
+import csv
+from io import StringIO
+from functools import wraps
 
 # Use the Flask app instance from the connector
 app = db_app
@@ -19,6 +22,15 @@ app.secret_key = 'pullandentalclinic2025'  # Change this to a secure random valu
 # Set template folder
 app.template_folder = 'templates'
 app.static_folder = 'static'
+
+# Decorator to check admin access
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get('access_level') != 'admin':
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # DNS Resolution fix for backup functionality
 def resolve_host(host):
@@ -65,10 +77,13 @@ def login():
             # instead of storing/comparing plain text passwords
             
             # Set up a session to keep the user logged in
-            from flask import session
             session['user_id'] = user.usersid
             session['username'] = user.usersusername
             session['access_level'] = user.usersaccess
+            session['real_name'] = user.usersrealname
+            
+            # Log the login action
+            log_user_action(user.usersid, 'Login', f'User {username} logged in successfully')
             
             return redirect(url_for('dashboard'))
         
@@ -83,6 +98,178 @@ def login():
 @app.route('/dashboard')
 def dashboard():
     return render_template('dashboard.html')
+
+@app.route('/logout')
+def logout():
+    """Log out the current user"""
+    user_id = session.get('user_id')
+    username = session.get('username')
+    
+    if user_id:
+        # Log the logout action
+        log_user_action(user_id, 'Logout', f'User {username} logged out')
+    
+    # Clear the session
+    session.clear()
+    return redirect(url_for('login'))
+
+#___________________________________________________________________________________________
+# USER LOGS ROUTES - ADMIN ONLY
+@app.route('/user_logs')
+@admin_required
+def user_logs():
+    """Display user activity logs - Admin only"""
+    try:
+        # Get filter parameters
+        user_id = request.args.get('user_id')
+        action = request.args.get('action')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        page = int(request.args.get('page', 1))
+        per_page = 50  # Number of logs per page
+        
+        # Build query
+        query = db.session.query(
+            UserLog.log_id,
+            UserLog.user_id,
+            UserLog.action,
+            UserLog.timestamp,
+            UserLog.details,
+            User.usersrealname.label('user_name'),
+            User.usersusername.label('username')
+        ).outerjoin(User, UserLog.user_id == User.usersid)
+        
+        # Apply filters
+        if user_id:
+            query = query.filter(UserLog.user_id == user_id)
+        if action:
+            query = query.filter(UserLog.action == action)
+        if date_from:
+            query = query.filter(UserLog.timestamp >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            query = query.filter(UserLog.timestamp <= datetime.strptime(date_to + ' 23:59:59', '%Y-%m-%d %H:%M:%S'))
+        
+        # Order by timestamp (newest first)
+        query = query.order_by(UserLog.timestamp.desc())
+        
+        # Get total count for pagination
+        total_logs = query.count()
+        
+        # Get paginated results
+        logs = query.offset((page - 1) * per_page).limit(per_page).all()
+        
+        # Format logs for display
+        formatted_logs = []
+        for log in logs:
+            formatted_logs.append({
+                'log_id': log.log_id,
+                'user_id': log.user_id,
+                'user_name': log.user_name,
+                'username': log.username,
+                'action': log.action,
+                'timestamp': log.timestamp,
+                'formatted_timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A',
+                'details': log.details
+            })
+        
+        # Calculate pagination
+        total_pages = (total_logs + per_page - 1) // per_page
+        
+        # Get statistics
+        total_logs_count = UserLog.query.count()
+        today_logs = UserLog.query.filter(
+            UserLog.timestamp >= datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        ).count()
+        active_users = db.session.query(UserLog.user_id).distinct().count()
+        critical_actions = UserLog.query.filter(
+            UserLog.action.in_(['Delete Patient', 'Delete Appointment', 'Database Backup', 'Database Restore'])
+        ).count()
+        
+        # Get all users for filter dropdown
+        all_users = User.query.order_by(User.usersrealname).all()
+        
+        return render_template('user_logs.html',
+                               logs=formatted_logs,
+                               total_logs=total_logs_count,
+                               today_logs=today_logs,
+                               active_users=active_users,
+                               critical_actions=critical_actions,
+                               all_users=all_users,
+                               page=page,
+                               total_pages=total_pages,
+                               current_date=datetime.now().strftime('%B %d, %Y'))
+    
+    except Exception as e:
+        print(f"Error in user_logs route: {e}")
+        return f"Error loading user logs: {e}", 500
+
+@app.route('/export_logs')
+@admin_required
+def export_logs():
+    """Export user logs to CSV - Admin only"""
+    try:
+        # Get filter parameters (same as user_logs route)
+        user_id = request.args.get('user_id')
+        action = request.args.get('action')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        
+        # Build query
+        query = db.session.query(
+            UserLog.log_id,
+            UserLog.user_id,
+            UserLog.action,
+            UserLog.timestamp,
+            UserLog.details,
+            User.usersrealname.label('user_name'),
+            User.usersusername.label('username')
+        ).outerjoin(User, UserLog.user_id == User.usersid)
+        
+        # Apply filters
+        if user_id:
+            query = query.filter(UserLog.user_id == user_id)
+        if action:
+            query = query.filter(UserLog.action == action)
+        if date_from:
+            query = query.filter(UserLog.timestamp >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            query = query.filter(UserLog.timestamp <= datetime.strptime(date_to + ' 23:59:59', '%Y-%m-%d %H:%M:%S'))
+        
+        # Order by timestamp (newest first)
+        logs = query.order_by(UserLog.timestamp.desc()).all()
+        
+        # Create CSV content
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Log ID', 'User ID', 'User Name', 'Username', 'Action', 'Timestamp', 'Details'])
+        
+        # Write data
+        for log in logs:
+            writer.writerow([
+                log.log_id,
+                log.user_id or 'N/A',
+                log.user_name or 'N/A',
+                log.username or 'N/A',
+                log.action or 'N/A',
+                log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A',
+                log.details or 'N/A'
+            ])
+        
+        # Create response
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename=user_logs_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        # Log the export action
+        log_user_action(session.get('user_id'), 'Export Logs', f'User exported {len(logs)} log entries')
+        
+        return response
+    
+    except Exception as e:
+        print(f"Error exporting logs: {e}")
+        return jsonify({"success": False, "error": str(e)})
 
 #___________________________________________________________________________________________
 #Patient Routes
@@ -185,6 +372,13 @@ def add_patient():
         db.session.add(new_patient)
         db.session.commit()
         
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Create Patient',
+            f'Created new patient: {new_patient.patname} (ID: PAT-{new_patient.patId:03d})'
+        )
+        
         # Return the new patient data for dynamic addition to the table
         return jsonify({
             "success": True,
@@ -204,7 +398,6 @@ def add_patient():
         print(f"Error in add_patient route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
-
 @app.route('/delete_patient/<int:patient_id>', methods=['POST'])
 def delete_patient(patient_id):
     """Soft delete a patient"""
@@ -213,6 +406,14 @@ def delete_patient(patient_id):
         patient.is_deleted = True
         
         db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Delete Patient',
+            f'Soft deleted patient: {patient.patname} (ID: PAT-{patient.patId:03d})'
+        )
+        
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
@@ -241,6 +442,9 @@ def update_patient(patient_id):
     try:
         patient = Patient.query.get_or_404(patient_id)
         
+        # Store old values for logging
+        old_name = patient.patname
+        
         # Update patient information from form
         patient.patname = request.form.get('name')
         patient.patemail = request.form.get('email')
@@ -266,6 +470,13 @@ def update_patient(patient_id):
         
         # Save changes to database
         db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Update Patient',
+            f'Updated patient: {old_name} -> {patient.patname} (ID: PAT-{patient.patId:03d})'
+        )
         
         # Return success response for AJAX request
         return jsonify({'success': True})
@@ -337,6 +548,13 @@ def add_appointment():
         db.session.add(new_appointment)
         db.session.commit()
         
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Create Appointment',
+            f'Created appointment for {patient_name} on {new_appointment.appdate} at {new_appointment.apptime}'
+        )
+        
         # Return success response
         return jsonify({
             "success": True,
@@ -353,7 +571,6 @@ def add_appointment():
         print(f"Error in add_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
-
 @app.route('/cancel_appointment', methods=['POST'])
 def cancel_appointment():
     """Cancel an appointment - since we don't have a status field, we'll just delete it"""
@@ -363,6 +580,14 @@ def cancel_appointment():
             return jsonify({"success": False, "error": "No appointment ID provided"})
             
         appointment = Appointment.query.get_or_404(int(appointment_id))
+        
+        # Log the action before deleting
+        log_user_action(
+            session.get('user_id'),
+            'Delete Appointment',
+            f'Cancelled/deleted appointment for {appointment.apppatient} on {appointment.appdate} at {appointment.apptime}'
+        )
+        
         db.session.delete(appointment)
         db.session.commit()
         
@@ -458,16 +683,24 @@ def reschedule_appointment():
             rappreason=reason
         )
         
-        # Update the original appointment
+        # Store old values for logging
         old_date = appointment.appdate
         old_time = appointment.apptime
         
+        # Update the original appointment
         appointment.appdate = datetime.strptime(new_date, '%Y-%m-%d').date()
         appointment.apptime = new_time
         
         # Save both changes to database
         db.session.add(reschedule_record)
         db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Reschedule Appointment',
+            f'Rescheduled appointment for {appointment.apppatient} from {old_date} {old_time} to {appointment.appdate} {appointment.apptime}. Reason: {reason}'
+        )
         
         return jsonify({
             "success": True,
@@ -488,6 +721,13 @@ def mark_appointment_completed(appointment_id):
     try:
         # Get the appointment to make sure it exists
         appointment = Appointment.query.get_or_404(appointment_id)
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Complete Appointment',
+            f'Marked appointment as completed for {appointment.apppatient} on {appointment.appdate} at {appointment.apptime}'
+        )
         
         # Since we don't have a status field, we'll just return success
         # In a real application, you would update the status field here
@@ -546,14 +786,6 @@ def billing():
 def settings():
     """Placeholder for settings page"""
     return "Settings page - Coming soon!"
-
-@app.route('/logout')
-def logout():
-    """Placeholder for logout functionality"""
-    return redirect(url_for('index'))
-
-    
-
 
 #_______________________________________________________________________
 #Staff Management Routes
@@ -630,6 +862,13 @@ def add_staff():
         db.session.add(new_staff)
         db.session.commit()
         
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Create Staff',
+            f'Added new staff member: {new_staff.usersrealname} ({new_staff.usersusername})'
+        )
+        
         # Return success response
         return jsonify({
             "success": True,
@@ -655,6 +894,13 @@ def delete_staff(staff_id):
         # Don't allow deleting self
         if session.get('user_id') == staff_id:
             return jsonify({"success": False, "error": "Cannot delete your own account"})
+        
+        # Log the action before deleting
+        log_user_action(
+            session.get('user_id'),
+            'Delete Staff',
+            f'Deleted staff member: {staff.usersrealname} ({staff.usersusername})'
+        )
         
         # Delete the user
         db.session.delete(staff)
@@ -731,6 +977,9 @@ def update_staff(staff_id):
     try:
         staff = User.query.get_or_404(staff_id)
         
+        # Store old values for logging
+        old_name = staff.usersrealname
+        
         # Update staff information from form
         staff.usersrealname = request.form.get('name')
         staff.usersemail = request.form.get('email')
@@ -762,6 +1011,13 @@ def update_staff(staff_id):
         
         # Save changes to database
         db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Update Staff',
+            f'Updated staff member: {old_name} -> {staff.usersrealname} ({staff.usersusername})'
+        )
         
         # Return success response for AJAX request
         return jsonify({'success': True})
@@ -862,6 +1118,13 @@ def add_inventory():
         db.session.add(new_item)
         db.session.commit()
         
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Create Inventory',
+            f'Added new inventory item: {new_item.invname} (Quantity: {new_item.invquantity})'
+        )
+        
         # Get updated stats
         total_items = Inventory.query.count()
         low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
@@ -907,6 +1170,10 @@ def update_inventory(item_id):
     try:
         item = Inventory.query.get_or_404(item_id)
         
+        # Store old values for logging
+        old_name = item.invname
+        old_quantity = item.invquantity
+        
         # Update item details
         item.invname = request.form.get('name')
         item.invtype = request.form.get('type')
@@ -921,6 +1188,13 @@ def update_inventory(item_id):
             item.invdoe = None
         
         db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Update Inventory',
+            f'Updated inventory item: {old_name} -> {item.invname} (Quantity: {old_quantity} -> {item.invquantity})'
+        )
         
         # Get updated stats
         total_items = Inventory.query.count()
@@ -966,6 +1240,14 @@ def delete_inventory(item_id):
     """Delete an inventory item"""
     try:
         item = Inventory.query.get_or_404(item_id)
+        
+        # Log the action before deleting
+        log_user_action(
+            session.get('user_id'),
+            'Delete Inventory',
+            f'Deleted inventory item: {item.invname} (Quantity: {item.invquantity})'
+        )
+        
         db.session.delete(item)
         db.session.commit()
         
@@ -1032,8 +1314,6 @@ def filter_inventory(filter_type):
         print(f"Error in filter_inventory route: {e}")
         return jsonify({"success": False, "error": str(e)})
     
-
-
 #_____________________________
 # User Registration
 @app.route('/register')
@@ -1095,6 +1375,13 @@ def register_process():
         db.session.add(new_user)
         db.session.commit()
         
+        # Log the registration
+        log_user_action(
+            new_user.usersid,
+            'User Registration',
+            f'New user registered: {realname} ({username})'
+        )
+        
         # Redirect to login page with success message
         return redirect(url_for('login', registration_success=True))
     
@@ -1103,8 +1390,6 @@ def register_process():
         db.session.rollback()
         print(f"Error in register_process route: {e}")
         return render_template('register.html', error=f"Registration failed: {str(e)}")
-    
-
 
 # Add this to app.py - Configuration for backup directory
 BACKUP_DIRECTORY = 'database_backups'
@@ -1207,6 +1492,13 @@ def create_backup():
             
             # Get backup file size
             file_size = os.path.getsize(backup_path) / (1024 * 1024)  # Convert bytes to MB
+            
+            # Log the backup action
+            log_user_action(
+                session.get('user_id'),
+                'Database Backup',
+                f'Created database backup: {backup_filename} ({file_size:.2f} MB)'
+            )
             
             return jsonify({
                 "success": True, 
@@ -1340,7 +1632,6 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
         if connection:
             connection.close()
 
-
 @app.route('/restore_backup/<filename>', methods=['POST'])
 def restore_backup(filename):
     """Restore the database from a backup file with DNS resolution fix"""
@@ -1423,6 +1714,13 @@ def restore_backup(filename):
             
             # Fallback to direct database connection and script execution
             restore_direct_backup(username, password, resolved_host, backup_path, port)
+        
+        # Log the restore action
+        log_user_action(
+            session.get('user_id'),
+            'Database Restore',
+            f'Restored database from backup: {filename}'
+        )
             
         return jsonify({
             "success": True,
@@ -1487,6 +1785,13 @@ def download_backup(filename):
         
         if not os.path.exists(backup_path):
             return "Backup file not found", 404
+        
+        # Log the download action
+        log_user_action(
+            session.get('user_id'),
+            'Download Backup',
+            f'Downloaded backup file: {filename}'
+        )
             
         return send_file(
             backup_path,
@@ -1511,6 +1816,13 @@ def delete_backup(filename):
             return jsonify({"success": False, "error": "Backup file not found"})
             
         os.remove(backup_path)
+        
+        # Log the deletion action
+        log_user_action(
+            session.get('user_id'),
+            'Delete Backup',
+            f'Deleted backup file: {filename}'
+        )
         
         return jsonify({
             "success": True,
