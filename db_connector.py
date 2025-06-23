@@ -320,6 +320,115 @@ class Report(db.Model):
     
     def __repr__(self):
         return f"<Report {self.repid}: {self.reppatient} on {self.repdate}>"
+    
+# Add this Teeth model to your db_connector.py file after the existing models
+
+class Teeth(db.Model):
+    __tablename__ = 'teeth'
+    
+    tID = db.Column(db.Integer, primary_key=True)
+    tpatname = db.Column(db.String(255))
+    l1 = db.Column(db.String(255), default='healthy')
+    l2 = db.Column(db.String(255), default='healthy')
+    l3 = db.Column(db.String(255), default='healthy')
+    l4 = db.Column(db.String(255), default='healthy')
+    l5 = db.Column(db.String(255), default='healthy')
+    l6 = db.Column(db.String(255), default='healthy')
+    l7 = db.Column(db.String(255), default='healthy')
+    l8 = db.Column(db.String(255), default='healthy')
+    l9 = db.Column(db.String(255), default='healthy')
+    l10 = db.Column(db.String(255), default='healthy')
+    l11 = db.Column(db.String(255), default='healthy')
+    l12 = db.Column(db.String(255), default='healthy')
+    l13 = db.Column(db.String(255), default='healthy')
+    l14 = db.Column(db.String(255), default='healthy')
+    l15 = db.Column(db.String(255), default='healthy')
+    l16 = db.Column(db.String(255), default='healthy')
+    l17 = db.Column(db.String(255), default='healthy')
+    l18 = db.Column(db.String(255), default='healthy')
+    l19 = db.Column(db.String(255), default='healthy')
+    l20 = db.Column(db.String(255), default='healthy')
+    l21 = db.Column(db.String(255), default='healthy')
+    l22 = db.Column(db.String(255), default='healthy')
+    l23 = db.Column(db.String(255), default='healthy')
+    l24 = db.Column(db.String(255), default='healthy')
+    l25 = db.Column(db.String(255), default='healthy')
+    l26 = db.Column(db.String(255), default='healthy')
+    l27 = db.Column(db.String(255), default='healthy')
+    l28 = db.Column(db.String(255), default='healthy')
+    l29 = db.Column(db.String(255), default='healthy')
+    l30 = db.Column(db.String(255), default='healthy')
+    l31 = db.Column(db.String(255), default='healthy')
+    l32 = db.Column(db.String(255), default='healthy')
+    is_deleted = db.Column(db.Boolean, default=False)
+    
+    def __repr__(self):
+        return f"<Teeth {self.tID}: {self.tpatname}>"
+    
+    def get_tooth_condition(self, tooth_number):
+        """Get condition of a specific tooth"""
+        return getattr(self, f'l{tooth_number}', 'healthy')
+    
+    def set_tooth_condition(self, tooth_number, condition):
+        """Set condition of a specific tooth"""
+        if 1 <= tooth_number <= 32:
+            setattr(self, f'l{tooth_number}', condition)
+            return True
+        return False
+    
+    def get_all_teeth_conditions(self):
+        """Get all teeth conditions as a dictionary"""
+        conditions = {}
+        for i in range(1, 33):
+            conditions[i] = getattr(self, f'l{i}', 'healthy')
+        return conditions
+    
+    def count_conditions(self):
+        """Count teeth by condition"""
+        conditions = self.get_all_teeth_conditions()
+        count = {}
+        for condition in conditions.values():
+            count[condition] = count.get(condition, 0) + 1
+        return count
+
+# Add this utility function after the models
+def create_initial_teeth_chart(patient_name):
+    """Create initial teeth chart for a patient with all teeth healthy"""
+    try:
+        # Check if teeth chart already exists
+        existing_chart = Teeth.query.filter_by(tpatname=patient_name, is_deleted=False).first()
+        if existing_chart:
+            return existing_chart
+        
+        # Get next ID
+        max_id = db.session.query(db.func.max(Teeth.tID)).first()[0]
+        next_id = 1 if max_id is None else max_id + 1
+        
+        # Create new teeth chart
+        teeth_chart = Teeth(
+            tID=next_id,
+            tpatname=patient_name,
+            is_deleted=False
+        )
+        
+        db.session.add(teeth_chart)
+        db.session.commit()
+        
+        return teeth_chart
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating teeth chart: {e}")
+        return None
+
+def get_teeth_chart_for_patient(patient_name):
+    """Get or create teeth chart for a patient"""
+    teeth_chart = Teeth.query.filter_by(tpatname=patient_name, is_deleted=False).first()
+    if not teeth_chart:
+        teeth_chart = create_initial_teeth_chart(patient_name)
+    return teeth_chart
+
+# Also update the import statement at the top of your app.py to include Teeth:
+# from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
 
 # Utility functions
 def get_db_connection():

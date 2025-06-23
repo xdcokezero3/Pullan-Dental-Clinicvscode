@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Chart - {{ patient.patname }} - Pullan Dental Clinic</title>
+    <style>
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .clinic-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .clinic-subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .patient-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        
+        .patient-info h3 {
+            grid-column: 1 / -1;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        
+        .info-item {
+            margin-bottom: 8px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 120px;
+        }
+        
+        .dental-chart-container {
+            margin: 30px 0;
+        }
+        
+        .chart-title {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 10px;
+        }
+        
+        .quadrants-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .quadrant {
+            border: 2px solid #333;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .quadrant-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 14px;
+            background-color: #f0f0f0;
+            padding: 5px;
+            border: 1px solid #ccc;
+        }
+        
+        .teeth-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            justify-items: center;
+        }
+        
+        .tooth-print {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 10px;
+            position: relative;
+        }
+        
+        .tooth-print.healthy { background-color: #ffffff; }
+        .tooth-print.caries { background-color: #ffcccc; }
+        .tooth-print.filled { background-color: #cccccc; }
+        .tooth-print.crown { background-color: #ffffcc; }
+        .tooth-print.extracted { 
+            background-color: #333333; 
+            color: white;
+        }
+        .tooth-print.root-canal { background-color: #ffccff; }
+        .tooth-print.implant { background-color: #ccffcc; }
+        
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        
+        .legend-title {
+            grid-column: 1 / -1;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #333;
+        }
+        
+        .chart-notes {
+            margin-top: 30px;
+            padding: 15px;
+            border: 1px solid #ccc;
+        }
+        
+        .notes-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .notes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .notes-item {
+            margin-bottom: 8px;
+        }
+        
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 15px;
+        }
+        
+        .signature-section {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+        }
+        
+        .signature-box {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid #333;
+        }
+        
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .print-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">
+        🖨️ Print Chart
+    </button>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="clinic-name">PULLAN DENTAL CLINIC</div>
+        <div class="clinic-subtitle">Comprehensive Dental Care Services</div>
+        <div class="clinic-subtitle">Dental Chart Report</div>
+    </div>
+
+    <!-- Patient Information -->
+    <div class="patient-info">
+        <h3>Patient Information</h3>
+        <div>
+            <div class="info-item">
+                <span class="info-label">Patient Name:</span>
+                {{ patient.patname }}
+            </div>
+            <div class="info-item">
+                <span class="info-label">Patient ID:</span>
+                PAT-{{ "%03d"|format(patient.patId) }}
+            </div>
+            <div class="info-item">
+                <span class="info-label">Contact:</span>
+                {{ patient.patcontact or "N/A" }}
+            </div>
+            <div class="info-item">
+                <span class="info-label">Email:</span>
+                {{ patient.patemail or "N/A" }}
+            </div>
+        </div>
+        <div>
+            <div class="info-item">
+                <span class="info-label">Age:</span>
+                {{ patient.patage or "N/A" }}
+            </div>
+            <div class="info-item">
+                <span class="info-label">Gender:</span>
+                {{ patient.patgender or "N/A" }}
+            </div>
+            <div class="info-item">
+                <span class="info-label">Date of Birth:</span>
+                {{ patient.patdob.strftime('%B %d, %Y') if patient.patdob else "N/A" }}
+            </div>
+            <div class="info-item">
+                <span class="info-label">Print Date:</span>
+                {{ print_date }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Dental Chart -->
+    <div class="dental-chart-container">
+        <div class="chart-title">DENTAL CHART</div>
+        
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-title">Tooth Condition Legend</div>
+            <div class="legend-item">
+                <div class="legend-color healthy"></div>
+                <span>Healthy</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color caries"></div>
+                <span>Caries</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color filled"></div>
+                <span>Filled</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color crown"></div>
+                <span>Crown</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color root-canal"></div>
+                <span>Root Canal</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color extracted"></div>
+                <span>Extracted</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color implant"></div>
+                <span>Implant</span>
+            </div>
+        </div>
+
+        <!-- Quadrants -->
+        <div class="quadrants-container">
+            <!-- Upper Right (Quadrant 1) -->
+            <div class="quadrant">
+                <div class="quadrant-title">Upper Right (Quadrant 1)</div>
+                <div class="teeth-grid">
+                    {% for tooth in teeth_data %}
+                        {% if tooth.quadrant == 1 %}
+                        <div class="tooth-print {{ tooth.condition }}">
+                            {{ tooth.number }}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Upper Left (Quadrant 2) -->
+            <div class="quadrant">
+                <div class="quadrant-title">Upper Left (Quadrant 2)</div>
+                <div class="teeth-grid">
+                    {% for tooth in teeth_data %}
+                        {% if tooth.quadrant == 2 %}
+                        <div class="tooth-print {{ tooth.condition }}">
+                            {{ tooth.number }}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Lower Right (Quadrant 4) -->
+            <div class="quadrant">
+                <div class="quadrant-title">Lower Right (Quadrant 4)</div>
+                <div class="teeth-grid">
+                    {% for tooth in teeth_data %}
+                        {% if tooth.quadrant == 4 %}
+                        <div class="tooth-print {{ tooth.condition }}">
+                            {{ tooth.number }}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Lower Left (Quadrant 3) -->
+            <div class="quadrant">
+                <div class="quadrant-title">Lower Left (Quadrant 3)</div>
+                <div class="teeth-grid">
+                    {% for tooth in teeth_data %}
+                        {% if tooth.quadrant == 3 %}
+                        <div class="tooth-print {{ tooth.condition }}">
+                            {{ tooth.number }}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Notes -->
+    {% if dental_chart %}
+    <div class="chart-notes">
+        <div class="notes-title">Dental Chart Information</div>
+        <div class="notes-grid">
+            <div>
+                <div class="notes-item">
+                    <span class="info-label">Doctor:</span>
+                    {{ dental_chart.dcdoctor or "N/A" }}
+                </div>
+                <div class="notes-item">
+                    <span class="info-label">Dentist:</span>
+                    {{ dental_chart.dcdentist or "N/A" }}
+                </div>
+                <div class="notes-item">
+                    <span class="info-label">Visit Reason:</span>
+                    {{ dental_chart.dcvisit or "N/A" }}
+                </div>
+            </div>
+            <div>
+                <div class="notes-item">
+                    <span class="info-label">Patient Contact:</span>
+                    {{ dental_chart.dcpcontact or "N/A" }}
+                </div>
+                <div class="notes-item">
+                    <span class="info-label">Dentist Contact:</span>
+                    {{ dental_chart.dcdcontact or "N/A" }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Patient Health Questions -->
+    {% if dental_chart and (dental_chart.dcq1 or dental_chart.dcq2 or dental_chart.dcq3) %}
+    <div class="chart-notes">
+        <div class="notes-title">Health Questionnaire</div>
+        <div class="notes-grid">
+            <div>
+                {% if dental_chart.dcq1 %}
+                <div class="notes-item">
+                    <span class="info-label">Question 1:</span>
+                    {{ dental_chart.dcq1 }}
+                </div>
+                {% endif %}
+                {% if dental_chart.dcq2 %}
+                <div class="notes-item">
+                    <span class="info-label">Question 2:</span>
+                    {{ dental_chart.dcq2 }}
+                    {% if dental_chart.dcqe2 %}
+                    <br><em>Details: {{ dental_chart.dcqe2 }}</em>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if dental_chart.dcq3 %}
+                <div class="notes-item">
+                    <span class="info-label">Question 3:</span>
+                    {{ dental_chart.dcq3 }}
+                    {% if dental_chart.dcqe3 %}
+                    <br><em>Details: {{ dental_chart.dcqe3 }}</em>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div>
+                {% if dental_chart.dcq4 %}
+                <div class="notes-item">
+                    <span class="info-label">Question 4:</span>
+                    {{ dental_chart.dcq4 }}
+                    {% if dental_chart.dcqe4 %}
+                    <br><em>Details: {{ dental_chart.dcqe4 }}</em>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if dental_chart.dcq5 %}
+                <div class="notes-item">
+                    <span class="info-label">Question 5:</span>
+                    {{ dental_chart.dcq5 }}
+                    {% if dental_chart.dcqe5 %}
+                    <br><em>Details: {{ dental_chart.dcqe5 }}</em>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if dental_chart.dcq6 %}
+                <div class="notes-item">
+                    <span class="info-label">Question 6:</span>
+                    {{ dental_chart.dcq6 }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Signature Section -->
+    <div class="signature-section">
+        <div class="signature-box">
+            <div>Dentist Signature</div>
+        </div>
+        <div class="signature-box">
+            <div>Patient Signature</div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <div>Pullan Dental Clinic - Comprehensive Dental Care</div>
+        <div>This chart was generated on {{ print_date }}</div>
+        <div>For questions regarding this chart, please contact the clinic.</div>
+    </div>
+
+    <script>
+        // Auto-print when page loads (optional)
+        // window.onload = function() {
+        //     window.print();
+        // }
+        
+        // Close window after printing (optional)
+        window.onafterprint = function() {
+            // window.close();
+        }
+    </script>
+</body>
+</html>

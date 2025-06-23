@@ -1,6 +1,6 @@
-# app.py - Fixed version with DNS resolution handling + User Logs System
+# app.py - Fixed version with DNS resolution handling + User Logs System + Hardcoded Admin + Enhanced Dental Charts
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
-from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, log_user_action
+from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
 from datetime import datetime, date
 import os
 import time
@@ -12,6 +12,7 @@ import socket
 import csv
 from io import StringIO
 from functools import wraps
+import traceback
 
 # Use the Flask app instance from the connector
 app = db_app
@@ -69,7 +70,20 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Check credentials against database
+        # Check for hardcoded admin account FIRST
+        if username == 'admin' and password == 'admin':
+            # Set up session for hardcoded admin
+            session['user_id'] = 0  # Special ID for hardcoded admin
+            session['username'] = 'admin'
+            session['access_level'] = 'admin'
+            session['real_name'] = 'System Administrator'
+            
+            # Log the login action (use user_id = 0 for hardcoded admin)
+            log_user_action(0, 'Login', 'Hardcoded admin logged in successfully')
+            
+            return redirect(url_for('dashboard'))
+
+        # Check credentials against database (existing code)
         user = User.query.filter_by(usersusername=username).first()
         
         if user and user.userspassword == password:
@@ -105,9 +119,12 @@ def logout():
     user_id = session.get('user_id')
     username = session.get('username')
     
-    if user_id:
+    if user_id is not None:  # Changed from 'if user_id:' to handle user_id = 0
         # Log the logout action
-        log_user_action(user_id, 'Logout', f'User {username} logged out')
+        if user_id == 0:
+            log_user_action(0, 'Logout', 'Hardcoded admin logged out')
+        else:
+            log_user_action(user_id, 'Logout', f'User {username} logged out')
     
     # Clear the session
     session.clear()
@@ -161,11 +178,19 @@ def user_logs():
         # Format logs for display
         formatted_logs = []
         for log in logs:
+            # Handle hardcoded admin (user_id = 0)
+            if log.user_id == 0:
+                user_name = "System Administrator"
+                username = "admin"
+            else:
+                user_name = log.user_name
+                username = log.username
+            
             formatted_logs.append({
                 'log_id': log.log_id,
                 'user_id': log.user_id,
-                'user_name': log.user_name,
-                'username': log.username,
+                'user_name': user_name,
+                'username': username,
                 'action': log.action,
                 'timestamp': log.timestamp,
                 'formatted_timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A',
@@ -247,11 +272,19 @@ def export_logs():
         
         # Write data
         for log in logs:
+            # Handle hardcoded admin (user_id = 0)
+            if log.user_id == 0:
+                user_name = "System Administrator"
+                username = "admin"
+            else:
+                user_name = log.user_name or 'N/A'
+                username = log.username or 'N/A'
+            
             writer.writerow([
                 log.log_id,
                 log.user_id or 'N/A',
-                log.user_name or 'N/A',
-                log.username or 'N/A',
+                user_name,
+                username,
                 log.action or 'N/A',
                 log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A',
                 log.details or 'N/A'
@@ -774,8 +807,8 @@ def rescheduled_appointments():
 
 @app.route('/treatments')
 def treatments():
-    """Placeholder for treatments page"""
-    return "Treatments page - Coming soon!"
+    """Redirect to procedures page"""
+    return render_template('procedures.html')
 
 @app.route('/billing')
 def billing():
@@ -1831,6 +1864,697 @@ def delete_backup(filename):
     except Exception as e:
         print(f"Error deleting backup: {e}")
         return jsonify({"success": False, "error": str(e)})
+
+# =============================================================================
+# ENHANCED DENTAL CHART ROUTES - WORKING CREATE CHART FUNCTIONALITY
+# =============================================================================
+
+# PROCEDURE MANAGEMENT ROUTES
+@app.route('/procedures')
+def procedures():
+    """Main procedures page showing all patients and recent procedures"""
+    try:
+        # Get all active patients
+        patients_list = Patient.query.filter_by(is_deleted=False).all()
+        
+        # Get recent reports/procedures
+        recent_procedures = db.session.query(
+            Report.repid,
+            Report.reppatient,
+            Report.repdate,
+            Report.repdentist,
+            Report.repprescription,
+            Report.repcleaning,
+            Report.repextraction,
+            Report.reprootcanal,
+            Report.repbraces,
+            Report.repdentures,
+            Report.repothers
+        ).order_by(Report.repdate.desc()).limit(10).all()
+        
+        # Format patients for display
+        formatted_patients = []
+        for patient in patients_list:
+            # Check if patient has dental chart
+            dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+            teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+            
+            formatted_patients.append({
+                'id': f"PAT-{patient.patId:03d}",
+                'name': patient.patname,
+                'contact': patient.patcontact or "N/A",
+                'age': patient.patage or "N/A",
+                'gender': patient.patgender or "N/A",
+                'has_dental_chart': dental_chart is not None,
+                'has_teeth_chart': teeth_chart is not None,
+                'raw_id': patient.patId
+            })
+        
+        # Format recent procedures
+        formatted_procedures = []
+        for proc in recent_procedures:
+            # Build procedure list
+            procedures_done = []
+            if proc.repcleaning: procedures_done.append("Cleaning")
+            if proc.repextraction: procedures_done.append("Extraction")
+            if proc.reprootcanal: procedures_done.append("Root Canal")
+            if proc.repbraces: procedures_done.append("Braces")
+            if proc.repdentures: procedures_done.append("Dentures")
+            if proc.repothers: procedures_done.append(proc.repothers)
+            
+            formatted_procedures.append({
+                'id': f"PROC-{proc.repid:03d}",
+                'patient_name': proc.reppatient,
+                'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
+                'dentist': proc.repdentist or "N/A",
+                'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
+                'prescription': proc.repprescription or "None",
+                'raw_id': proc.repid
+            })
+        
+        # Get statistics
+        total_patients = len(patients_list)
+        patients_with_charts = sum(1 for p in formatted_patients if p['has_dental_chart'])
+        today_procedures = Report.query.filter_by(repdate=date.today()).count()
+        
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        return render_template('procedures/procedures.html',
+                              patients=formatted_patients,
+                              recent_procedures=formatted_procedures,
+                              total_patients=total_patients,
+                              patients_with_charts=patients_with_charts,
+                              today_procedures=today_procedures,
+                              current_date=current_date)
+    
+    except Exception as e:
+        print(f"Error in procedures route: {e}")
+        return f"Error loading procedures: {e}", 500
+
+@app.route('/create_dental_chart_now/<int:patient_id>')
+def create_dental_chart_now(patient_id):
+    """
+    Robust dental chart creation with comprehensive error handling
+    This route handles all edge cases and provides clear feedback
+    """
+    try:
+        print(f"=== CREATE CHART DEBUG START for Patient ID: {patient_id} ===")
+        
+        # Step 1: Validate patient exists
+        patient = Patient.query.get(patient_id)
+        if not patient:
+            print(f"ERROR: Patient {patient_id} not found")
+            return f"Error: Patient with ID {patient_id} not found", 404
+            
+        print(f"SUCCESS: Found patient {patient.patname}")
+        
+        # Step 2: Check if dental chart already exists
+        existing_dental_chart = DentalChart.query.filter_by(
+            dcpatname=patient.patname, 
+            is_deleted=False
+        ).first()
+        
+        if existing_dental_chart:
+            print(f"INFO: Dental chart already exists, redirecting to edit")
+            return redirect(f"/patient_dental_chart/{patient_id}?message=Chart already exists")
+        
+        # Step 3: Get next available IDs
+        try:
+            max_dental_id = db.session.query(db.func.max(DentalChart.dcID)).scalar() or 0
+            next_dental_id = max_dental_id + 1
+            print(f"Next dental chart ID: {next_dental_id}")
+            
+            max_teeth_id = db.session.query(db.func.max(Teeth.tID)).scalar() or 0
+            next_teeth_id = max_teeth_id + 1
+            print(f"Next teeth chart ID: {next_teeth_id}")
+            
+        except Exception as id_error:
+            print(f"ERROR getting next IDs: {str(id_error)}")
+            return f"Database ID Error: {str(id_error)}", 500
+        
+        # Step 4: Create dental chart
+        try:
+            dental_chart = DentalChart(
+                dcID=next_dental_id,
+                dcpatname=patient.patname,
+                dcpcontact=patient.patcontact or "",
+                dcdoctor="",
+                dcdentist="",
+                dcdcontact="",
+                dcvisit="",
+                dcq1="",
+                dcq2="",
+                dcqe2="",
+                dcq3="",
+                dcqe3="",
+                dcq4="",
+                dcqe4="",
+                dcq5="",
+                dcqe5="",
+                dcq6="",
+                dcq7="",
+                dcqe7="",
+                dcq8="",
+                dcqe8="",
+                dcq9="",
+                dcqe9="",
+                is_deleted=False
+            )
+            
+            db.session.add(dental_chart)
+            print(f"SUCCESS: Created dental chart object")
+            
+        except Exception as chart_error:
+            print(f"ERROR creating dental chart: {str(chart_error)}")
+            return f"Dental Chart Creation Error: {str(chart_error)}", 500
+        
+        # Step 5: Create teeth chart with all teeth healthy
+        try:
+            teeth_data = {}
+            for i in range(1, 33):  # Teeth 1-32
+                teeth_data[f'l{i}'] = 'healthy'
+            
+            teeth_chart = Teeth(
+                tID=next_teeth_id,
+                tpatname=patient.patname,
+                is_deleted=False,
+                **teeth_data
+            )
+            
+            db.session.add(teeth_chart)
+            print(f"SUCCESS: Created teeth chart object")
+            
+        except Exception as teeth_error:
+            print(f"ERROR creating teeth chart: {str(teeth_error)}")
+            db.session.rollback()
+            return f"Teeth Chart Creation Error: {str(teeth_error)}", 500
+        
+        # Step 6: Commit to database
+        try:
+            db.session.commit()
+            print(f"SUCCESS: Committed both charts to database")
+            
+        except Exception as commit_error:
+            print(f"ERROR committing to database: {str(commit_error)}")
+            db.session.rollback()
+            return f"Database Commit Error: {str(commit_error)}", 500
+        
+        # Step 7: Log the action
+        try:
+            log_user_action(
+                session.get('user_id', 0),
+                'Create Dental Chart',
+                f'Created dental chart for {patient.patname} (ID: PAT-{patient.patId:03d})'
+            )
+            print(f"SUCCESS: Logged user action")
+            
+        except Exception as log_error:
+            print(f"WARNING: Failed to log action: {str(log_error)}")
+            # Don't fail the whole operation for logging issues
+        
+        print(f"=== CREATE CHART DEBUG SUCCESS ===")
+        
+        # Step 8: Redirect with success message
+        return redirect(f"/patient_dental_chart/{patient_id}?created=success")
+        
+    except Exception as e:
+        print(f"=== CREATE CHART CRITICAL ERROR ===")
+        print(f"Error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        db.session.rollback()
+        
+        # Return user-friendly error message
+        return f"""
+        <h2>Chart Creation Failed</h2>
+        <p><strong>Error:</strong> {str(e)}</p>
+        <p><strong>Patient ID:</strong> {patient_id}</p>
+        <p><a href="/dental_charts">← Back to Dental Charts</a></p>
+        <hr>
+        <details>
+            <summary>Technical Details (for debugging)</summary>
+            <pre>{traceback.format_exc()}</pre>
+        </details>
+        """, 500
+
+@app.route('/test_chart_creation/<int:patient_id>')
+def test_chart_creation(patient_id):
+    """
+    Test route to verify chart creation capability
+    Use this to diagnose issues before actual creation
+    """
+    try:
+        results = []
+        
+        # Test 1: Patient exists
+        patient = Patient.query.get(patient_id)
+        if patient:
+            results.append(f"✓ Patient found: {patient.patname}")
+        else:
+            results.append(f"✗ Patient {patient_id} not found")
+            return "<br>".join(results)
+        
+        # Test 2: Database connection
+        try:
+            db.session.execute('SELECT 1')
+            results.append("✓ Database connection OK")
+        except Exception as db_error:
+            results.append(f"✗ Database error: {str(db_error)}")
+        
+        # Test 3: Check existing charts
+        existing_dental = DentalChart.query.filter_by(dcpatname=patient.patname).first()
+        if existing_dental:
+            results.append(f"! Dental chart already exists (ID: {existing_dental.dcID})")
+        else:
+            results.append("✓ No existing dental chart")
+        
+        existing_teeth = Teeth.query.filter_by(tpatname=patient.patname).first()
+        if existing_teeth:
+            results.append(f"! Teeth chart already exists (ID: {existing_teeth.tID})")
+        else:
+            results.append("✓ No existing teeth chart")
+        
+        # Test 4: Check table structure
+        try:
+            columns_dental = db.session.execute("DESCRIBE dentalchart").fetchall()
+            results.append(f"✓ DentalChart table has {len(columns_dental)} columns")
+        except Exception as table_error:
+            results.append(f"✗ DentalChart table issue: {str(table_error)}")
+        
+        try:
+            columns_teeth = db.session.execute("DESCRIBE teeth").fetchall()
+            results.append(f"✓ Teeth table has {len(columns_teeth)} columns")
+        except Exception as table_error:
+            results.append(f"✗ Teeth table issue: {str(table_error)}")
+        
+        # Test 5: Check next available IDs
+        try:
+            next_dental_id = (db.session.query(db.func.max(DentalChart.dcID)).scalar() or 0) + 1
+            next_teeth_id = (db.session.query(db.func.max(Teeth.tID)).scalar() or 0) + 1
+            results.append(f"✓ Next IDs: Dental={next_dental_id}, Teeth={next_teeth_id}")
+        except Exception as id_error:
+            results.append(f"✗ ID generation error: {str(id_error)}")
+        
+        results.append("")
+        results.append(f"<a href='/create_dental_chart_now/{patient_id}'>→ Create Chart Now</a>")
+        results.append(f"<a href='/dental_charts'>← Back to Charts List</a>")
+        
+        return "<br>".join(results)
+        
+    except Exception as e:
+        return f"Test failed: {str(e)}"
+
+@app.route('/patient_dental_chart/<int:patient_id>')
+def patient_dental_chart(patient_id):
+    """
+    Enhanced dental chart display with message handling
+    """
+    try:
+        # Handle URL parameters for messages
+        created = request.args.get('created')
+        message = request.args.get('message')
+        
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Get dental chart (create if missing)
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        if not dental_chart:
+            print(f"No dental chart found for {patient.patname}, creating one...")
+            return redirect(f"/create_dental_chart_now/{patient_id}")
+        
+        # Get teeth chart (create if missing)  
+        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        if not teeth_chart:
+            print(f"No teeth chart found for {patient.patname}, creating one...")
+            # Create teeth chart
+            max_teeth_id = db.session.query(db.func.max(Teeth.tID)).scalar() or 0
+            next_teeth_id = max_teeth_id + 1
+            
+            teeth_data = {f'l{i}': 'healthy' for i in range(1, 33)}
+            teeth_chart = Teeth(
+                tID=next_teeth_id,
+                tpatname=patient.patname,
+                is_deleted=False,
+                **teeth_data
+            )
+            db.session.add(teeth_chart)
+            db.session.commit()
+        
+        # Get procedure history
+        procedure_history = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).all()
+        
+        # Format teeth data
+        teeth_data = []
+        for i in range(1, 33):
+            tooth_condition = getattr(teeth_chart, f'l{i}', 'healthy')
+            if i <= 8:
+                quadrant = 1
+            elif i <= 16:
+                quadrant = 2
+            elif i <= 24:
+                quadrant = 3
+            else:
+                quadrant = 4
+                
+            teeth_data.append({
+                'number': i,
+                'condition': tooth_condition or 'healthy',
+                'quadrant': quadrant
+            })
+        
+        # Format procedure history
+        formatted_history = []
+        for proc in procedure_history:
+            procedures_done = []
+            if proc.repcleaning: procedures_done.append("Cleaning")
+            if proc.repextraction: procedures_done.append("Extraction")
+            if proc.reprootcanal: procedures_done.append("Root Canal")
+            if proc.repbraces: procedures_done.append("Braces")
+            if proc.repdentures: procedures_done.append("Dentures")
+            if proc.repothers: procedures_done.append(proc.repothers)
+            
+            formatted_history.append({
+                'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
+                'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
+                'dentist': proc.repdentist or "N/A",
+                'prescription': proc.repprescription or "None"
+            })
+        
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        # Prepare success message
+        success_message = None
+        if created == 'success':
+            success_message = "Dental chart created successfully!"
+        elif message:
+            success_message = message
+        
+        return render_template('dental_chart.html',
+                              patient=patient,
+                              dental_chart=dental_chart,
+                              teeth_data=teeth_data,
+                              procedure_history=formatted_history,
+                              current_date=current_date,
+                              success_message=success_message)
+    
+    except Exception as e:
+        print(f"Error in dental chart route: {e}")
+        return f"Error loading dental chart: {e}", 500
+
+@app.route('/update_tooth_condition', methods=['POST'])
+def update_tooth_condition():
+    """Update the condition of a specific tooth"""
+    try:
+        patient_id = request.form.get('patient_id')
+        tooth_number = request.form.get('tooth_number')
+        condition = request.form.get('condition')
+        
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Get teeth chart
+        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        if not teeth_chart:
+            return jsonify({"success": False, "error": "Teeth chart not found"})
+        
+        # Update the specific tooth condition
+        setattr(teeth_chart, f'l{tooth_number}', condition)
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Update Tooth Condition',
+            f'Updated tooth #{tooth_number} condition to "{condition}" for patient {patient.patname}'
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": f"Tooth #{tooth_number} condition updated to {condition}"
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in update_tooth_condition route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/add_procedure', methods=['POST'])
+def add_procedure():
+    """Add a new procedure/treatment record"""
+    try:
+        patient_id = request.form.get('patient_id')
+        procedure_date = request.form.get('procedure_date')
+        dentist = request.form.get('dentist')
+        prescription = request.form.get('prescription')
+        notes = request.form.get('notes')
+        
+        # Procedure checkboxes
+        cleaning = 1 if request.form.get('cleaning') else 0
+        extraction = 1 if request.form.get('extraction') else 0
+        root_canal = 1 if request.form.get('root_canal') else 0
+        braces = 1 if request.form.get('braces') else 0
+        dentures = 1 if request.form.get('dentures') else 0
+        
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Get next report ID
+        max_id = db.session.query(db.func.max(Report.repid)).first()[0]
+        next_id = 1 if max_id is None else max_id + 1
+        
+        # Create new report/procedure record
+        new_procedure = Report(
+            repid=next_id,
+            reppatient=patient.patname,
+            repdate=datetime.strptime(procedure_date, '%Y-%m-%d').date(),
+            repprescription=prescription,
+            repcleaning=cleaning,
+            repextraction=extraction,
+            reprootcanal=root_canal,
+            repbraces=braces,
+            repdentures=dentures,
+            repdentist=dentist,
+            repothers=notes
+        )
+        
+        db.session.add(new_procedure)
+        db.session.commit()
+        
+        # Log the action
+        procedures_done = []
+        if cleaning: procedures_done.append("Cleaning")
+        if extraction: procedures_done.append("Extraction")
+        if root_canal: procedures_done.append("Root Canal")
+        if braces: procedures_done.append("Braces")
+        if dentures: procedures_done.append("Dentures")
+        if notes: procedures_done.append(notes)
+        
+        log_user_action(
+            session.get('user_id'),
+            'Add Procedure',
+            f'Added procedure for {patient.patname}: {", ".join(procedures_done) if procedures_done else "General Visit"}'
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": "Procedure added successfully",
+            "procedure": {
+                "id": f"PROC-{new_procedure.repid:03d}",
+                "patient": patient.patname,
+                "date": new_procedure.repdate.strftime('%B %d, %Y'),
+                "procedures": ", ".join(procedures_done) if procedures_done else "General Visit"
+            }
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in add_procedure route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update_dental_chart', methods=['POST'])
+def update_dental_chart():
+    """Update patient's dental chart information"""
+    try:
+        patient_id = request.form.get('patient_id')
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Get dental chart
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        if not dental_chart:
+            return jsonify({"success": False, "error": "Dental chart not found"})
+        
+        # Update dental chart fields
+        dental_chart.dcdoctor = request.form.get('doctor')
+        dental_chart.dcdentist = request.form.get('dentist')
+        dental_chart.dcdcontact = request.form.get('dentist_contact')
+        dental_chart.dcvisit = request.form.get('visit_reason')
+        
+        # Update questionnaire responses
+        dental_chart.dcq1 = request.form.get('q1')
+        dental_chart.dcq2 = request.form.get('q2')
+        dental_chart.dcqe2 = request.form.get('qe2')
+        dental_chart.dcq3 = request.form.get('q3')
+        dental_chart.dcqe3 = request.form.get('qe3')
+        dental_chart.dcq4 = request.form.get('q4')
+        dental_chart.dcqe4 = request.form.get('qe4')
+        dental_chart.dcq5 = request.form.get('q5')
+        dental_chart.dcqe5 = request.form.get('qe5')
+        dental_chart.dcq6 = request.form.get('q6')
+        dental_chart.dcq7 = request.form.get('q7')
+        dental_chart.dcqe7 = request.form.get('qe7')
+        dental_chart.dcq8 = request.form.get('q8')
+        dental_chart.dcqe8 = request.form.get('qe8')
+        dental_chart.dcq9 = request.form.get('q9')
+        dental_chart.dcqe9 = request.form.get('qe9')
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Update Dental Chart',
+            f'Updated dental chart for patient {patient.patname}'
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": "Dental chart updated successfully"
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in update_dental_chart route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/procedure_history/<int:patient_id>')
+def procedure_history(patient_id):
+    """View complete procedure history for a patient"""
+    try:
+        patient = Patient.query.get_or_404(patient_id)
+        
+        # Get all procedures for this patient
+        procedures = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).all()
+        
+        # Format procedures for display
+        formatted_procedures = []
+        for proc in procedures:
+            procedures_done = []
+            if proc.repcleaning: procedures_done.append("Cleaning")
+            if proc.repextraction: procedures_done.append("Extraction")
+            if proc.reprootcanal: procedures_done.append("Root Canal")
+            if proc.repbraces: procedures_done.append("Braces")
+            if proc.repdentures: procedures_done.append("Dentures")
+            if proc.repothers: procedures_done.append(proc.repothers)
+            
+            formatted_procedures.append({
+                'id': f"PROC-{proc.repid:03d}",
+                'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
+                'dentist': proc.repdentist or "N/A",
+                'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
+                'prescription': proc.repprescription or "None",
+                'notes': proc.repothers or "None",
+                'raw_id': proc.repid
+            })
+        
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        return render_template('procedures/procedure_history.html',
+                              patient=patient,
+                              procedures=formatted_procedures,
+                              current_date=current_date)
+    
+    except Exception as e:
+        print(f"Error in procedure_history route: {e}")
+        return f"Error loading procedure history: {e}", 500
+    
+@app.route('/dental_charts')
+def dental_charts():
+    """Dental charts overview page showing all patients and their chart status"""
+    try:
+        # Get all active patients
+        patients_list = Patient.query.filter_by(is_deleted=False).all()
+        
+        # Format patients with dental chart information
+        formatted_patients = []
+        for patient in patients_list:
+            # Check if patient has dental chart and teeth chart
+            dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+            teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+            
+            # Get latest procedure
+            latest_procedure = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).first()
+            
+            formatted_patients.append({
+                'id': f"PAT-{patient.patId:03d}",
+                'name': patient.patname,
+                'contact': patient.patcontact or "N/A",
+                'age': patient.patage or "N/A",
+                'gender': patient.patgender or "N/A",
+                'has_dental_chart': dental_chart is not None,
+                'has_teeth_chart': teeth_chart is not None,
+                'chart_complete': dental_chart is not None and teeth_chart is not None,
+                'last_procedure_date': latest_procedure.repdate.strftime('%B %d, %Y') if latest_procedure and latest_procedure.repdate else "No procedures",
+                'chart_created_date': dental_chart.dcpatname if dental_chart else None,  # You might want to add a created date field
+                'raw_id': patient.patId
+            })
+        
+        # Get statistics
+        total_patients = len(patients_list)
+        patients_with_charts = sum(1 for p in formatted_patients if p['has_dental_chart'])
+        complete_charts = sum(1 for p in formatted_patients if p['chart_complete'])
+        
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        return render_template('dental_chart_overview.html',
+                              patients=formatted_patients,
+                              total_patients=total_patients,
+                              patients_with_charts=patients_with_charts,
+                              complete_charts=complete_charts,
+                              current_date=current_date)
+    
+    except Exception as e:
+        print(f"Error in dental_charts route: {e}")
+        return f"Error loading dental charts: {e}", 500
+
+@app.route('/print_dental_chart/<int:patient_id>')
+def print_dental_chart(patient_id):
+    """Generate printable dental chart"""
+    try:
+        patient = Patient.query.get_or_404(patient_id)
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        
+        # Format teeth data for printing
+        teeth_data = []
+        if teeth_chart:
+            for i in range(1, 33):
+                tooth_condition = getattr(teeth_chart, f'l{i}', 'healthy')
+                # Determine quadrant: 1-8=Q1, 9-16=Q2, 17-24=Q3, 25-32=Q4
+                if i <= 8:
+                    quadrant = 1
+                elif i <= 16:
+                    quadrant = 2
+                elif i <= 24:
+                    quadrant = 3
+                else:
+                    quadrant = 4
+                    
+                teeth_data.append({
+                    'number': i,
+                    'condition': tooth_condition or 'healthy',
+                    'quadrant': quadrant
+                })
+        
+        return render_template('procedures/print_dental_chart.html',
+                              patient=patient,
+                              dental_chart=dental_chart,
+                              teeth_data=teeth_data,
+                              print_date=datetime.now().strftime("%B %d, %Y"))
+    
+    except Exception as e:
+        print(f"Error in print_dental_chart route: {e}")
+        return f"Error generating printable chart: {e}", 500
+
+# =============================================================================
+# END OF ENHANCED DENTAL CHART ROUTES
+# =============================================================================
 
 if __name__ == '__main__':
     app.run(debug=True)
