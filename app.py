@@ -4,6 +4,7 @@ from db_connector import app as db_app, db, Patient, Appointment, DentalChart, I
 from datetime import datetime, date
 import os
 import time
+from sqlalchemy import text
 import subprocess
 import json
 import pymysql
@@ -344,35 +345,89 @@ def patients():
 
 @app.route('/patient/<int:patient_id>')
 def patient_details(patient_id):
-    """View details of a specific patient"""
+    """View details of a specific patient with real database data"""
     try:
         patient = Patient.query.get_or_404(patient_id)
         
         # Format the patient ID with leading zeros
         formatted_patient_id = f"PAT-{patient.patId:03d}"
         
-        # Add some example appointments (later you would query these from a database)
-        appointments = [
-            {
-                'date': 'April 15, 2025',
-                'time': '09:30 AM',
-                'treatment': 'Teeth Cleaning',
-                'doctor': 'Dr. Andrews',
-                'status': 'completed'
-            },
-            {
-                'date': 'May 10, 2025',
-                'time': '11:00 AM',
-                'treatment': 'Follow-up',
-                'doctor': 'Dr. Andrews',
-                'status': 'upcoming'
-            }
-        ]
+        # Get real appointments for this patient
+        real_appointments = Appointment.query.filter_by(apppatient=patient.patname).order_by(Appointment.appdate.desc()).all()
+        
+        # Format appointments for display
+        formatted_appointments = []
+        for appointment in real_appointments:
+            # Determine status based on date (you can modify this logic)
+            appointment_date = appointment.appdate
+            current_date = datetime.now().date()
+            
+            if appointment_date < current_date:
+                status = 'completed'
+            elif appointment_date == current_date:
+                status = 'today'
+            else:
+                status = 'upcoming'
+            
+            formatted_appointments.append({
+                'id': f"APT-{appointment.appid:03d}",
+                'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+                'time': appointment.apptime or "N/A",
+                'treatment': "General Checkup",  # Default since not in your schema
+                'doctor': "Dr. Andrews",  # Default since not in your schema
+                'status': status,
+                'raw_id': appointment.appid
+            })
+        
+        # Check if patient has dental chart
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        has_dental_chart = dental_chart is not None
+        
+        # Get teeth chart data if it exists
+        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        teeth_data = []
+        
+        if teeth_chart:
+            for i in range(1, 33):  # Teeth 1-32
+                tooth_condition = getattr(teeth_chart, f'l{i}', 'healthy')
+                teeth_data.append({
+                    'number': i,
+                    'condition': tooth_condition or 'healthy'
+                })
+        
+        # Get recent procedures for this patient
+        recent_procedures = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).limit(5).all()
+        
+        # Format procedures for display
+        formatted_procedures = []
+        for proc in recent_procedures:
+            # Build procedure list
+            procedures_done = []
+            if proc.repcleaning: procedures_done.append("Cleaning")
+            if proc.repextraction: procedures_done.append("Extraction")
+            if proc.reprootcanal: procedures_done.append("Root Canal")
+            if proc.repbraces: procedures_done.append("Braces")
+            if proc.repdentures: procedures_done.append("Dentures")
+            if proc.repothers: procedures_done.append(proc.repothers)
+            
+            formatted_procedures.append({
+                'id': f"PROC-{proc.repid:03d}",
+                'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
+                'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
+                'dentist': proc.repdentist or "Dr. Andrews",
+                'prescription': proc.repprescription or "None",
+                'status': 'completed',  # All procedures in history are completed
+                'raw_id': proc.repid
+            })
         
         return render_template('patients/patient_details.html', 
                               patient=patient, 
                               formatted_patient_id=formatted_patient_id,
-                              appointments=appointments)
+                              appointments=formatted_appointments,
+                              has_dental_chart=has_dental_chart,
+                              teeth_data=teeth_data,
+                              recent_procedures=formatted_procedures)
+                              
     except Exception as e:
         print(f"Error in patient_details route: {e}")
         return f"Error loading patient details: {e}", 500
@@ -1595,7 +1650,7 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
             
             # Get all tables
             with connection.cursor() as cursor:
-                cursor.execute("SHOW TABLES")
+                cursor.execute(text("SHOW TABLES"))
                 tables = cursor.fetchall()
                 
                 if not tables:
@@ -1606,7 +1661,7 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
                     table_name = list(table.values())[0]
                     
                     # Get the CREATE TABLE statement
-                    cursor.execute(f"SHOW CREATE TABLE `{table_name}`")
+                    cursor.execute(text(f"SHOW CREATE TABLE `{table_name}`"))
                     create_table = cursor.fetchone()
                     create_table_sql = list(create_table.values())[1]
                     
@@ -1615,7 +1670,7 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
                     f.write(f"{create_table_sql};\n\n")
                     
                     # Get table data
-                    cursor.execute(f"SELECT * FROM `{table_name}`")
+                    cursor.execute(text(f"SELECT * FROM `{table_name}`"))
                     rows = cursor.fetchall()
                     
                     if rows:
@@ -2113,9 +2168,9 @@ def test_chart_creation(patient_id):
             results.append(f"✗ Patient {patient_id} not found")
             return "<br>".join(results)
         
-        # Test 2: Database connection
+        # Test 2: Database connection (FIXED with text() wrapper)
         try:
-            db.session.execute('SELECT 1')
+            db.session.execute(text('SELECT 1'))
             results.append("✓ Database connection OK")
         except Exception as db_error:
             results.append(f"✗ Database error: {str(db_error)}")
@@ -2133,15 +2188,15 @@ def test_chart_creation(patient_id):
         else:
             results.append("✓ No existing teeth chart")
         
-        # Test 4: Check table structure
+        # Test 4: Check table structure (FIXED with text() wrapper)
         try:
-            columns_dental = db.session.execute("DESCRIBE dentalchart").fetchall()
+            columns_dental = db.session.execute(text("DESCRIBE dentalchart")).fetchall()
             results.append(f"✓ DentalChart table has {len(columns_dental)} columns")
         except Exception as table_error:
             results.append(f"✗ DentalChart table issue: {str(table_error)}")
         
         try:
-            columns_teeth = db.session.execute("DESCRIBE teeth").fetchall()
+            columns_teeth = db.session.execute(text("DESCRIBE teeth")).fetchall()
             results.append(f"✓ Teeth table has {len(columns_teeth)} columns")
         except Exception as table_error:
             results.append(f"✗ Teeth table issue: {str(table_error)}")
