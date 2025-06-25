@@ -18,12 +18,21 @@
                 <p>Clinic Management System</p>
             </div>
             <ul class="nav-menu">
-                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <!-- Admin Only - Backup & Restore -->
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
+                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li class="active"><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                <!-- Admin Only - User Logs -->
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                {% endif %}
                 <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
             </ul>
             <div class="logout">
@@ -87,14 +96,6 @@
                                 <span class="detail-label">Time:</span>
                                 <span class="detail-value">{{ appointment.time }}</span>
                             </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Duration:</span>
-                                <span class="detail-value">{{ appointment.duration|default('30 minutes') }}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Type:</span>
-                                <span class="detail-value">{{ appointment.type|default('Regular Checkup') }}</span>
-                            </div>
                         </div>
                     </div>
                     
@@ -126,20 +127,6 @@
                     </div>
                     
                     <div class="detail-section">
-                        <h3><i class="fas fa-user-md"></i> Provider Information</h3>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <span class="detail-label">Provider:</span>
-                                <span class="detail-value">{{ appointment.provider|default('Dr. Smith') }}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Room:</span>
-                                <span class="detail-value">{{ appointment.room|default('Room 3') }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="detail-section">
                         <h3><i class="fas fa-clipboard"></i> Notes</h3>
                         <div class="notes-container">
                             {% if appointment.notes %}
@@ -148,30 +135,6 @@
                                 <p class="empty-notes">No notes added for this appointment.</p>
                             {% endif %}
                         </div>
-                    </div>
-                    
-                    <div class="detail-section">
-                        <h3><i class="fas fa-procedures"></i> Planned Procedures</h3>
-                        {% if appointment.procedures %}
-                            <div class="procedures-list">
-                                {% for procedure in appointment.procedures %}
-                                    <div class="procedure-item">
-                                        <h4>{{ procedure.name }}</h4>
-                                        <div class="procedure-details">
-                                            <span class="procedure-code">{{ procedure.code }}</span>
-                                            <span class="procedure-duration">{{ procedure.duration }}</span>
-                                            <span class="procedure-cost">${{ procedure.cost }}</span>
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p class="empty-procedures">No procedures specified for this appointment.</p>
-                        {% endif %}
-                        
-                        <button class="btn secondary-btn add-procedure-btn">
-                            <i class="fas fa-plus"></i> Add Procedure
-                        </button>
                     </div>
                 </div>
             </div>
@@ -297,8 +260,8 @@
         }
         
         // Setup the modals
-        const { closeRescheduleModal } = setupModal('rescheduleModal', 'rescheduleBtn', '.close-modal', 'cancelReschedule');
-        const { closeCancelModal } = setupModal('cancelConfirmModal', 'cancelAppointmentBtn', '.close-modal', 'cancelCancellation');
+        const { closeModal: closeRescheduleModal } = setupModal('rescheduleModal', 'rescheduleBtn', '.close-modal', 'cancelReschedule');
+        const { closeModal: closeCancelModal } = setupModal('cancelConfirmModal', 'cancelAppointmentBtn', '.close-modal', 'cancelCancellation');
         
         // Mark as completed functionality
         document.getElementById('markCompletedBtn').addEventListener('click', function() {
@@ -392,13 +355,6 @@
                 console.error('Error:', error);
                 showNotification('An error occurred while cancelling.', 'error');
             });
-        });
-        
-        // Add procedure button
-        document.querySelector('.add-procedure-btn').addEventListener('click', function() {
-            // In a real application, this would open a procedure selection modal
-            // For now, show a notification
-            showNotification('Procedure selection feature coming soon', 'info');
         });
         
         // Notification function

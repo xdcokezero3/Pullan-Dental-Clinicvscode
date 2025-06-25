@@ -3,50 +3,314 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pullan Dental - Patient Details</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/patient_details.css') }}">
+    <title>Pullan Dental Clinic - Patient Details</title>
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <style>
-        /* Additional styles for dental chart */
+        /* Additional styles for patient details */
+        .patient-details-container {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .patient-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .patient-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: rgba(66, 133, 244, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: var(--primary-color);
+        }
+
+        .patient-info h2 {
+            color: var(--text-color);
+            margin: 0 0 5px 0;
+            font-size: 24px;
+        }
+
+        .patient-id {
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        .patient-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .detail-item {
+            margin-bottom: 15px;
+        }
+
+        .detail-label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-light);
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            color: var(--text-color);
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 10px;
+            transition: var(--transition);
+        }
+
+        .back-button:hover {
+            color: #3367d6;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .page-title h1 {
+            font-size: 24px;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-edit {
+            background-color: var(--warning-color);
+            color: var(--text-color);
+        }
+
+        .btn-edit:hover {
+            background-color: #e6a700;
+        }
+
+        .btn-delete {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background-color: #c23321;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 20px;
+            background-color: var(--white);
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+            padding: 0 20px;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 15px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 2px solid transparent;
+            transition: var(--transition);
+            font-weight: 500;
+        }
+
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-button:hover:not(.active) {
+            color: var(--text-color);
+        }
+
+        .tab-content {
+            display: none;
+            background-color: var(--white);
+            border-radius: 0 0 var(--border-radius) var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .appointment-item {
+            background: #f8f9fa;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .appointment-item:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .appointment-date {
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 5px;
+        }
+
+        .appointment-info {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        .status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        .status.completed {
+            background-color: rgba(52, 168, 83, 0.1);
+            color: var(--secondary-color);
+        }
+
+        .status.upcoming {
+            background-color: rgba(66, 133, 244, 0.1);
+            color: var(--primary-color);
+        }
+
+        .status.today {
+            background-color: rgba(251, 188, 5, 0.1);
+            color: var(--warning-color);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        .summary-card {
+            background: #f8f9fa;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .summary-stats > div {
+            background: var(--white);
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            min-width: 120px;
+        }
+
+        /* Dental Chart Styles */
         .dental-chart-preview {
             background: #f8f9fa;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             padding: 20px;
             margin-bottom: 20px;
         }
-        
+
         .teeth-grid {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
             gap: 8px;
             margin: 15px 0;
         }
-        
+
         .tooth {
-            width: 30px;
-            height: 30px;
-            border-radius: 4px;
+            width: 35px;
+            height: 35px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: 12px;
             font-weight: bold;
             color: white;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: var(--transition);
         }
-        
+
         .tooth:hover {
             transform: scale(1.1);
         }
-        
-        .tooth.healthy { background-color: #28a745; }
-        .tooth.cavity { background-color: #dc3545; }
+
+        .tooth.healthy { background-color: var(--secondary-color); }
+        .tooth.cavity { background-color: var(--danger-color); }
         .tooth.filling { background-color: #17a2b8; }
-        .tooth.crown { background-color: #ffc107; color: #000; }
+        .tooth.crown { background-color: var(--warning-color); color: #000; }
         .tooth.missing { background-color: #6c757d; }
         .tooth.root-canal { background-color: #e83e8c; }
-        
+
         .chart-legend {
             display: flex;
             flex-wrap: wrap;
@@ -54,537 +318,514 @@
             margin-top: 15px;
             font-size: 12px;
         }
-        
+
         .legend-item {
             display: flex;
             align-items: center;
             gap: 5px;
         }
-        
+
         .legend-color {
             width: 12px;
             height: 12px;
             border-radius: 2px;
         }
-        
+
         .chart-actions {
             display: flex;
             gap: 10px;
             margin-top: 15px;
+            flex-wrap: wrap;
         }
-        
+
         .chart-btn {
-            padding: 8px 16px;
+            padding: 10px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: var(--border-radius);
             cursor: pointer;
             font-size: 14px;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            transition: background-color 0.2s;
+            gap: 8px;
+            transition: var(--transition);
+            font-weight: 500;
         }
-        
+
         .chart-btn.primary {
-            background-color: #007bff;
+            background-color: var(--primary-color);
             color: white;
         }
-        
+
         .chart-btn.primary:hover {
-            background-color: #0056b3;
+            background-color: #3367d6;
         }
-        
+
         .chart-btn.secondary {
             background-color: #6c757d;
             color: white;
         }
-        
+
         .chart-btn.secondary:hover {
             background-color: #545b62;
         }
-        
+
         .procedure-summary {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            border-left: 4px solid #007bff;
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            border-left: 4px solid var(--primary-color);
+            margin-top: 20px;
         }
-        
+
         .procedure-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #eee;
         }
-        
+
         .procedure-item:last-child {
             border-bottom: none;
         }
-        
+
         .procedure-date {
             font-weight: 600;
-            color: #495057;
+            color: var(--text-color);
         }
-        
+
         .procedure-details {
             font-size: 14px;
-            color: #6c757d;
+            color: var(--text-light);
+            margin-top: 5px;
         }
-        
-        .appointment-item {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-left: 4px solid #007bff;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .appointment-date {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 5px;
-        }
-        
-        .appointment-info {
-            font-size: 14px;
-            color: #6c757d;
-        }
-        
-        .status {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-            text-transform: uppercase;
-        }
-        
-        .status.completed {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        
-        .status.upcoming {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .status.today {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #6c757d;
-        }
-        
-        .empty-state i {
-            font-size: 48px;
-            color: #ccc;
-            margin-bottom: 15px;
-        }
-        
-        .tabs {
-            display: flex;
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 20px;
-        }
-        
-        .tab-button {
-            background: none;
-            border: none;
-            padding: 15px 20px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #6c757d;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-        
-        .tab-button.active {
-            color: #007bff;
-            border-bottom-color: #007bff;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .patient-details-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .patient-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .page-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            
+            .action-buttons {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            
+            .teeth-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .tooth {
+                width: 30px;
+                height: 30px;
+                font-size: 10px;
+            }
+            
+            .chart-actions {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="logo">Pullan Dental</div>
-        <div class="subtitle">Clinic Management System</div>
-        
-        <a href="/dashboard" class="nav-item">
-            <i class="fas fa-th-large"></i> Dashboard
-        </a>
-        <a href="/patients" class="nav-item active">
-            <i class="fas fa-user-injured"></i> Patients
-        </a>
-        <a href="/appointments" class="nav-item">
-            <i class="fas fa-calendar-check"></i> Appointments
-        </a>
-        <a href="/staff" class="nav-item">
-            <i class="fas fa-user-md"></i> Staff
-        </a>
-        <a href="/procedures" class="nav-item">
-            <i class="fas fa-procedures"></i> Procedures
-        </a>
-        <a href="/inventory" class="nav-item">
-            <i class="fas fa-boxes"></i> Inventory
-        </a>
-        <a href="/backup_restore" class="nav-item">
-            <i class="fas fa-cog"></i> Backup
-        </a>
-        
-        <a href="/logout" class="nav-item logout">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </a>
-    </div>
-
-    <div class="main-content">
-        <div class="header">
-            <div class="search-container">
-                <i class="fas fa-search"></i>
-                <input type="text" placeholder="Search...">
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
             </div>
-            <div class="user-section">
-                <div class="notification">
-                    <i class="fas fa-bell"></i>
-                    <span class="notification-count">3</span>
-                </div>
-                <div class="notification">
-                    <i class="fas fa-envelope"></i>
-                    <span class="notification-count">5</span>
+            <ul class="nav-menu">
+                <!-- Admin Only - Backup & Restore -->
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
+                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
+                <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                <!-- Admin Only - User Logs -->
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" placeholder="Search...">
+                    <i class="fas fa-search"></i>
                 </div>
                 <div class="user-info">
-                    <span>{{ session.real_name or session.username or 'User' }}</span>
-                    <i class="fas fa-chevron-down"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="page-header">
-            <div class="left">
-                <button class="back-button" onclick="window.location.href='/patients'">
-                    <i class="fas fa-arrow-left"></i> Back to Patients
-                </button>
-                <h1>Patient Details</h1>
-            </div>
-            <div class="action-buttons">
-                <button class="edit-btn" onclick="window.location.href='/edit_patient/{{ patient.patId }}'">
-                    <i class="fas fa-edit"></i> Edit Patient
-                </button>
-                <button class="delete-btn" onclick="deletePatient({{ patient.patId }})">
-                    <i class="fas fa-trash"></i> Delete Patient
-                </button>
-            </div>
-        </div>
-
-        <div class="patient-card">
-            <div class="patient-header">
-                <div class="patient-avatar">
-                    <i class="fas fa-user"></i>
-                </div>
-                <div>
-                    <div class="patient-name" id="patientName">{{ patient.patname }}</div>
-                    <div class="patient-id" id="patientId">ID: {{ formatted_patient_id }}</div>
-                </div>
-            </div>
-
-            <div class="patient-details">
-                <div>
-                    <div class="detail-item">
-                        <div class="detail-label">Email</div>
-                        <div class="detail-value" id="patientEmail">{{ patient.patemail or "N/A" }}</div>
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
                     </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Phone</div>
-                        <div class="detail-value" id="patientPhone">{{ patient.patcontact or "N/A" }}</div>
+                    <div class="messages">
+                        <i class="fas fa-envelope"></i>
+                        <span class="badge">5</span>
                     </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Date of Birth</div>
-                        <div class="detail-value" id="patientDOB">{{ patient.patdob.strftime('%B %d, %Y') if patient.patdob else "N/A" }}</div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class="detail-item">
-                        <div class="detail-label">Gender</div>
-                        <div class="detail-value" id="patientGender">{{ patient.patgender or "N/A" }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Age</div>
-                        <div class="detail-value" id="patientAge">{{ patient.patage or "N/A" }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Occupation</div>
-                        <div class="detail-value" id="patientOccupation">{{ patient.patoccupation or "N/A" }}</div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class="detail-item">
-                        <div class="detail-label">Address</div>
-                        <div class="detail-value" id="patientAddress">{{ patient.pataddress or "N/A" }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Religion</div>
-                        <div class="detail-value" id="patientReligion">{{ patient.patreligion or "N/A" }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Allergies</div>
-                        <div class="detail-value" id="patientAllergies">{{ patient.patallergies or "N/A" }}</div>
+                    <div class="user">
+                        <span>{{ session.get('username', 'User') }}</span>
+                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <i class="fas fa-chevron-down"></i>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="tabs">
-            <button class="tab-button active" data-tab="appointments">
-                <i class="fas fa-calendar-check"></i> Appointments ({{ appointments|length }})
-            </button>
-            <button class="tab-button" data-tab="dental-chart">
-                <i class="fas fa-tooth"></i> Dental Chart
-            </button>
-        </div>
+            <!-- Page Content -->
+            <a href="{{ url_for('patients') }}" class="back-button">
+                <i class="fas fa-arrow-left"></i> Back to Patients
+            </a>
 
-        <div class="tab-content active" id="appointments-tab">
-            {% if appointments %}
-                {% for appointment in appointments %}
-                <div class="appointment-item">
+            <div class="page-header">
+                <div class="page-title">
+                    <h1>Patient Details</h1>
+                    <p class="date">{{ current_date }}</p>
+                </div>
+                <div class="action-buttons">
+                    <a href="{{ url_for('edit_patient', patient_id=patient.patId) }}" class="btn btn-edit">
+                        <i class="fas fa-edit"></i> Edit Patient
+                    </a>
+                    <button class="btn btn-delete" onclick="deletePatient({{ patient.patId }})">
+                        <i class="fas fa-trash"></i> Delete Patient
+                    </button>
+                </div>
+            </div>
+
+            <div class="patient-details-container">
+                <div class="patient-header">
+                    <div class="patient-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="patient-info">
+                        <h2>{{ patient.patname }}</h2>
+                        <p class="patient-id">ID: {{ formatted_patient_id }}</p>
+                    </div>
+                </div>
+
+                <div class="patient-details-grid">
                     <div>
-                        <div class="appointment-date">{{ appointment.date }} - {{ appointment.time }}</div>
-                        <div class="appointment-info">
-                            ID: {{ appointment.id }} | Treatment: {{ appointment.treatment }} | Doctor: {{ appointment.doctor }}
+                        <div class="detail-item">
+                            <span class="detail-label">Email Address</span>
+                            <span class="detail-value">{{ patient.patemail or "N/A" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Phone Number</span>
+                            <span class="detail-value">{{ patient.patcontact or "N/A" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Date of Birth</span>
+                            <span class="detail-value">{{ patient.patdob.strftime('%B %d, %Y') if patient.patdob else "N/A" }}</span>
                         </div>
                     </div>
-                    <span class="status {{ appointment.status }}">{{ appointment.status|capitalize }}</span>
-                </div>
-                {% endfor %}
-                
-                <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
-                    <h4><i class="fas fa-chart-bar"></i> Appointments Summary</h4>
-                    <div style="display: flex; gap: 20px; margin-top: 10px;">
-                        <div><strong>Total:</strong> {{ appointments|length }}</div>
-                        <div><strong>Completed:</strong> {{ appointments|selectattr('status', 'equalto', 'completed')|list|length }}</div>
-                        <div><strong>Upcoming:</strong> {{ appointments|selectattr('status', 'equalto', 'upcoming')|list|length }}</div>
-                        <div><strong>Today:</strong> {{ appointments|selectattr('status', 'equalto', 'today')|list|length }}</div>
-                    </div>
-                </div>
-            {% else %}
-                <div class="empty-state">
-                    <i class="fas fa-calendar-times"></i>
-                    <h3>No Appointments Yet</h3>
-                    <p>This patient hasn't scheduled any appointments.</p>
-                </div>
-            {% endif %}
-            
-            <div style="margin-top: 20px;">
-                <button class="chart-btn primary" onclick="window.location.href='/appointments'">
-                    <i class="fas fa-plus"></i> Schedule New Appointment
-                </button>
-                {% if appointments %}
-                <button class="chart-btn secondary" onclick="window.location.href='/appointment_details/{{ appointments[0].raw_id }}'">
-                    <i class="fas fa-eye"></i> View Latest Appointment
-                </button>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="tab-content" id="dental-chart-tab">
-            {% if has_dental_chart and teeth_data %}
-            <div class="dental-chart-preview">
-                <h3><i class="fas fa-tooth"></i> Dental Chart Overview</h3>
-                
-                <!-- Teeth Grid Preview -->
-                <div style="margin: 20px 0;">
-                    <h4>Upper Jaw</h4>
-                    <div class="teeth-grid">
-                        <!-- Upper right quadrant (teeth 1-8) -->
-                        {% for tooth in teeth_data[0:8] %}
-                        <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                        {% endfor %}
-                        
-                        <!-- Upper left quadrant (teeth 9-16) -->
-                        {% for tooth in teeth_data[8:16] %}
-                        <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                        {% endfor %}
+                    
+                    <div>
+                        <div class="detail-item">
+                            <span class="detail-label">Gender</span>
+                            <span class="detail-value">{{ patient.patgender or "N/A" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Age</span>
+                            <span class="detail-value">{{ patient.patage or "N/A" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Occupation</span>
+                            <span class="detail-value">{{ patient.patoccupation or "N/A" }}</span>
+                        </div>
                     </div>
                     
-                    <h4>Lower Jaw</h4>
-                    <div class="teeth-grid">
-                        <!-- Lower left quadrant (teeth 17-24) -->
-                        {% for tooth in teeth_data[16:24] %}
-                        <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                        {% endfor %}
-                        
-                        <!-- Lower right quadrant (teeth 25-32) -->
-                        {% for tooth in teeth_data[24:32] %}
-                        <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                        {% endfor %}
-                    </div>
-                </div>
-                
-                <!-- Legend -->
-                <div class="chart-legend">
-                    <div class="legend-item">
-                        <div class="legend-color healthy"></div>
-                        <span>Healthy</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color cavity"></div>
-                        <span>Cavity</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color filling"></div>
-                        <span>Filling</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color crown"></div>
-                        <span>Crown</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color root-canal"></div>
-                        <span>Root Canal</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color missing"></div>
-                        <span>Missing</span>
-                    </div>
-                </div>
-                
-                <!-- Chart Actions -->
-                <div class="chart-actions">
-                    <a href="/patient_dental_chart/{{ patient.patId }}" class="chart-btn primary">
-                        <i class="fas fa-eye"></i> View Full Chart
-                    </a>
-                    <a href="/patient_dental_chart/{{ patient.patId }}" class="chart-btn secondary">
-                        <i class="fas fa-edit"></i> Edit Chart
-                    </a>
-                    <button class="chart-btn secondary" onclick="printChart()">
-                        <i class="fas fa-print"></i> Print Chart
-                    </button>
-                </div>
-            </div>
-            {% else %}
-            <!-- No Dental Chart State -->
-            <div class="empty-state">
-                <i class="fas fa-tooth"></i>
-                <h3>No Dental Chart Available</h3>
-                <p>Create a dental chart to track this patient's dental health.</p>
-                <a href="/create_dental_chart_now/{{ patient.patId }}" class="chart-btn primary">
-                    <i class="fas fa-plus"></i> Create Dental Chart
-                </a>
-            </div>
-            {% endif %}
-            
-            <!-- Recent Procedures Summary -->
-            {% if recent_procedures %}
-            <div class="procedure-summary">
-                <h3><i class="fas fa-procedures"></i> Recent Procedures</h3>
-                
-                {% for procedure in recent_procedures %}
-                <div class="procedure-item">
                     <div>
-                        <div class="procedure-date">{{ procedure.date }}</div>
-                        <div class="procedure-details">{{ procedure.procedures }} - {{ procedure.dentist }}</div>
-                        {% if procedure.prescription != "None" %}
-                        <div class="procedure-details" style="font-style: italic;">Prescription: {{ procedure.prescription }}</div>
-                        {% endif %}
+                        <div class="detail-item">
+                            <span class="detail-label">Home Address</span>
+                            <span class="detail-value">{{ patient.pataddress or "N/A" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Religion</span>
+                            <span class="detail-value">{{ patient.patreligion or "N/A" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Known Allergies</span>
+                            <span class="detail-value">{{ patient.patallergies or "N/A" }}</span>
+                        </div>
                     </div>
-                    <span class="status {{ procedure.status }}">{{ procedure.status|capitalize }}</span>
-                </div>
-                {% endfor %}
-                
-                <div style="margin-top: 15px;">
-                    <a href="/procedure_history/{{ patient.patId }}" class="chart-btn primary">
-                        <i class="fas fa-history"></i> View All Procedures ({{ recent_procedures|length }}{% if recent_procedures|length >= 5 %}+{% endif %})
-                    </a>
-                    <button class="chart-btn secondary" onclick="addNewProcedure()">
-                        <i class="fas fa-plus"></i> Add Procedure
-                    </button>
                 </div>
             </div>
-            {% else %}
-            <div class="empty-state">
-                <i class="fas fa-procedures"></i>
-                <h3>No Procedures Recorded</h3>
-                <p>No dental procedures have been recorded for this patient yet.</p>
-                <button class="chart-btn primary" onclick="addNewProcedure()">
-                    <i class="fas fa-plus"></i> Add First Procedure
+
+            <div class="tabs">
+                <button class="tab-button active" data-tab="appointments">
+                    <i class="fas fa-calendar-check"></i> Appointments ({{ appointments|length }})
+                </button>
+                <button class="tab-button" data-tab="dental-chart">
+                    <i class="fas fa-tooth"></i> Dental Chart
                 </button>
             </div>
-            {% endif %}
+
+            <div class="tab-content active" id="appointments-tab">
+                {% if appointments %}
+                    {% for appointment in appointments %}
+                    <div class="appointment-item">
+                        <div>
+                            <div class="appointment-date">{{ appointment.date }} - {{ appointment.time }}</div>
+                            <div class="appointment-info">
+                                ID: {{ appointment.id }} | Treatment: {{ appointment.treatment }} | Doctor: {{ appointment.doctor }}
+                            </div>
+                        </div>
+                        <span class="status {{ appointment.status }}">{{ appointment.status|capitalize }}</span>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="summary-card">
+                        <h4><i class="fas fa-chart-bar"></i> Appointments Summary</h4>
+                        <div class="summary-stats">
+                            <div><strong>Total:</strong> {{ appointments|length }}</div>
+                            <div><strong>Completed:</strong> {{ appointments|selectattr('status', 'equalto', 'completed')|list|length }}</div>
+                            <div><strong>Upcoming:</strong> {{ appointments|selectattr('status', 'equalto', 'upcoming')|list|length }}</div>
+                            <div><strong>Today:</strong> {{ appointments|selectattr('status', 'equalto', 'today')|list|length }}</div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-times"></i>
+                        <h3>No Appointments Yet</h3>
+                        <p>This patient hasn't scheduled any appointments.</p>
+                    </div>
+                {% endif %}
+                
+                <div class="chart-actions">
+                    <a href="{{ url_for('appointments') }}" class="chart-btn primary">
+                        <i class="fas fa-plus"></i> Schedule New Appointment
+                    </a>
+                    {% if appointments %}
+                    <a href="{{ url_for('appointment_details', appointment_id=appointments[0].raw_id) }}" class="chart-btn secondary">
+                        <i class="fas fa-eye"></i> View Latest Appointment
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="tab-content" id="dental-chart-tab">
+                {% if has_dental_chart and teeth_data %}
+                <div class="dental-chart-preview">
+                    <h3><i class="fas fa-tooth"></i> Dental Chart Overview</h3>
+                    
+                    <!-- Teeth Grid Preview -->
+                    <div style="margin: 20px 0;">
+                        <h4>Upper Jaw</h4>
+                        <div class="teeth-grid">
+                            <!-- Upper right quadrant (teeth 1-8) -->
+                            {% for tooth in teeth_data[0:8] %}
+                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
+                            {% endfor %}
+                            
+                            <!-- Upper left quadrant (teeth 9-16) -->
+                            {% for tooth in teeth_data[8:16] %}
+                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <h4>Lower Jaw</h4>
+                        <div class="teeth-grid">
+                            <!-- Lower left quadrant (teeth 17-24) -->
+                            {% for tooth in teeth_data[16:24] %}
+                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
+                            {% endfor %}
+                            
+                            <!-- Lower right quadrant (teeth 25-32) -->
+                            {% for tooth in teeth_data[24:32] %}
+                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Legend -->
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <div class="legend-color healthy" style="background-color: var(--secondary-color);"></div>
+                            <span>Healthy</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color cavity" style="background-color: var(--danger-color);"></div>
+                            <span>Cavity</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color filling" style="background-color: #17a2b8;"></div>
+                            <span>Filling</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color crown" style="background-color: var(--warning-color);"></div>
+                            <span>Crown</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color root-canal" style="background-color: #e83e8c;"></div>
+                            <span>Root Canal</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color missing" style="background-color: #6c757d;"></div>
+                            <span>Missing</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Actions -->
+                    <div class="chart-actions">
+                        <a href="/patient_dental_chart/{{ patient.patId }}" class="chart-btn primary">
+                            <i class="fas fa-eye"></i> View Full Chart
+                        </a>
+                        <a href="/patient_dental_chart/{{ patient.patId }}" class="chart-btn secondary">
+                            <i class="fas fa-edit"></i> Edit Chart
+                        </a>
+                        <button class="chart-btn secondary" onclick="printChart()">
+                            <i class="fas fa-print"></i> Print Chart
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <!-- No Dental Chart State -->
+                <div class="empty-state">
+                    <i class="fas fa-tooth"></i>
+                    <h3>No Dental Chart Available</h3>
+                    <p>Create a dental chart to track this patient's dental health.</p>
+                    <a href="/create_dental_chart_now/{{ patient.patId }}" class="chart-btn primary">
+                        <i class="fas fa-plus"></i> Create Dental Chart
+                    </a>
+                </div>
+                {% endif %}
+                
+                <!-- Recent Procedures Summary -->
+                {% if recent_procedures %}
+                <div class="procedure-summary">
+                    <h3><i class="fas fa-procedures"></i> Recent Procedures</h3>
+                    
+                    {% for procedure in recent_procedures %}
+                    <div class="procedure-item">
+                        <div>
+                            <div class="procedure-date">{{ procedure.date }}</div>
+                            <div class="procedure-details">{{ procedure.procedures }} - {{ procedure.dentist }}</div>
+                            {% if procedure.prescription != "None" %}
+                            <div class="procedure-details" style="font-style: italic;">Prescription: {{ procedure.prescription }}</div>
+                            {% endif %}
+                        </div>
+                        <span class="status {{ procedure.status }}">{{ procedure.status|capitalize }}</span>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="chart-actions">
+                        <a href="/procedure_history/{{ patient.patId }}" class="chart-btn primary">
+                            <i class="fas fa-history"></i> View All Procedures ({{ recent_procedures|length }}{% if recent_procedures|length >= 5 %}+{% endif %})
+                        </a>
+                        <button class="chart-btn secondary" onclick="addNewProcedure()">
+                            <i class="fas fa-plus"></i> Add Procedure
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-procedures"></i>
+                    <h3>No Procedures Recorded</h3>
+                    <p>No dental procedures have been recorded for this patient yet.</p>
+                    <button class="chart-btn primary" onclick="addNewProcedure()">
+                        <i class="fas fa-plus"></i> Add First Procedure
+                    </button>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 
     <script>
-    document.addEventListener("DOMContentLoaded", function() {
+        // Set current date
+        document.addEventListener('DOMContentLoaded', function() {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            
+            const now = new Date();
+            const day = days[now.getDay()];
+            const date = now.getDate();
+            const month = months[now.getMonth()];
+            const year = now.getFullYear();
+            
+            const dateElement = document.querySelector('.date');
+            if (dateElement) {
+                dateElement.textContent = `${day}, ${month} ${date}, ${year}`;
+            }
+        });
+
         // Tab switching functionality
-        const tabButtons = document.querySelectorAll(".tab-button");
-        const tabContents = document.querySelectorAll(".tab-content");
-        
-        tabButtons.forEach(button => {
-            button.addEventListener("click", function() {
-                // Remove active class from all buttons and contents
-                tabButtons.forEach(btn => btn.classList.remove("active"));
-                tabContents.forEach(content => content.classList.remove("active"));
-                
-                // Add active class to clicked button
-                this.classList.add("active");
-                
-                // Show the selected tab content
-                const tabId = this.getAttribute("data-tab") + "-tab";
-                document.getElementById(tabId).classList.add("active");
+        document.addEventListener("DOMContentLoaded", function() {
+            const tabButtons = document.querySelectorAll(".tab-button");
+            const tabContents = document.querySelectorAll(".tab-content");
+            
+            tabButtons.forEach(button => {
+                button.addEventListener("click", function() {
+                    // Remove active class from all buttons and contents
+                    tabButtons.forEach(btn => btn.classList.remove("active"));
+                    tabContents.forEach(content => content.classList.remove("active"));
+                    
+                    // Add active class to clicked button
+                    this.classList.add("active");
+                    
+                    // Show the selected tab content
+                    const tabId = this.getAttribute("data-tab") + "-tab";
+                    document.getElementById(tabId).classList.add("active");
+                });
             });
         });
-    });
 
-    function deletePatient(patientId) {
-        if (confirm('Are you sure you want to delete this patient record?')) {
-            fetch(`/delete_patient/${patientId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.href = '/patients';
-                } else {
-                    alert('Error deleting patient: ' + data.error);
-                }
-            })
-            .catch(error => {
-                alert('An error occurred: ' + error);
-            });
+        function deletePatient(patientId) {
+            if (confirm('Are you sure you want to delete this patient record? This action cannot be undone.')) {
+                fetch(`/delete_patient/${patientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Show success message and redirect
+                        alert('Patient deleted successfully.');
+                        window.location.href = '/patients';
+                    } else {
+                        alert('Error deleting patient: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred: ' + error);
+                });
+            }
         }
-    }
-    
-    function printChart() {
-        window.open(`/print_dental_chart/{{ patient.patId }}`, '_blank');
-    }
-    
-    function addNewProcedure() {
-        // Redirect to the full dental chart page where procedures can be added
-        window.location.href = `/patient_dental_chart/{{ patient.patId }}`;
-    }
+        
+        function printChart() {
+            window.open(`/print_dental_chart/{{ patient.patId }}`, '_blank');
+        }
+        
+        function addNewProcedure() {
+            // Redirect to the full dental chart page where procedures can be added
+            window.location.href = `/patient_dental_chart/{{ patient.patId }}`;
+        }
     </script>
 </body>
 </html>

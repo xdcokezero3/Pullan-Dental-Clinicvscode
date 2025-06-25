@@ -253,6 +253,14 @@
             border: 1px solid #333;
             border-radius: 2px;
         }
+
+        .legend-color.healthy { background-color: #ffffff; }
+        .legend-color.caries { background-color: #ffcccc; }
+        .legend-color.filled { background-color: #cccccc; }
+        .legend-color.crown { background-color: #ffffcc; }
+        .legend-color.extracted { background-color: #333333; }
+        .legend-color.root-canal { background-color: #ffccff; }
+        .legend-color.implant { background-color: #ccffcc; }
         
         /* Condition Selector Modal */
         .condition-modal {
@@ -453,7 +461,10 @@
                 <p>Clinic Management System</p>
             </div>
             <ul class="nav-menu">
+                <!-- Admin Only - Backup & Restore -->
+                {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
                 <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
@@ -806,101 +817,105 @@
                     </div>
                     
                     <!-- Sidebar -->
-                    <div class="sidebar-section">
-                        <!-- Recent Procedures -->
-                        <div class="chart-card">
-                            <div class="card-header">
-                                <h3 class="card-title"><i class="fas fa-history"></i> Procedure History</h3>
-                            </div>
-                            <div class="procedures-list">
-                                {% if procedure_history %}
-                                    {% for procedure in procedure_history %}
-                                    <div class="procedure-item">
-                                        <div class="procedure-date">{{ procedure.date }}</div>
-                                        <div class="procedure-details">
-                                            <i class="fas fa-user-md"></i> {{ procedure.dentist }}
-                                        </div>
-                                        <div class="procedure-type">{{ procedure.procedures }}</div>
-                                        {% if procedure.prescription != "None" %}
-                                        <div class="procedure-details">
-                                            <i class="fas fa-prescription"></i> {{ procedure.prescription }}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <div style="text-align: center; color: var(--text-light); padding: 20px;">
-                                        <i class="fas fa-info-circle"></i>
-                                        <p>No procedure history found.</p>
-                                    </div>
-                                {% endif %}
-                            </div>
+                    <!-- Sidebar -->
+    <div class="sidebar-section">
+        <!-- Dental Chart History -->
+        <div class="chart-card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-tooth"></i> Dental Chart History</h3>
+            </div>
+            <div class="chart-history-list">
+                {% if chart_history %}
+                    {% for chart in chart_history %}
+                    <div class="chart-item">
+                        <div class="chart-date">{{ chart.date_created.strftime('%B %d, %Y') if chart.date_created else 'N/A' }}</div>
+                        <div class="chart-details">
+                            <i class="fas fa-user-md"></i> Dr. {{ chart.dcdentist or 'Not specified' }}
                         </div>
-                        
-                        <!-- Add Procedure Form (Initially Hidden) -->
-                        <div class="chart-card" id="addProcedureCard" style="display: none;">
-                            <div class="card-header">
-                                <h3 class="card-title"><i class="fas fa-plus"></i> Add New Procedure</h3>
-                                <button onclick="hideAddProcedureForm()" style="background: none; border: none; cursor: pointer;">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            
-                            <form id="addProcedureForm" class="procedure-form">
-                                <div class="form-group">
-                                    <label class="form-label">Procedure Date</label>
-                                    <input type="date" class="form-input" id="procedureDate" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Dentist</label>
-                                    <input type="text" class="form-input" id="procedureDentist" placeholder="Enter dentist name" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Procedures Performed</label>
-                                    <div class="checkbox-group">
-                                        <div class="checkbox-item">
-                                            <input type="checkbox" id="cleaning" name="procedures">
-                                            <label for="cleaning">Cleaning</label>
-                                        </div>
-                                        <div class="checkbox-item">
-                                            <input type="checkbox" id="extraction" name="procedures">
-                                            <label for="extraction">Extraction</label>
-                                        </div>
-                                        <div class="checkbox-item">
-                                            <input type="checkbox" id="rootCanal" name="procedures">
-                                            <label for="rootCanal">Root Canal</label>
-                                        </div>
-                                        <div class="checkbox-item">
-                                            <input type="checkbox" id="braces" name="procedures">
-                                            <label for="braces">Braces</label>
-                                        </div>
-                                        <div class="checkbox-item">
-                                            <input type="checkbox" id="dentures" name="procedures">
-                                            <label for="dentures">Dentures</label>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Prescription</label>
-                                    <textarea class="form-input form-textarea" id="prescription" placeholder="Enter prescription details"></textarea>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Additional Notes</label>
-                                    <textarea class="form-input form-textarea" id="procedureNotes" placeholder="Enter additional notes"></textarea>
-                                </div>
-                                
-                                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                                    <i class="fas fa-save"></i> Add Procedure
-                                </button>
-                            </form>
+                        <div class="chart-type">
+                            <i class="fas fa-file-medical"></i> Chart Update
+                        </div>
+                        {% if chart.dcvisit %}
+                        <div class="chart-details">
+                            <i class="fas fa-clipboard"></i> {{ chart.dcvisit[:50] }}{% if chart.dcvisit|length > 50 %}...{% endif %}
+                        </div>
+                        {% endif %}
+                        {% if chart.dcdoctor %}
+                        <div class="chart-details">
+                            <i class="fas fa-user-plus"></i> Referred by: {{ chart.dcdoctor }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="text-align: center; color: var(--text-light); padding: 20px;">
+                        <i class="fas fa-info-circle"></i>
+                        <p>No dental chart history found.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Add Procedure Form (Initially Hidden) -->
+        <div class="chart-card" id="addProcedureCard" style="display: none;">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-plus"></i> Add New Procedure</h3>
+                <button onclick="hideAddProcedureForm()" style="background: none; border: none; cursor: pointer;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="addProcedureForm" class="procedure-form">
+                <div class="form-group">
+                    <label class="form-label">Procedure Date</label>
+                    <input type="date" class="form-input" id="procedureDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Dentist</label>
+                    <input type="text" class="form-input" id="procedureDentist" placeholder="Enter dentist name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Procedures Performed</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="cleaning" name="procedures">
+                            <label for="cleaning">Cleaning</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="extraction" name="procedures">
+                            <label for="extraction">Extraction</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="rootCanal" name="procedures">
+                            <label for="rootCanal">Root Canal</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="braces" name="procedures">
+                            <label for="braces">Braces</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="dentures" name="procedures">
+                            <label for="dentures">Dentures</label>
                         </div>
                     </div>
                 </div>
-            </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Prescription</label>
+                    <textarea class="form-input form-textarea" id="prescription" placeholder="Enter prescription details"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Additional Notes</label>
+                    <textarea class="form-input form-textarea" id="procedureNotes" placeholder="Enter additional notes"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-save"></i> Add Procedure
+                </button>
+            </form>
         </div>
     </div>
     
