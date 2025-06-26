@@ -8,6 +8,306 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/staff.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <style>
+        /* Single Row Status Summary Styles */
+        .status-summary-single-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 20px;
+        }
+        
+        .status-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+        
+        .status-icon.active { color: #28a745; }
+        .status-icon.inactive { color: #dc3545; }
+        .status-icon.total { color: #007bff; }
+        
+        .status-count {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .status-label {
+            font-size: 14px;
+            color: #666;
+            white-space: nowrap;
+        }
+        
+        .status-divider {
+            color: #ccc;
+            font-size: 18px;
+            margin: 0 10px;
+        }
+        
+        /* Improved Action Buttons */
+        .staff-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            position: absolute;
+            top: 60px;  /* Move buttons down to avoid overlapping role badge */
+            right: 15px;
+        }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .btn-edit {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-edit:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+        
+        .btn-view {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-view:hover {
+            background: #545b62;
+            transform: translateY(-1px);
+        }
+        
+        .btn-deactivate {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-deactivate:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+        
+        .btn-reactivate {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-reactivate:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+        
+        /* Tooltip enhancement */
+        .btn-icon[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+        
+        /* Table action buttons spacing */
+        .data-table td .btn-icon {
+            margin-right: 4px;
+        }
+        
+        .data-table td .btn-icon:last-child {
+            margin-right: 0;
+        }
+
+        /* IMPROVED MODAL STYLES - Matching staff_details.html */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: none;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #f1f1f1;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 20px 25px;
+            background-color: #f8f9fa;
+            border-radius: 0 0 8px 8px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+
+        /* Override any existing modal styles that might conflict */
+        #addStaffModal .modal-content,
+        #editStaffModal .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: none;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+    </style>
 </head>
 <body>
     <div class="wrapper">
@@ -80,21 +380,41 @@
                 <!-- Filter Bar -->
                 <div class="filter-bar">
                     <div class="filter-item">
-                        <span class="filter-label">Role:</span>
-                        <select id="roleFilter" class="filter-select">
-                            <option value="all">All Roles</option>
-                            <option value="Dentist">Dentist</option>
-                            <option value="Assistant">Assistant</option>
-                            <option value="Receptionist">Receptionist</option>
+                        <span class="filter-label">Status:</span>
+                        <select id="statusFilter" class="filter-select">
+                            <option value="active">Active Staff</option>
+                            <option value="inactive">Inactive Staff</option>
+                            <option value="all">All Staff</option>
                         </select>
                     </div>
                     <div class="filter-item">
-                        <span class="filter-label">Access:</span>
+                        <span class="filter-label">Access Level:</span>
                         <select id="accessFilter" class="filter-select">
                             <option value="all">All Access Levels</option>
                             <option value="admin">Admin</option>
                             <option value="user">User</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- Status Summary - Single Row -->
+                <div class="status-summary-single-row">
+                    <div class="status-item">
+                        <i class="fas fa-user-check status-icon active"></i>
+                        <span class="status-count">{{ active_count or 0 }}</span>
+                        <span class="status-label">Active Staff</span>
+                    </div>
+                    <div class="status-divider">|</div>
+                    <div class="status-item">
+                        <i class="fas fa-user-times status-icon inactive"></i>
+                        <span class="status-count">{{ inactive_count or 0 }}</span>
+                        <span class="status-label">Inactive Staff</span>
+                    </div>
+                    <div class="status-divider">|</div>
+                    <div class="status-item">
+                        <i class="fas fa-users status-icon total"></i>
+                        <span class="status-count">{{ total_count or 0 }}</span>
+                        <span class="status-label">Total Staff</span>
                     </div>
                 </div>
 
@@ -110,7 +430,7 @@
                         <!-- Staff Cards -->
                         <div class="staff-grid">
                             {% for staff in staff_members %}
-                            <div class="staff-card" data-role="{{ staff.role }}" data-access="{{ staff.access_level }}">
+                            <div class="staff-card" data-access="{{ staff.access_level.lower() }}" data-status="{{ 'active' if staff.is_active else 'inactive' }}">
                                 <div class="staff-card-header">
                                     <div class="staff-avatar">
                                         {% if staff.role == 'Dentist' %}
@@ -124,13 +444,26 @@
                                     <div class="staff-details">
                                         <h3>{{ staff.name }}</h3>
                                         <p>{{ staff.occupation }}</p>
+                                        {% if not staff.is_active %}
+                                            <span class="inactive-badge">Inactive</span>
+                                        {% endif %}
                                     </div>
                                     <div class="staff-access-badge role-{{ staff.access_level.lower() }}">
                                         {{ staff.access_level }}
                                     </div>
                                     <div class="staff-actions">
-                                        <button class="btn-icon edit-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-edit"></i></button>
-                                        <button class="btn-icon delete-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-trash"></i></button>
+                                        <button class="btn-icon btn-edit edit-staff" data-id="{{ staff.raw_id }}" title="Edit Staff">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% if staff.is_active %}
+                                            <button class="btn-icon btn-deactivate deactivate-staff" data-id="{{ staff.raw_id }}" title="Deactivate Staff">
+                                                <i class="fas fa-user-times"></i>
+                                            </button>
+                                        {% else %}
+                                            <button class="btn-icon btn-reactivate reactivate-staff" data-id="{{ staff.raw_id }}" title="Reactivate Staff">
+                                                <i class="fas fa-user-check"></i>
+                                            </button>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 <div class="staff-card-body">
@@ -139,24 +472,6 @@
                                         <p><i class="fas fa-phone"></i> {{ staff.contact }}</p>
                                         <p><i class="fas fa-id-badge"></i> ID: {{ staff.id }}</p>
                                         <p><i class="fas fa-calendar-alt"></i> Joined: {{ staff.join_date.strftime('%b %d, %Y') if staff.join_date else 'N/A' }}</p>
-                                    </div>
-                                    <div class="staff-schedule">
-                                        <h4>Schedule</h4>
-                                        <div class="schedule-days">
-                                            {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] %}
-                                                <span class="day-pill">{{ day }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                    <div class="staff-stats">
-                                        <div class="stat-item">
-                                            <div class="stat-value">{{ staff.appointment_count|default(0) }}</div>
-                                            <div class="stat-label">Appointments</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-value">{{ staff.patient_count|default(0) }}</div>
-                                            <div class="stat-label">Patients</div>
-                                        </div>
                                     </div>
                                 </div>
                                 <div class="staff-card-footer">
@@ -178,12 +493,13 @@
                                     <th>Email</th>
                                     <th>Contact</th>
                                     <th>Access Level</th>
+                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for staff in staff_members %}
-                                <tr data-role="{{ staff.role }}" data-access="{{ staff.access_level }}">
+                                <tr data-access="{{ staff.access_level.lower() }}" data-status="{{ 'active' if staff.is_active else 'inactive' }}">
                                     <td>{{ staff.id }}</td>
                                     <td>{{ staff.name }}</td>
                                     <td>{{ staff.occupation }}</td>
@@ -191,9 +507,28 @@
                                     <td>{{ staff.contact }}</td>
                                     <td><span class="badge role-{{ staff.access_level.lower() }}">{{ staff.access_level }}</span></td>
                                     <td>
-                                        <button class="btn-icon view-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-eye"></i></button>
-                                        <button class="btn-icon edit-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-edit"></i></button>
-                                        <button class="btn-icon delete-staff" data-id="{{ staff.raw_id }}"><i class="fas fa-trash"></i></button>
+                                        {% if staff.is_active %}
+                                            <span class="badge status-active">Active</span>
+                                        {% else %}
+                                            <span class="badge status-inactive">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn-icon btn-view view-staff" data-id="{{ staff.raw_id }}" title="View Profile">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn-icon btn-edit edit-staff" data-id="{{ staff.raw_id }}" title="Edit Staff">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% if staff.is_active %}
+                                            <button class="btn-icon btn-deactivate deactivate-staff" data-id="{{ staff.raw_id }}" title="Deactivate Staff">
+                                                <i class="fas fa-user-times"></i>
+                                            </button>
+                                        {% else %}
+                                            <button class="btn-icon btn-reactivate reactivate-staff" data-id="{{ staff.raw_id }}" title="Reactivate Staff">
+                                                <i class="fas fa-user-check"></i>
+                                            </button>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -214,7 +549,7 @@
         </div>
     </div>
 
-    <!-- Add Staff Modal -->
+    <!-- Add Staff Modal with Improved Styling -->
     <div id="addStaffModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -314,7 +649,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // DOM Elements
     const staffSearch = document.getElementById('staffSearch');
-    const roleFilter = document.getElementById('roleFilter');
+    const statusFilter = document.getElementById('statusFilter');
     const accessFilter = document.getElementById('accessFilter');
     const tabs = document.querySelectorAll('.tab');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -324,7 +659,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelAddStaffBtn = document.getElementById('cancelAddStaff');
     const staffForm = document.getElementById('staffForm');
     const editStaffBtns = document.querySelectorAll('.edit-staff');
-    const deleteStaffBtns = document.querySelectorAll('.delete-staff');
+    const deactivateStaffBtns = document.querySelectorAll('.deactivate-staff');
+    const reactivateStaffBtns = document.querySelectorAll('.reactivate-staff');
     const viewStaffBtns = document.querySelectorAll('.view-staff');
     
     let currentStaffId = null; // Track which staff member is being edited
@@ -335,12 +671,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Filter Functionality
-    roleFilter.addEventListener('change', filterStaff);
+    statusFilter.addEventListener('change', filterStaff);
     accessFilter.addEventListener('change', filterStaff);
 
     function filterStaff() {
         const searchTerm = staffSearch.value.toLowerCase();
-        const selectedRole = roleFilter.value;
+        const selectedStatus = statusFilter.value;
         const selectedAccess = accessFilter.value;
         
         // Grid view filtering
@@ -348,14 +684,14 @@ document.addEventListener('DOMContentLoaded', function() {
         staffCards.forEach(card => {
             const name = card.querySelector('h3').textContent.toLowerCase();
             const email = card.querySelector('.staff-info p:nth-child(1)').textContent.toLowerCase();
-            const role = card.getAttribute('data-role');
+            const status = card.getAttribute('data-status');
             const access = card.getAttribute('data-access');
             
             const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
-            const matchesRole = selectedRole === 'all' || role === selectedRole;
+            const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
             const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
             
-            if (matchesSearch && matchesRole && matchesAccess) {
+            if (matchesSearch && matchesStatus && matchesAccess) {
                 card.style.display = 'block';
             } else {
                 card.style.display = 'none';
@@ -367,14 +703,14 @@ document.addEventListener('DOMContentLoaded', function() {
         tableRows.forEach(row => {
             const name = row.cells[1].textContent.toLowerCase();
             const email = row.cells[3].textContent.toLowerCase();
-            const role = row.getAttribute('data-role');
+            const status = row.getAttribute('data-status');
             const access = row.getAttribute('data-access');
             
             const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
-            const matchesRole = selectedRole === 'all' || role === selectedRole;
+            const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
             const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
             
-            if (matchesSearch && matchesRole && matchesAccess) {
+            if (matchesSearch && matchesStatus && matchesAccess) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
@@ -506,6 +842,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Don't populate password field for security reasons
                 document.getElementById('password').value = '';
+                document.getElementById('password').placeholder = 'Leave blank to keep current password';
+                document.getElementById('password').removeAttribute('required');
                 
                 // Open the modal in edit mode
                 openModal(true);
@@ -516,9 +854,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // Delete staff button
-        if (e.target.closest('.delete-staff')) {
-            const btn = e.target.closest('.delete-staff');
+        // Deactivate staff button
+        if (e.target.closest('.deactivate-staff')) {
+            const btn = e.target.closest('.deactivate-staff');
             const staffId = btn.getAttribute('data-id');
             const staffCard = btn.closest('.staff-card');
             const staffRow = btn.closest('tr');
@@ -526,42 +864,64 @@ document.addEventListener('DOMContentLoaded', function() {
                               staffCard.querySelector('.staff-details h3').textContent : 
                               (staffRow ? staffRow.cells[1].textContent : 'this staff member');
             
-            if (confirm(`Are you sure you want to delete ${staffName}?`)) {
-                // Send delete request to server
-                fetch(`/delete_staff/${staffId}`, {
+            if (confirm(`Are you sure you want to deactivate ${staffName}?`)) {
+                // Send deactivate request to server
+                fetch(`/deactivate_staff/${staffId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                        // No CSRF token needed
                     }
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Remove the staff card/row from the DOM
-                        if (staffCard) staffCard.remove();
-                        if (staffRow) staffRow.remove();
-                        
-                        // Show success message
-                        alert('Staff member successfully deleted');
+                        alert('Staff member successfully deactivated');
+                        window.location.reload();
                     } else {
-                        alert('Error deleting staff member: ' + (data.error || 'Unknown error'));
+                        alert('Error deactivating staff member: ' + (data.error || 'Unknown error'));
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while trying to delete the staff member');
+                    alert('An error occurred while trying to deactivate the staff member');
+                });
+            }
+        }
+        
+        // Reactivate staff button
+        if (e.target.closest('.reactivate-staff')) {
+            const btn = e.target.closest('.reactivate-staff');
+            const staffId = btn.getAttribute('data-id');
+            const staffCard = btn.closest('.staff-card');
+            const staffRow = btn.closest('tr');
+            const staffName = staffCard ? 
+                              staffCard.querySelector('.staff-details h3').textContent : 
+                              (staffRow ? staffRow.cells[1].textContent : 'this staff member');
+            
+            if (confirm(`Are you sure you want to reactivate ${staffName}?`)) {
+                // Send reactivate request to server
+                fetch(`/reactivate_staff/${staffId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Staff member successfully reactivated');
+                        window.location.reload();
+                    } else {
+                        alert('Error reactivating staff member: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while trying to reactivate the staff member');
                 });
             }
         }
     });
-
-    // Helper function to get CSRF token is not needed anymore
-    /* 
-    function getCsrfToken() {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    }
-    */
 
     // Calculate age from DOB automatically
     const dobInput = document.getElementById('dob');

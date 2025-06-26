@@ -7,6 +7,157 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/staff_details.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <style>
+        /* Modal styles - imported from staff.html */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: none;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #f1f1f1;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 20px 25px;
+            background-color: #f8f9fa;
+            border-radius: 0 0 8px 8px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+    </style>
 </head>
 <body>
     <div class="wrapper">
@@ -58,7 +209,7 @@
                         <span class="badge">5</span>
                     </div>
                     <div class="user-dropdown">
-                        <span>Dr. Smith</span>
+                        <span>{{ session.get('username', 'User') }}</span>
                         <div class="dropdown-content">
                             <span>User</span>
                             <i class="fas fa-chevron-down"></i>
@@ -75,8 +226,12 @@
                         <p class="current-date">{{ current_date }}</p>
                     </div>
                     <div class="action-buttons">
-                        <a href="{{ url_for('edit_staff', staff_id=staff.usersid) }}" class="btn-primary"><i class="fas fa-edit"></i> Edit Profile</a>
-                        <button class="btn-danger" id="deleteStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-trash"></i> Delete Staff</button>
+                        <button class="btn-primary" id="editStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-edit"></i> Edit Staff</button>
+                        {% if staff.is_active %}
+                            <button class="btn-warning" id="deactivateStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-user-times"></i> Deactivate Staff</button>
+                        {% else %}
+                            <button class="btn-success" id="reactivateStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-user-check"></i> Reactivate Staff</button>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -94,9 +249,16 @@
                             {% endif %}
                         </div>
                         <div class="profile-title">
-                            <h2>{{ staff.usersrealname }}</h2>
+                            <h2>{{ staff.usersrealname }}
+                                {% if not staff.is_active %}
+                                    <span class="inactive-indicator">(Inactive)</span>
+                                {% endif %}
+                            </h2>
                             <p class="staff-role">{{ staff.usersoccupation or 'Staff' }}</p>
                             <span class="access-badge role-{{ staff.usersaccess }}">{{ staff.usersaccess|capitalize }}</span>
+                            {% if not staff.is_active %}
+                                <span class="status-badge inactive">Inactive</span>
+                            {% endif %}
                             <p class="staff-id">ID: STF-{{ '%03d' % staff.usersid }}</p>
                         </div>
                     </div>
@@ -106,7 +268,6 @@
                         <div class="tabs">
                             <div class="tab active" data-tab="personal-info">Personal Information</div>
                             <div class="tab" data-tab="work-info">Work Information</div>
-                            <div class="tab" data-tab="activity">Activity</div>
                         </div>
                         
                         <!-- Personal Information Tab -->
@@ -171,80 +332,22 @@
                                         <span class="info-label"><i class="fas fa-key"></i> Access Level:</span>
                                         <span class="info-value access-tag">{{ staff.usersaccess|capitalize }}</span>
                                     </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-toggle-on"></i> Status:</span>
+                                        <span class="info-value">
+                                            {% if staff.is_active %}
+                                                <span class="status-active">Active</span>
+                                            {% else %}
+                                                <span class="status-inactive">Inactive</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
                                     {% if staff.userscreatedat %}
                                     <div class="info-item">
                                         <span class="info-label"><i class="fas fa-calendar-plus"></i> Joined:</span>
                                         <span class="info-value">{{ staff.userscreatedat.strftime('%B %d, %Y') }}</span>
                                     </div>
                                     {% endif %}
-                                </div>
-                                
-                                <div class="info-section">
-                                    <h3>Schedule</h3>
-                                    <div class="schedule-week">
-                                        <div class="day-block active">
-                                            <span class="day-name">Mon</span>
-                                            <span class="day-hours">9:00 - 17:00</span>
-                                        </div>
-                                        <div class="day-block active">
-                                            <span class="day-name">Tue</span>
-                                            <span class="day-hours">9:00 - 17:00</span>
-                                        </div>
-                                        <div class="day-block active">
-                                            <span class="day-name">Wed</span>
-                                            <span class="day-hours">9:00 - 17:00</span>
-                                        </div>
-                                        <div class="day-block active">
-                                            <span class="day-name">Thu</span>
-                                            <span class="day-hours">9:00 - 17:00</span>
-                                        </div>
-                                        <div class="day-block active">
-                                            <span class="day-name">Fri</span>
-                                            <span class="day-hours">9:00 - 17:00</span>
-                                        </div>
-                                        <div class="day-block">
-                                            <span class="day-name">Sat</span>
-                                            <span class="day-hours">Off</span>
-                                        </div>
-                                        <div class="day-block">
-                                            <span class="day-name">Sun</span>
-                                            <span class="day-hours">Off</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Activity Tab -->
-                        <div class="tab-content" id="activity">
-                            <div class="activity-stats">
-                                <div class="stat-card">
-                                    <div class="stat-value">0</div>
-                                    <div class="stat-label">Appointments</div>
-                                    <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-value">0</div>
-                                    <div class="stat-label">Patients</div>
-                                    <div class="stat-icon"><i class="fas fa-user-injured"></i></div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-value">0</div>
-                                    <div class="stat-label">Procedures</div>
-                                    <div class="stat-icon"><i class="fas fa-teeth"></i></div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-value">0</div>
-                                    <div class="stat-label">Hours Worked</div>
-                                    <div class="stat-icon"><i class="fas fa-clock"></i></div>
-                                </div>
-                            </div>
-                            
-                            <div class="recent-activity">
-                                <h3>Recent Activity</h3>
-                                <div class="activity-empty">
-                                    <i class="fas fa-chart-line"></i>
-                                    <p>No recent activity to display</p>
                                 </div>
                             </div>
                         </div>
@@ -254,23 +357,136 @@
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteConfirmModal" class="modal">
+    <!-- Edit Staff Modal (Same as staff.html) -->
+    <div id="editStaffModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Confirm Delete</h2>
+                <h2>Edit Staff Member</h2>
                 <span class="close">&times;</span>
             </div>
             <div class="modal-body">
-                <p class="warning-text">Are you sure you want to delete this staff member? This action cannot be undone.</p>
+                <form id="staffForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Full Name</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password (Leave blank to keep current)</label>
+                            <input type="password" id="password" name="password" placeholder="Leave blank to keep current password">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="contact">Phone Number</label>
+                            <input type="tel" id="contact" name="contact" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" name="gender">
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <input type="text" id="address" name="address">
+                        </div>
+                        <div class="form-group">
+                            <label for="cityzipcode">City/Zip Code</label>
+                            <input type="text" id="cityzipcode" name="cityzipcode">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dob">Date of Birth</label>
+                            <input type="date" id="dob" name="dob">
+                        </div>
+                        <div class="form-group">
+                            <label for="age">Age</label>
+                            <input type="number" id="age" name="age" min="18" max="100">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="religion">Religion</label>
+                            <input type="text" id="religion" name="religion">
+                        </div>
+                        <div class="form-group">
+                            <label for="access">Access Level</label>
+                            <select id="access" name="access" required>
+                                <option value="admin">Admin</option>
+                                <option value="user">User</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="occupation">Occupation</label>
+                            <input type="text" id="occupation" name="occupation" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" id="cancelEditStaff">Cancel</button>
+                        <button type="submit" class="btn-primary" id="saveStaffBtn">Update Staff Member</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deactivate Confirmation Modal -->
+    <div id="deactivateConfirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Deactivation</h2>
+                <span class="close" id="closeDeactivateModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p class="warning-text">Are you sure you want to deactivate this staff member? They will be moved to inactive status and won't be able to access the system.</p>
                 <div class="staff-info-summary">
                     <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
                     <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
                     <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
                 </div>
                 <div class="modal-actions">
-                    <button id="cancelDeleteBtn" class="btn-secondary">Cancel</button>
-                    <button id="confirmDeleteBtn" class="btn-danger">Delete Staff</button>
+                    <button id="cancelDeactivateBtn" class="btn-secondary">Cancel</button>
+                    <button id="confirmDeactivateBtn" class="btn-warning">Deactivate Staff</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reactivate Confirmation Modal -->
+    <div id="reactivateConfirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Reactivation</h2>
+                <span class="close" id="closeReactivateModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p class="success-text">Are you sure you want to reactivate this staff member? They will regain access to the system.</p>
+                <div class="staff-info-summary">
+                    <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
+                    <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
+                    <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
+                </div>
+                <div class="modal-actions">
+                    <button id="cancelReactivateBtn" class="btn-secondary">Cancel</button>
+                    <button id="confirmReactivateBtn" class="btn-success">Reactivate Staff</button>
                 </div>
             </div>
         </div>
@@ -279,17 +495,29 @@
     <script>
         /**
          * Pullan Dental - Staff Details JavaScript
-         * Handles tabs switching, delete confirmation, etc.
+         * Handles tabs switching, edit modal, deactivate/reactivate confirmation, etc.
          */
         document.addEventListener('DOMContentLoaded', function() {
             // DOM Elements
             const tabs = document.querySelectorAll('.tab');
             const tabContents = document.querySelectorAll('.tab-content');
-            const deleteStaffBtn = document.getElementById('deleteStaffBtn');
-            const deleteConfirmModal = document.getElementById('deleteConfirmModal');
-            const closeModalBtn = document.querySelector('.close');
-            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
-            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+            const editStaffBtn = document.getElementById('editStaffBtn');
+            const editStaffModal = document.getElementById('editStaffModal');
+            const closeModalBtn = document.querySelector('#editStaffModal .close');
+            const cancelEditStaffBtn = document.getElementById('cancelEditStaff');
+            const staffForm = document.getElementById('staffForm');
+            const deactivateStaffBtn = document.getElementById('deactivateStaffBtn');
+            const reactivateStaffBtn = document.getElementById('reactivateStaffBtn');
+            const deactivateConfirmModal = document.getElementById('deactivateConfirmModal');
+            const reactivateConfirmModal = document.getElementById('reactivateConfirmModal');
+            const closeDeactivateModalBtn = document.getElementById('closeDeactivateModal');
+            const closeReactivateModalBtn = document.getElementById('closeReactivateModal');
+            const cancelDeactivateBtn = document.getElementById('cancelDeactivateBtn');
+            const cancelReactivateBtn = document.getElementById('cancelReactivateBtn');
+            const confirmDeactivateBtn = document.getElementById('confirmDeactivateBtn');
+            const confirmReactivateBtn = document.getElementById('confirmReactivateBtn');
+            
+            let currentStaffId = {{ staff.usersid }}; // Get the current staff ID from template
             
             // Tab Switching
             tabs.forEach(tab => {
@@ -310,54 +538,247 @@
                 });
             });
             
-            // Modal Functionality
-            function openModal() {
-                deleteConfirmModal.style.display = 'block';
+            // Edit Staff Modal Functions
+            function openEditModal() {
+                editStaffModal.style.display = 'block';
             }
             
-            function closeModal() {
-                deleteConfirmModal.style.display = 'none';
+            function closeEditModal() {
+                editStaffModal.style.display = 'none';
             }
             
-            deleteStaffBtn.addEventListener('click', openModal);
-            closeModalBtn.addEventListener('click', closeModal);
-            cancelDeleteBtn.addEventListener('click', closeModal);
+            // Edit Staff Button Click
+            if (editStaffBtn) {
+                editStaffBtn.addEventListener('click', function() {
+                    const staffId = this.getAttribute('data-id');
+                    currentStaffId = staffId;
+                    
+                    // Fetch staff details and populate the form
+                    fetch(`/staff_details/${staffId}?format=json`)
+                    .then(response => response.json())
+                    .then(staff => {
+                        // Populate the form with staff data
+                        document.getElementById('name').value = staff.usersrealname || '';
+                        document.getElementById('email').value = staff.usersemail || '';
+                        document.getElementById('username').value = staff.usersusername || '';
+                        document.getElementById('contact').value = staff.userscontact || '';
+                        document.getElementById('address').value = staff.usershomeaddress || '';
+                        document.getElementById('cityzipcode').value = staff.userscityzipcode || '';
+                        document.getElementById('religion').value = staff.usersreligion || '';
+                        document.getElementById('gender').value = staff.usersgender || 'Male';
+                        document.getElementById('access').value = staff.usersaccess || 'user';
+                        document.getElementById('occupation').value = staff.usersoccupation || '';
+                        
+                        // Handle date fields
+                        if (staff.usersdob_formatted) {
+                            document.getElementById('dob').value = staff.usersdob_formatted;
+                        }
+                        
+                        if (staff.usersage) {
+                            document.getElementById('age').value = staff.usersage;
+                        }
+                        
+                        // Don't populate password field for security reasons
+                        document.getElementById('password').value = '';
+                        document.getElementById('password').placeholder = 'Leave blank to keep current password';
+                        
+                        // Open the modal
+                        openEditModal();
+                    })
+                    .catch(error => {
+                        console.error('Error fetching staff details:', error);
+                        alert('Could not load staff details');
+                    });
+                });
+            }
+            
+            // Modal Close Events
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', closeEditModal);
+            }
+            
+            if (cancelEditStaffBtn) {
+                cancelEditStaffBtn.addEventListener('click', closeEditModal);
+            }
             
             // Close modal when clicking outside
             window.addEventListener('click', function(event) {
-                if (event.target === deleteConfirmModal) {
-                    closeModal();
+                if (event.target === editStaffModal) {
+                    closeEditModal();
+                }
+                if (event.target === deactivateConfirmModal) {
+                    closeDeactivateModal();
+                }
+                if (event.target === reactivateConfirmModal) {
+                    closeReactivateModal();
                 }
             });
             
-            // Handle Delete Staff Action
-            confirmDeleteBtn.addEventListener('click', function() {
-                const staffId = deleteStaffBtn.getAttribute('data-id');
-                
-                // Send delete request to server
-                fetch(`/delete_staff/${staffId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Redirect to staff list after successful deletion
-                        window.location.href = '/staff';
-                    } else {
-                        // Show error message
-                        alert('Error deleting staff member: ' + (data.error || 'Unknown error'));
-                        closeModal();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while trying to delete the staff member');
-                    closeModal();
+            // Form Submission
+            if (staffForm) {
+                staffForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Collect form data
+                    const formData = new FormData(staffForm);
+                    
+                    // Submit the form via AJAX to update staff
+                    fetch(`/update_staff/${currentStaffId}`, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Staff updated successfully');
+                            // Reload the page to show updated information
+                            window.location.reload();
+                        } else {
+                            alert(`Error: ${data.error || 'Unknown error occurred'}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while processing your request');
+                    });
                 });
-            });
+            }
+            
+            // Calculate age from DOB automatically
+            const dobInput = document.getElementById('dob');
+            const ageInput = document.getElementById('age');
+            
+            if (dobInput && ageInput) {
+                dobInput.addEventListener('change', function() {
+                    if (this.value) {
+                        const dob = new Date(this.value);
+                        const today = new Date();
+                        let age = today.getFullYear() - dob.getFullYear();
+                        const monthDiff = today.getMonth() - dob.getMonth();
+                        
+                        // Adjust age if birthday hasn't occurred yet this year
+                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                            age--;
+                        }
+                        
+                        ageInput.value = age;
+                    }
+                });
+            }
+            
+            // Deactivate/Reactivate Modal Functions
+            function openDeactivateModal() {
+                if (deactivateConfirmModal) {
+                    deactivateConfirmModal.style.display = 'block';
+                }
+            }
+            
+            function closeDeactivateModal() {
+                if (deactivateConfirmModal) {
+                    deactivateConfirmModal.style.display = 'none';
+                }
+            }
+            
+            function openReactivateModal() {
+                if (reactivateConfirmModal) {
+                    reactivateConfirmModal.style.display = 'block';
+                }
+            }
+            
+            function closeReactivateModal() {
+                if (reactivateConfirmModal) {
+                    reactivateConfirmModal.style.display = 'none';
+                }
+            }
+            
+            // Event Listeners for Deactivate/Reactivate
+            if (deactivateStaffBtn) {
+                deactivateStaffBtn.addEventListener('click', openDeactivateModal);
+            }
+            
+            if (reactivateStaffBtn) {
+                reactivateStaffBtn.addEventListener('click', openReactivateModal);
+            }
+            
+            if (closeDeactivateModalBtn) {
+                closeDeactivateModalBtn.addEventListener('click', closeDeactivateModal);
+            }
+            
+            if (closeReactivateModalBtn) {
+                closeReactivateModalBtn.addEventListener('click', closeReactivateModal);
+            }
+            
+            if (cancelDeactivateBtn) {
+                cancelDeactivateBtn.addEventListener('click', closeDeactivateModal);
+            }
+            
+            if (cancelReactivateBtn) {
+                cancelReactivateBtn.addEventListener('click', closeReactivateModal);
+            }
+            
+            // Handle Deactivate Staff Action
+            if (confirmDeactivateBtn) {
+                confirmDeactivateBtn.addEventListener('click', function() {
+                    const staffId = deactivateStaffBtn.getAttribute('data-id');
+                    
+                    // Send deactivate request to server
+                    fetch(`/deactivate_staff/${staffId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Redirect to staff list after successful deactivation
+                            alert('Staff member successfully deactivated');
+                            window.location.href = '/staff';
+                        } else {
+                            // Show error message
+                            alert('Error deactivating staff member: ' + (data.error || 'Unknown error'));
+                            closeDeactivateModal();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while trying to deactivate the staff member');
+                        closeDeactivateModal();
+                    });
+                });
+            }
+            
+            // Handle Reactivate Staff Action
+            if (confirmReactivateBtn) {
+                confirmReactivateBtn.addEventListener('click', function() {
+                    const staffId = reactivateStaffBtn.getAttribute('data-id');
+                    
+                    // Send reactivate request to server
+                    fetch(`/reactivate_staff/${staffId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Redirect to staff list after successful reactivation
+                            alert('Staff member successfully reactivated');
+                            window.location.href = '/staff';
+                        } else {
+                            // Show error message
+                            alert('Error reactivating staff member: ' + (data.error || 'Unknown error'));
+                            closeReactivateModal();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while trying to reactivate the staff member');
+                        closeReactivateModal();
+                    });
+                });
+            }
         });
     </script>
 </body>

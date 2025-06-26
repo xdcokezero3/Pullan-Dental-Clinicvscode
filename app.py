@@ -1683,21 +1683,67 @@ def settings():
 
 #_______________________________________________________________________
 #Staff Management Routes
+
+@app.route('/edit_staff/<int:staff_id>')
+def edit_staff(staff_id):
+    """Render edit staff page"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Add is_active attribute for template
+        staff.is_active = True
+        if hasattr(staff, 'is_deleted'):
+            staff.is_active = not staff.is_deleted
+        
+        # Format date of birth for HTML date input
+        if hasattr(staff, 'usersdob') and staff.usersdob:
+            staff.usersdob_formatted = staff.usersdob.strftime('%Y-%m-%d')
+        
+        # For now, redirect back to staff details since we don't have an edit template
+        # You can create a proper edit template later
+        return redirect(url_for('staff_details', staff_id=staff_id))
+        
+    except Exception as e:
+        print(f"Error in edit_staff route: {e}")
+        return f"Error loading staff edit form: {e}", 500
+
 @app.route('/staff')
 def staff():
-    """Staff management page"""
+    """Staff management page with status filtering"""
     try:
-        # Get all staff members (users with admin or user access)
-        staff_users = User.query.filter(User.usersaccess.in_(['admin', 'user'])).all()
+        # Get status filter from query parameter (default to 'active')
+        status_filter = request.args.get('status', 'active')
+        
+        # Build query based on status filter - check if User model has is_deleted field
+        base_query = User.query.filter(User.usersaccess.in_(['admin', 'user']))
+        
+        if status_filter == 'active':
+            # Check if User model has is_deleted field
+            if hasattr(User, 'is_deleted'):
+                staff_users = base_query.filter_by(is_deleted=False).all()
+            else:
+                # Fallback: assume all users are active if no is_deleted field
+                staff_users = base_query.all()
+        elif status_filter == 'inactive':
+            if hasattr(User, 'is_deleted'):
+                staff_users = base_query.filter_by(is_deleted=True).all()
+            else:
+                staff_users = []  # No inactive users if no is_deleted field
+        else:  # 'all'
+            staff_users = base_query.all()
         
         # Format staff data for the template
         staff_members = []
         for user in staff_users:
             # Determine role based on some attribute or default to "Staff"
-            # You might want to add a dedicated role field to your User model
             role = "Staff"  # Default
             if hasattr(user, 'usersrole') and user.usersrole:
                 role = user.usersrole
+            
+            # Check if user is active
+            is_active = True
+            if hasattr(user, 'is_deleted'):
+                is_active = not user.is_deleted
             
             staff_members.append({
                 'id': f"STF-{user.usersid:03d}",
@@ -1709,19 +1755,220 @@ def staff():
                 'occupation': user.usersoccupation if hasattr(user, 'usersoccupation') and user.usersoccupation else "Staff",
                 'access_level': user.usersaccess.capitalize(),
                 'join_date': user.userscreatedat if hasattr(user, 'userscreatedat') else datetime.now(),
+                'is_active': is_active,  # Add this for template filtering
                 'appointment_count': 0,
                 'patient_count': 0,
             })
-
+        
+        # Get counts for status badges
+        if hasattr(User, 'is_deleted'):
+            active_count = User.query.filter(
+                User.usersaccess.in_(['admin', 'user']),
+                User.is_deleted == False
+            ).count()
+            inactive_count = User.query.filter(
+                User.usersaccess.in_(['admin', 'user']),
+                User.is_deleted == True
+            ).count()
+        else:
+            # Fallback counts if no is_deleted field
+            total_count = User.query.filter(User.usersaccess.in_(['admin', 'user'])).count()
+            active_count = total_count
+            inactive_count = 0
+        
+        total_count = active_count + inactive_count
         
         return render_template('staff.html', 
                               staff_members=staff_members,
-                              current_date=datetime.now().strftime('%B %d, %Y'))
+                              current_date=datetime.now().strftime('%B %d, %Y'),
+                              status_filter=status_filter,
+                              active_count=active_count,
+                              inactive_count=inactive_count,
+                              total_count=total_count)
     
     except Exception as e:
         print(f"Error loading staff page: {e}")
         return f"Error loading staff page: {e}", 500
 
+@app.route('/deactivate_staff/<int:staff_id>', methods=['POST'])
+def deactivate_staff(staff_id):
+    """Deactivate a staff member (soft delete)"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Don't allow deactivating self
+        if session.get('user_id') == staff_id:
+            return jsonify({"success": False, "error": "Cannot deactivate your own account"})
+        
+        # Check if User model has is_deleted field
+        if hasattr(staff, 'is_deleted'):
+            staff.is_deleted = True
+        else:
+            # If no is_deleted field exists, we need to add it to the model first
+            return jsonify({
+                "success": False, 
+                "error": "User model does not have is_deleted field. Please add it to the database schema first."
+            })
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Deactivate Staff',
+            f'Deactivated staff member: {staff.usersrealname} ({staff.usersusername})'
+        )
+        
+        return jsonify({"success": True, "message": "Staff member deactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in deactivate_staff route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/reactivate_staff/<int:staff_id>', methods=['POST'])  
+def reactivate_staff(staff_id):
+    """Reactivate a staff member (restore from soft delete)"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Check if User model has is_deleted field
+        if hasattr(staff, 'is_deleted'):
+            staff.is_deleted = False
+        else:
+            # If no is_deleted field exists, we need to add it to the model first
+            return jsonify({
+                "success": False, 
+                "error": "User model does not have is_deleted field. Please add it to the database schema first."
+            })
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Reactivate Staff',
+            f'Reactivated staff member: {staff.usersrealname} ({staff.usersusername})'
+        )
+        
+        return jsonify({"success": True, "message": "Staff member reactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in reactivate_staff route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/staff_details/<int:staff_id>')
+def staff_details(staff_id):
+    """View details of a specific staff member with status information"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Add is_active attribute for template
+        staff.is_active = True
+        if hasattr(staff, 'is_deleted'):
+            staff.is_active = not staff.is_deleted
+        
+        # Check if JSON format is requested (for AJAX)
+        if request.args.get('format') == 'json':
+            # For API requests, return JSON data
+            staff_data = {
+                'usersid': staff.usersid,
+                'usersusername': staff.usersusername,
+                'usersrealname': staff.usersrealname,
+                'usersemail': staff.usersemail,
+                'userscontact': staff.userscontact,
+                'usershomeaddress': staff.usershomeaddress,
+                'userscityzipcode': staff.userscityzipcode,
+                'usersreligion': staff.usersreligion,
+                'usersgender': staff.usersgender,
+                'usersaccess': staff.usersaccess,
+                'usersoccupation': staff.usersoccupation if hasattr(staff, 'usersoccupation') else 'Staff',
+                'is_active': staff.is_active
+            }
+            
+            # Add date of birth if available
+            if hasattr(staff, 'usersdob') and staff.usersdob:
+                staff_data['usersdob_formatted'] = staff.usersdob.strftime('%Y-%m-%d')
+            
+            # Add age if available
+            if hasattr(staff, 'usersage') and staff.usersage:
+                staff_data['usersage'] = staff.usersage
+                
+            return jsonify(staff_data)
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%B %d, %Y")
+        
+        # For browser requests, try to render the template, but handle if it doesn't exist
+        try:
+            return render_template('staff_details.html', 
+                                  staff=staff,
+                                  current_date=current_date)
+        except Exception as template_error:
+            # If template doesn't exist, show a simple page with staff info
+            return f"""
+            <html>
+            <head><title>Staff Details - {staff.usersrealname}</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h1>Staff Details</h1>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h2>{staff.usersrealname}</h2>
+                    <p><strong>Username:</strong> {staff.usersusername}</p>
+                    <p><strong>Email:</strong> {staff.usersemail or 'N/A'}</p>
+                    <p><strong>Contact:</strong> {staff.userscontact or 'N/A'}</p>
+                    <p><strong>Occupation:</strong> {getattr(staff, 'usersoccupation', 'Staff')}</p>
+                    <p><strong>Access Level:</strong> {staff.usersaccess.capitalize()}</p>
+                    <p><strong>Status:</strong> {'Active' if staff.is_active else 'Inactive'}</p>
+                    <p><strong>Address:</strong> {staff.usershomeaddress or 'N/A'}</p>
+                    <p><strong>City/Zip:</strong> {staff.userscityzipcode or 'N/A'}</p>
+                    <p><strong>Religion:</strong> {staff.usersreligion or 'N/A'}</p>
+                    <p><strong>Gender:</strong> {staff.usersgender or 'N/A'}</p>
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="/staff" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">← Back to Staff Directory</a>
+                    <button onclick="editStaff({staff_id})" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-left: 10px; cursor: pointer;">Edit Staff</button>
+                    {'<button onclick="deactivateStaff(' + str(staff_id) + ')" style="background: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-left: 10px; cursor: pointer;">Deactivate</button>' if staff.is_active else '<button onclick="reactivateStaff(' + str(staff_id) + ')" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-left: 10px; cursor: pointer;">Reactivate</button>'}
+                </div>
+                <script>
+                function editStaff(staffId) {{
+                    // Redirect to staff list and trigger edit modal
+                    window.location.href = '/staff#edit-' + staffId;
+                }}
+                function deactivateStaff(staffId) {{
+                    if (confirm('Are you sure you want to deactivate this staff member?')) {{
+                        fetch('/deactivate_staff/' + staffId, {{method: 'POST'}})
+                        .then(response => response.json())
+                        .then(data => {{
+                            if (data.success) {{
+                                alert('Staff member deactivated successfully');
+                                location.reload();
+                            }} else {{
+                                alert('Error: ' + data.error);
+                            }}
+                        }});
+                    }}
+                }}
+                function reactivateStaff(staffId) {{
+                    if (confirm('Are you sure you want to reactivate this staff member?')) {{
+                        fetch('/reactivate_staff/' + staffId, {{method: 'POST'}})
+                        .then(response => response.json())
+                        .then(data => {{
+                            if (data.success) {{
+                                alert('Staff member reactivated successfully');
+                                location.reload();
+                            }} else {{
+                                alert('Error: ' + data.error);
+                            }}
+                        }});
+                    }}
+                }}
+                </script>
+            </body>
+            </html>
+            """
+    except Exception as e:
+        print(f"Error in staff_details route: {e}")
+        return f"Error loading staff details: {e}", 500
+    
 @app.route('/add_staff', methods=['POST'])
 def add_staff():
     """Add a new staff member"""
@@ -1806,64 +2053,7 @@ def delete_staff(staff_id):
         print(f"Error in delete_staff route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
-@app.route('/staff_details/<int:staff_id>')
-def staff_details(staff_id):
-    """View details of a specific staff member"""
-    try:
-        staff = User.query.get_or_404(staff_id)
-        
-        # Check if JSON format is requested (for AJAX)
-        if request.args.get('format') == 'json':
-            # For API requests, return JSON data
-            staff_data = {
-                'usersid': staff.usersid,
-                'usersusername': staff.usersusername,
-                'usersrealname': staff.usersrealname,
-                'usersemail': staff.usersemail,
-                'userscontact': staff.userscontact,
-                'usershomeaddress': staff.usershomeaddress,
-                'userscityzipcode': staff.userscityzipcode,
-                'usersreligion': staff.usersreligion,
-                'usersgender': staff.usersgender,
-                'usersaccess': staff.usersaccess,
-                'usersoccupation': staff.usersoccupation if hasattr(staff, 'usersoccupation') else 'Staff'
-            }
-            
-            # Add date of birth if available
-            if hasattr(staff, 'usersdob') and staff.usersdob:
-                staff_data['usersdob_formatted'] = staff.usersdob.strftime('%Y-%m-%d')
-            
-            # Add age if available
-            if hasattr(staff, 'usersage') and staff.usersage:
-                staff_data['usersage'] = staff.usersage
-                
-            return jsonify(staff_data)
-        
-        # Get current date for the page
-        current_date = datetime.now().strftime("%B %d, %Y")
-        
-        # For browser requests, render HTML template
-        return render_template('staff_details.html', 
-                              staff=staff,
-                              current_date=current_date)
-    except Exception as e:
-        print(f"Error in staff_details route: {e}")
-        return jsonify({"success": False, "error": str(e)}) if request.args.get('format') == 'json' else f"Error loading staff details: {e}", 500
-    
-@app.route('/edit_staff/<int:staff_id>')
-def edit_staff(staff_id):
-    """Render edit staff page"""
-    try:
-        staff = User.query.get_or_404(staff_id)
-        
-        # Format date of birth for HTML date input
-        if hasattr(staff, 'usersdob') and staff.usersdob:
-            staff.usersdob_formatted = staff.usersdob.strftime('%Y-%m-%d')
-        
-        return render_template('edit_staff.html', staff=staff)
-    except Exception as e:
-        print(f"Error in edit_staff route: {e}")
-        return f"Error loading staff edit form: {e}", 500
+
 
 @app.route('/update_staff/<int:staff_id>', methods=['POST'])
 def update_staff(staff_id):
