@@ -9,6 +9,34 @@
     <link rel="stylesheet" href="../static/css/staff.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
+
+            .header-buttons {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        font-size: 14px;
+    }
+    
+    .btn-secondary:hover {
+        background: #5a6268;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+    }
         /* Single Row Status Summary Styles */
         .status-summary-single-row {
             display: flex;
@@ -368,14 +396,20 @@
             </div>
 
             <!-- Staff Management Content -->
-            <div class="content-container">
-                <div class="content-header">
-                    <div>
-                        <h1>Staff Directory</h1>
-                        <p class="current-date">{{ current_date }}</p>
-                    </div>
-                    <button class="btn-primary" id="addStaffBtn"><i class="fas fa-plus"></i> Add Staff Member</button>
+            <div class="content-header">
+                <div>
+                    <h1>Staff Directory</h1>
+                    <p class="current-date">{{ current_date }}</p>
                 </div>
+                <div class="header-buttons">
+                    <button class="btn-secondary" id="printStaffBtn" title="Print Staff Report">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                    <button class="btn-primary" id="addStaffBtn">
+                        <i class="fas fa-plus"></i> Add Staff Member
+                    </button>
+                </div>
+            </div>
                 
                 <!-- Filter Bar -->
                 <div class="filter-bar">
@@ -641,6 +675,34 @@
     </div>
 
     <script>
+
+document.getElementById('printStaffBtn').addEventListener('click', function() {
+        // Get current filter values
+        const statusFilter = document.getElementById('statusFilter').value;
+        const accessFilter = document.getElementById('accessFilter').value;
+        const searchFilter = document.getElementById('staffSearch').value;
+        
+        // Build URL with current filters
+        let printUrl = '/print_staff_report?';
+        const params = new URLSearchParams();
+        
+        if (statusFilter && statusFilter !== 'all') {
+            params.append('status', statusFilter);
+        }
+        
+        if (accessFilter && accessFilter !== 'all') {
+            params.append('access', accessFilter);
+        }
+        
+        if (searchFilter) {
+            params.append('search', searchFilter);
+        }
+        
+        printUrl += params.toString();
+        
+        // Open print page in new window/tab
+        window.open(printUrl, '_blank');
+    });
         /**
  * Pullan Dental - Staff Management JavaScript
  * Handles staff directory functionality including filtering, search, modals, and tab switching

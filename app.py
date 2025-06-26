@@ -1684,6 +1684,144 @@ def settings():
 #_______________________________________________________________________
 #Staff Management Routes
 
+@app.route('/print_staff_report')
+def print_staff_report():
+    """Generate a printable staff report with filters"""
+    try:
+        # Get filter parameters
+        status_filter = request.args.get('status', 'all')
+        access_filter = request.args.get('access', 'all')
+        search_filter = request.args.get('search', '')
+        
+        print(f"Print request - Status: {status_filter}, Access: {access_filter}, Search: {search_filter}")
+        
+        # Build base query for staff users only
+        base_query = User.query.filter(User.usersaccess.in_(['admin', 'user']))
+        
+        # Apply status filter
+        if status_filter == 'active':
+            if hasattr(User, 'is_deleted'):
+                staff_users = base_query.filter_by(is_deleted=False).all()
+            else:
+                staff_users = base_query.all()  # Assume all active if no is_deleted field
+        elif status_filter == 'inactive':
+            if hasattr(User, 'is_deleted'):
+                staff_users = base_query.filter_by(is_deleted=True).all()
+            else:
+                staff_users = []  # No inactive users if no is_deleted field
+        else:  # 'all'
+            staff_users = base_query.all()
+        
+        # Apply access level filter
+        if access_filter != 'all':
+            staff_users = [user for user in staff_users if user.usersaccess == access_filter]
+        
+        # Apply search filter if provided
+        if search_filter:
+            filtered_staff = []
+            for user in staff_users:
+                if (search_filter.lower() in user.usersrealname.lower() or
+                    search_filter.lower() in (user.usersemail or '').lower() or
+                    search_filter.lower() in (user.usersusername or '').lower() or
+                    search_filter.lower() in (user.usersoccupation or '').lower()):
+                    filtered_staff.append(user)
+            staff_users = filtered_staff
+        
+        # Format staff for display
+        formatted_staff = []
+        for user in staff_users:
+            # Check if user is active
+            is_active = True
+            if hasattr(user, 'is_deleted'):
+                is_active = not user.is_deleted
+            
+            formatted_staff.append({
+                'id': f"STF-{user.usersid:03d}",
+                'name': user.usersrealname,
+                'occupation': user.usersoccupation if hasattr(user, 'usersoccupation') and user.usersoccupation else "Staff",
+                'email': user.usersemail or "N/A",
+                'contact': user.userscontact or "N/A",
+                'address': user.usershomeaddress or "N/A",
+                'access_level': user.usersaccess.capitalize(),
+                'gender': user.usersgender or "N/A",
+                'age': user.usersage if hasattr(user, 'usersage') and user.usersage else "N/A",
+                'is_active': is_active,
+                'raw_id': user.usersid
+            })
+        
+        # Prepare filter information for display
+        status_labels = {
+            'all': 'All Staff',
+            'active': 'Active Staff Only',
+            'inactive': 'Inactive Staff Only'
+        }
+        
+        access_labels = {
+            'all': 'All Access Levels',
+            'admin': 'Administrators Only',
+            'user': 'Users Only'
+        }
+        
+        filter_info = {
+            'status': status_labels.get(status_filter, status_filter.title()),
+            'access': access_labels.get(access_filter, access_filter.title()),
+            'search': search_filter if search_filter else 'No search filter',
+            'has_filters': status_filter != 'all' or access_filter != 'all' or search_filter,
+            'status_filter': status_filter,
+            'access_filter': access_filter,
+            'has_status_filter': status_filter != 'all',
+            'has_access_filter': access_filter != 'all'
+        }
+        
+        # Get statistics based on current filter
+        total_staff = len(formatted_staff)
+        active_count = len([s for s in formatted_staff if s['is_active']])
+        inactive_count = len([s for s in formatted_staff if not s['is_active']])
+        admin_count = len([s for s in formatted_staff if s['access_level'].lower() == 'admin'])
+        user_count = len([s for s in formatted_staff if s['access_level'].lower() == 'user'])
+        
+        # Get current user information
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        user_id = session.get('user_id')
+        
+        # Generate print timestamp
+        print_date = datetime.now().strftime('%B %d, %Y')
+        print_time = datetime.now().strftime('%I:%M %p')
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Log the print action
+        filter_description = []
+        filter_description.append(f"Status: {status_labels.get(status_filter, status_filter)}")
+        if access_filter != 'all':
+            filter_description.append(f"Access: {access_labels.get(access_filter, access_filter)}")
+        if search_filter:
+            filter_description.append(f"Search: {search_filter}")
+        
+        filter_text = ", ".join(filter_description)
+        
+        log_user_action(
+            user_id,
+            'Print Staff Report',
+            f'Generated staff report: {total_staff} staff members ({filter_text})'
+        )
+        
+        return render_template('print_staff_report.html',
+                              staff_members=formatted_staff,
+                              filter_info=filter_info,
+                              total_staff=total_staff,
+                              active_count=active_count,
+                              inactive_count=inactive_count,
+                              admin_count=admin_count,
+                              user_count=user_count,
+                              current_user=current_user,
+                              print_date=print_date,
+                              print_time=print_time,
+                              print_datetime=print_datetime)
+    
+    except Exception as e:
+        print(f"Error generating staff report: {e}")
+        return f"Error generating staff report: {e}", 500
+
 @app.route('/edit_staff/<int:staff_id>')
 def edit_staff(staff_id):
     """Render edit staff page"""
@@ -2113,6 +2251,139 @@ def update_staff(staff_id):
         return jsonify({'success': False, 'error': str(e)})
             
 # Add these inventory routes to app.py, after the existing routes
+@app.route('/print_inventory_report')
+def print_inventory_report():
+    """Generate a printable inventory report with filters"""
+    try:
+        # Get filter parameters
+        filter_type = request.args.get('filter', 'all')
+        search_filter = request.args.get('search', '')
+        
+        print(f"Print request - Filter: {filter_type}, Search: {search_filter}")
+        
+        # Get all inventory items
+        query = Inventory.query
+        
+        # Apply filter based on type
+        if filter_type == 'low-stock':
+            inventory_items = query.filter(Inventory.invquantity < 5).all()
+        elif filter_type == 'expired':
+            inventory_items = query.filter(
+                Inventory.invdoe.isnot(None), 
+                Inventory.invdoe < datetime.now().date()
+            ).all()
+        elif filter_type != 'all':
+            # If filter is not 'all', assume it's a category filter
+            inventory_items = query.filter_by(invtype=filter_type.title()).all()
+        else:
+            # Get all items
+            inventory_items = query.all()
+        
+        # Apply search filter if provided
+        if search_filter:
+            filtered_items = []
+            for item in inventory_items:
+                if (search_filter.lower() in item.invname.lower() or 
+                    search_filter.lower() in (item.invtype or '').lower() or
+                    search_filter.lower() in (item.invremarks or '').lower()):
+                    filtered_items.append(item)
+            inventory_items = filtered_items
+        
+        # Format inventory items for display
+        formatted_items = []
+        for item in inventory_items:
+            # Determine status
+            status = "OK"
+            if item.invquantity < 5:
+                status = "Low Stock"
+            if item.invdoe and item.invdoe < datetime.now().date():
+                status = "Expired"
+            
+            formatted_items.append({
+                'id': f"INV-{item.invid:03d}",
+                'name': item.invname,
+                'type': item.invtype or "N/A",
+                'quantity': item.invquantity,
+                'expiry_date': item.invdoe.strftime('%m/%d/%Y') if item.invdoe else "No Expiry",
+                'min_quantity': 5,  # Default minimum
+                'status': status,
+                'remarks': item.invremarks or "None",
+                'formatted_expiry': item.invdoe.strftime('%B %d, %Y') if item.invdoe else "No Expiry Date"
+            })
+        
+        # Prepare filter information for display
+        filter_labels = {
+            'all': 'All Items',
+            'consumables': 'Consumables Only',
+            'equipment': 'Equipment Only', 
+            'medicines': 'Medicines Only',
+            'instruments': 'Instruments Only',
+            'office supplies': 'Office Supplies Only',
+            'low-stock': 'Low Stock Items Only',
+            'expired': 'Expired Items Only'
+        }
+        
+        filter_info = {
+            'filter_type': filter_labels.get(filter_type, filter_type.title()),
+            'search': search_filter if search_filter else 'No search filter',
+            'has_filters': filter_type != 'all' or search_filter,
+            'filter_raw': filter_type,
+            'has_type_filter': filter_type != 'all'
+        }
+        
+        # Get statistics based on current filter
+        total_items = len(formatted_items)
+        low_stock_count = len([item for item in formatted_items if item['status'] == 'Low Stock'])
+        expired_count = len([item for item in formatted_items if item['status'] == 'Expired'])
+        ok_count = len([item for item in formatted_items if item['status'] == 'OK'])
+        
+        # Categorize items by type for organized display
+        categorized_items = {}
+        for item in formatted_items:
+            category = item['type']
+            if category not in categorized_items:
+                categorized_items[category] = []
+            categorized_items[category].append(item)
+        
+        # Get current user information
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        user_id = session.get('user_id')
+        
+        # Generate print timestamp
+        print_date = datetime.now().strftime('%B %d, %Y')
+        print_time = datetime.now().strftime('%I:%M %p')
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Log the print action
+        filter_description = []
+        filter_description.append(f"Filter: {filter_labels.get(filter_type, filter_type)}")
+        if search_filter:
+            filter_description.append(f"Search: {search_filter}")
+        
+        filter_text = ", ".join(filter_description)
+        
+        log_user_action(
+            user_id,
+            'Print Inventory Report',
+            f'Generated inventory report: {total_items} items ({filter_text})'
+        )
+        
+        return render_template('print_inventory_report.html',
+                              inventory_items=formatted_items,
+                              categorized_items=categorized_items,
+                              filter_info=filter_info,
+                              total_items=total_items,
+                              low_stock_count=low_stock_count,
+                              expired_count=expired_count,
+                              ok_count=ok_count,
+                              current_user=current_user,
+                              print_date=print_date,
+                              print_time=print_time,
+                              print_datetime=print_datetime)
+    
+    except Exception as e:
+        print(f"Error generating inventory report: {e}")
+        return f"Error generating inventory report: {e}", 500
 #Inventory Management Routes
 @app.route('/inventory')
 def inventory():

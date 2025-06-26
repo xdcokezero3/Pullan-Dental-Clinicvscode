@@ -70,10 +70,13 @@
                 <div class="page-header">
                     <h1>Inventory Management</h1>
                     <p class="date">{{ current_date }}</p>
-                    <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>
+                    <div class="header-actions">
+                        <button id="printInventoryBtn" class="secondary-btn"><i class="fas fa-print"></i> Print Report</button>
+                        <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>
+                    </div>
                 </div>
                 
-                <!-- Inventory Stats -->
+                <!-- Inventory Stats (removed total value) -->
                 <div class="stats-cards">
                     <div class="card total-items">
                         <div class="card-icon">
@@ -102,16 +105,6 @@
                         <div class="card-info">
                             <h3>{{ expired_count }}</h3>
                             <p>Expired Items</p>
-                        </div>
-                    </div>
-                    
-                    <div class="card value">
-                        <div class="card-icon">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <div class="card-info">
-                            <h3>${{ total_value }}</h3>
-                            <p>Total Value</p>
                         </div>
                     </div>
                 </div>
@@ -246,7 +239,28 @@
             </div>
         </div>
     </div>
+    
     <script src="../static/js/inventory.js"></script>
+    <script>
+        // Print functionality
+        document.getElementById('printInventoryBtn').addEventListener('click', function() {
+            // Get current active filter
+            const activeFilter = document.querySelector('.filter-btn.active');
+            const filterType = activeFilter ? activeFilter.getAttribute('data-filter') : 'all';
+            
+            // Get current search value
+            const searchValue = document.getElementById('inventorySearch').value;
+            
+            // Build print URL with current filters
+            let printUrl = '/print_inventory_report?filter=' + encodeURIComponent(filterType);
+            if (searchValue) {
+                printUrl += '&search=' + encodeURIComponent(searchValue);
+            }
+            
+            // Open print page in new window
+            window.open(printUrl, '_blank');
+        });
+    </script>
 
 </body>
 </html>
