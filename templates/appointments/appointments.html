@@ -1,4 +1,3 @@
-<!-- Appointment.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +6,506 @@
     <title>Pullan Dental Clinic - Appointments</title>
     <link rel="stylesheet" href="../static/css/appointments.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        /* Status styling */
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-active {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status-completed {
+            background-color: #e8f5e8;
+            color: #388e3c;
+        }
+        
+        .status-cancelled {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        
+        /* Status filter buttons */
+        .status-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .status-filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            color: #666;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-filter-btn:hover {
+            border-color: #2196f3;
+            color: #2196f3;
+        }
+        
+        .status-filter-btn.active {
+            background: #2196f3;
+            border-color: #2196f3;
+            color: white;
+        }
+        
+        .status-filter-btn .count {
+            background: rgba(255,255,255,0.3);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+        
+        .status-filter-btn.active .count {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Header actions container */
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Print report button */
+        .print-report-button {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .print-report-button:hover {
+            background: linear-gradient(135deg, #45a049, #388e3c);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .print-report-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+        .print-report-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .print-report-button:hover::before {
+            left: 100%;
+        }
+
+        /* Add button styling update */
+        .add-button {
+            background: linear-gradient(135deg, #2196f3, #1976d2);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        }
+
+        .add-button:hover {
+            background: linear-gradient(135deg, #1976d2, #1565c0);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+        }
+        
+        /* Action buttons based on status */
+        .action-complete {
+            background-color: #4caf50;
+            color: white;
+        }
+        
+        .action-reactivate {
+            background-color: #ff9800;
+            color: white;
+        }
+        
+        .action-complete:hover {
+            background-color: #45a049;
+        }
+        
+        .action-reactivate:hover {
+            background-color: #f57c00;
+        }
+        
+        /* Filter controls styling */
+        .filter-controls {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .appointments-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .appointments-stats {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .notification-popup {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 5px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.notification-popup.show {
+    transform: translateX(0);
+}
+
+.notification-popup.success {
+    background-color: #4caf50;
+}
+
+.notification-popup.error {
+    background-color: #f44336;
+}
+
+.notification-popup.info {
+    background-color: #2196f3;
+}
+
+.notification-popup.warning {
+    background-color: #ff9800;
+}
+
+/* Status Badge Responsive */
+@media (max-width: 768px) {
+    .status-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+    
+    .status-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .status-filter-btn {
+        justify-content: center;
+        margin-bottom: 5px;
+    }
+    
+    .appointments-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .header-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .print-report-button,
+    .add-button {
+        width: 100%;
+        justify-content: center;
+        padding: 14px 20px;
+    }
+    
+    .appointments-stats {
+        order: -1;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .stat-item {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-actions {
+        gap: 8px;
+    }
+    
+    .print-report-button,
+    .add-button {
+        font-size: 13px;
+        padding: 12px 16px;
+    }
+    
+    .appointments-stats {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+/* Action Button Improvements */
+.action-button {
+    margin: 0 2px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 12px;
+    min-width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.view-button {
+    background-color: #2196f3;
+    color: white;
+}
+
+.edit-button {
+    background-color: #ff9800;
+    color: white;
+}
+
+.delete-button {
+    background-color: #f44336;
+    color: white;
+}
+
+.view-button:hover {
+    background-color: #1976d2;
+}
+
+.edit-button:hover {
+    background-color: #f57c00;
+}
+
+.delete-button:hover {
+    background-color: #d32f2f;
+}
+
+/* Text muted for completed appointments */
+.text-muted {
+    color: #666;
+    font-style: italic;
+}
+
+/* Improved table styling for status */
+.appointments-table table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.appointments-table th {
+    background-color: #f8f9fa;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.appointments-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+}
+
+.appointments-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Status filter buttons active state */
+.status-filter-btn.active {
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+/* Loading state for buttons */
+.action-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.action-button.loading {
+    position: relative;
+}
+
+.action-button.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Better spacing for filter controls */
+.filter-controls {
+    gap: 20px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-group label {
+    font-weight: 500;
+    color: #555;
+    font-size: 14px;
+}
+
+.filter-group input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.filter-button {
+    padding: 8px 16px;
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 0.3s ease;
+    height: fit-content;
+    align-self: flex-end;
+}
+
+.filter-button:hover {
+    background-color: #1976d2;
+}
+
+/* Loading state for print button */
+.print-report-button.loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.print-report-button.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 5px;
+}
+
+/* Print button icon animation */
+.print-report-button i {
+    transition: transform 0.3s ease;
+}
+
+.print-report-button:hover i {
+    transform: scale(1.1);
+}
+
+/* Improved layout for larger screens */
+@media (min-width: 1200px) {
+    .header-actions {
+        gap: 15px;
+    }
+    
+    .print-report-button,
+    .add-button {
+        padding: 14px 24px;
+        font-size: 15px;
+    }
+}
+        
+        .stat-item .count {
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -21,9 +520,9 @@
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
                 {% endif %}
-                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li class="active"><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
@@ -64,13 +563,66 @@
                 </div>
             </div>
 
-            <div class="page-title">
-                <h1>Appointments</h1>
-                <button class="add-button" id="openAddAppointmentModal">
-                    <i class="fas fa-plus"></i> Schedule Appointment
-                </button>
+            <div class="appointments-header">
+                <div>
+                    <h1>Appointments</h1>
+                    <p class="date">{{ current_date }}</p>
+                </div>
+                <div class="appointments-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Total: <span class="count">{{ total_count }}</span></span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-clock" style="color: #1976d2;"></i>
+                        <span>Active: <span class="count">{{ active_count }}</span></span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-check-circle" style="color: #388e3c;"></i>
+                        <span>Completed: <span class="count">{{ completed_count }}</span></span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-times-circle" style="color: #d32f2f;"></i>
+                        <span>Cancelled: <span class="count">{{ cancelled_count }}</span></span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="print-report-button" id="printAppointmentsReport" title="Print appointments report">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                    <button class="add-button" id="openAddAppointmentModal">
+                        <i class="fas fa-plus"></i> Schedule Appointment
+                    </button>
+                </div>
             </div>
-            <p class="date">{{ current_date }}</p>
+
+            <!-- Status Filter Buttons -->
+            <div class="status-filters">
+                <a href="{{ url_for('appointments', status='all') }}" 
+                   class="status-filter-btn {{ 'active' if status_filter == 'all' else '' }}">
+                    <i class="fas fa-list"></i>
+                    All Appointments
+                    <span class="count">{{ total_count }}</span>
+                </a>
+                <a href="{{ url_for('appointments', status='active') }}" 
+                   class="status-filter-btn {{ 'active' if status_filter == 'active' else '' }}">
+                    <i class="fas fa-clock"></i>
+                    Active
+                    <span class="count">{{ active_count }}</span>
+                </a>
+                <a href="{{ url_for('appointments', status='completed') }}" 
+                   class="status-filter-btn {{ 'active' if status_filter == 'completed' else '' }}">
+                    <i class="fas fa-check-circle"></i>
+                    Completed
+                    <span class="count">{{ completed_count }}</span>
+                </a>
+                <a href="{{ url_for('appointments', status='cancelled') }}" 
+                   class="status-filter-btn {{ 'active' if status_filter == 'cancelled' else '' }}">
+                    <i class="fas fa-times-circle"></i>
+                    Cancelled
+                    <span class="count">{{ cancelled_count }}</span>
+                </a>
+            </div>
 
             <div class="page-actions">
                 <a href="{{ url_for('rescheduled_appointments') }}" class="view-rescheduled-button">
@@ -100,6 +652,7 @@
                             <th>Patient Name</th>
                             <th>Date</th>
                             <th>Time</th>
+                            <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -111,15 +664,54 @@
                             <td>{{ appointment.date }}</td>
                             <td>{{ appointment.time }}</td>
                             <td>
-                                <a href="{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}" class="action-button view-button" title="View Details">
+                                <span class="status-badge {{ appointment.status_class }}">
+                                    {% if appointment.status == 'active' %}
+                                        <i class="fas fa-clock"></i> Active
+                                    {% elif appointment.status == 'completed' %}
+                                        <i class="fas fa-check-circle"></i> Completed
+                                    {% elif appointment.status == 'cancelled' %}
+                                        <i class="fas fa-times-circle"></i> Cancelled
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}" 
+                                   class="action-button view-button" title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ url_for('edit_appointment', appointment_id=appointment.raw_id) }}" class="action-button edit-button" title="Edit Appointment">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button class="action-button delete-button" data-id="{{ appointment.raw_id }}" title="Cancel Appointment">
-                                    <i class="fas fa-times"></i>
-                                </button>
+                                
+                                {% if appointment.status == 'active' %}
+                                    <!-- Active appointment actions -->
+                                    <button class="action-button edit-button" 
+                                            data-id="{{ appointment.raw_id }}" 
+                                            title="Reschedule Appointment">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </button>
+                                    <button class="action-button action-complete" 
+                                            data-id="{{ appointment.raw_id }}" 
+                                            title="Mark as Completed">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button class="action-button delete-button" 
+                                            data-id="{{ appointment.raw_id }}" 
+                                            title="Cancel Appointment">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    
+                                {% elif appointment.status == 'cancelled' %}
+                                    <!-- Cancelled appointment actions -->
+                                    <button class="action-button action-reactivate" 
+                                            data-id="{{ appointment.raw_id }}" 
+                                            title="Reactivate Appointment">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    
+                                {% elif appointment.status == 'completed' %}
+                                    <!-- Completed appointment actions -->
+                                    <span class="text-muted">
+                                        <i class="fas fa-check-circle"></i> Completed
+                                    </span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -241,6 +833,116 @@
     </div>
 
     <script>
+        console.log('🔄 Loading appointments page...');
+        
+        // Print Appointments Report functionality - SAFER VERSION
+        const printButton = document.getElementById('printAppointmentsReport');
+        if (printButton) {
+            printButton.addEventListener('click', function() {
+                console.log('Print button clicked');
+                
+                // Get current status filter from URL params (more reliable)
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentStatus = urlParams.get('status') || 'all';
+                
+                // Get additional filters from form inputs
+                const dateFilter = document.getElementById('dateFilter').value;
+                const patientFilter = document.getElementById('patientFilter').value;
+                
+                console.log('Current status filter:', currentStatus);
+                console.log('Date filter:', dateFilter);
+                console.log('Patient filter:', patientFilter);
+                
+                // Build URL with current filters
+                const printUrl = new URL('/print_appointments_report', window.location.origin);
+                
+                // ALWAYS add status filter (including 'all')
+                printUrl.searchParams.append('status', currentStatus);
+                
+                // Add date filter if set
+                if (dateFilter) {
+                    printUrl.searchParams.append('date', dateFilter);
+                }
+                
+                // Add patient filter if set
+                if (patientFilter.trim()) {
+                    printUrl.searchParams.append('patient', patientFilter.trim());
+                }
+                
+                // Add auto-print parameter to trigger print dialog automatically
+                printUrl.searchParams.append('auto_print', 'true');
+                
+                console.log('Opening print URL:', printUrl.toString());
+                
+                // Show loading state
+                this.classList.add('loading');
+                this.disabled = true;
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                
+                // Open print page in new window
+                const printWindow = window.open(printUrl.toString(), '_blank');
+                
+                if (!printWindow) {
+                    // Fallback if popup was blocked
+                    showNotification('Print window blocked. Please allow popups or try again.', 'warning');
+                    // Navigate to print page instead
+                    window.location.href = printUrl.toString();
+                } else {
+                    showNotification('Print report generated successfully!', 'success');
+                    
+                    // Reset button state after a delay
+                    setTimeout(() => {
+                        this.classList.remove('loading');
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                    }, 1500);
+                }
+            });
+
+            // Update print button tooltip with current filters
+            function updatePrintButtonTooltip() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentStatus = urlParams.get('status') || 'all';
+                const dateFilter = document.getElementById('dateFilter').value;
+                const patientFilter = document.getElementById('patientFilter').value;
+                
+                let tooltip = 'Print appointments report';
+                const filters = [];
+                
+                // Always show status filter
+                const statusLabels = {
+                    'all': 'All Appointments',
+                    'active': 'Active Only',
+                    'completed': 'Completed Only',
+                    'cancelled': 'Cancelled Only'
+                };
+                filters.push(`Status: ${statusLabels[currentStatus] || currentStatus}`);
+                
+                if (dateFilter) {
+                    const filterDate = new Date(dateFilter);
+                    filters.push(`Date: ${filterDate.toLocaleDateString()}`);
+                }
+                if (patientFilter.trim()) {
+                    filters.push(`Patient: ${patientFilter.trim()}`);
+                }
+                
+                tooltip += ` (${filters.join(', ')})`;
+                printButton.title = tooltip;
+            }
+
+            // Update tooltip when filters change
+            document.getElementById('dateFilter').addEventListener('change', updatePrintButtonTooltip);
+            document.getElementById('patientFilter').addEventListener('input', updatePrintButtonTooltip);
+
+            // Initialize tooltip
+            updatePrintButtonTooltip();
+            
+            console.log('✅ Enhanced print functionality initialized successfully');
+        } else {
+            console.warn('⚠️  Print button not found in DOM - skipping print functionality');
+        }
+        
         // Search functionality
         document.getElementById('searchInput').addEventListener('keyup', function() {
             const searchValue = this.value.toLowerCase();
@@ -263,35 +965,225 @@
             }
         });
         
-        // Delete/Cancel appointment functionality
+        // FIXED APPOINTMENT CANCELLATION FUNCTIONALITY
+        console.log('🔧 Setting up appointment cancellation...');
+        
+        // Remove any existing event listeners to avoid conflicts
         document.querySelectorAll('.delete-button').forEach(button => {
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+
+        // Add the corrected event listeners
+        document.querySelectorAll('.delete-button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const appointmentId = this.getAttribute('data-id');
+                const row = this.closest('tr');
+                const patientName = row.cells[1].textContent.trim();
+                
+                console.log(`Attempting to cancel appointment ID: ${appointmentId} for patient: ${patientName}`);
+                
+                if(confirm(`Are you sure you want to cancel the appointment for ${patientName}?`)) {
+                    // Show loading state
+                    this.style.opacity = '0.5';
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    
+                    // Create form data
+                    const formData = new FormData();
+                    formData.append('appointment_id', appointmentId);
+                    
+                    console.log('Sending cancellation request...');
+                    
+                    fetch('/cancel_appointment', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => {
+                        console.log('Response received:', response);
+                        console.log('Response status:', response.status);
+                        console.log('Response ok:', response.ok);
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        return response.text().then(text => {
+                            console.log('Raw response text:', text);
+                            
+                            try {
+                                return JSON.parse(text);
+                            } catch (parseError) {
+                                console.error('JSON parse error:', parseError);
+                                console.error('Response was not valid JSON:', text);
+                                throw new Error('Server returned invalid JSON response');
+                            }
+                        });
+                    })
+                    .then(data => {
+                        console.log('Parsed response data:', data);
+                        
+                        // Reset button state
+                        this.style.opacity = '1';
+                        this.disabled = false;
+                        this.innerHTML = '<i class="fas fa-times"></i>';
+                        
+                        if (data.success === true) {
+                            console.log('Cancellation successful!');
+                            showNotification('Appointment cancelled successfully!', 'success');
+                            
+                            // Update the row to show cancelled status
+                            const statusCell = row.cells[4];
+                            statusCell.innerHTML = '<span class="status-badge status-cancelled"><i class="fas fa-times-circle"></i> Cancelled</span>';
+                            
+                            // Update action buttons
+                            const actionsCell = row.cells[5];
+                            
+                            // Keep only the view button and add reactivate button
+                            const viewButton = actionsCell.querySelector('.view-button');
+                            const viewButtonClone = viewButton ? viewButton.cloneNode(true) : null;
+                            
+                            actionsCell.innerHTML = '';
+                            
+                            if (viewButtonClone) {
+                                actionsCell.appendChild(viewButtonClone);
+                            }
+                            
+                            // Add reactivate button
+                            const reactivateBtn = document.createElement('button');
+                            reactivateBtn.className = 'action-button action-reactivate';
+                            reactivateBtn.setAttribute('data-id', appointmentId);
+                            reactivateBtn.title = 'Reactivate Appointment';
+                            reactivateBtn.innerHTML = '<i class="fas fa-undo"></i>';
+                            reactivateBtn.addEventListener('click', function() {
+                                reactivateAppointment(appointmentId, row);
+                            });
+                            
+                            actionsCell.appendChild(reactivateBtn);
+                            
+                        } else {
+                            console.error('Server returned success=false:', data);
+                            showNotification(data.error || 'Failed to cancel appointment', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Fetch error details:', error);
+                        
+                        // Reset button state
+                        this.style.opacity = '1';
+                        this.disabled = false;
+                        this.innerHTML = '<i class="fas fa-times"></i>';
+                        
+                        // Show specific error message
+                        let errorMessage = 'Failed to cancel appointment. ';
+                        if (error.message.includes('HTTP 404')) {
+                            errorMessage += 'Appointment not found.';
+                        } else if (error.message.includes('HTTP 500')) {
+                            errorMessage += 'Server error occurred.';
+                        } else if (error.message.includes('JSON')) {
+                            errorMessage += 'Server response error.';
+                        } else if (error.message.includes('Failed to fetch')) {
+                            errorMessage += 'Network connection error.';
+                        } else {
+                            errorMessage += error.message;
+                        }
+                        
+                        showNotification(errorMessage, 'error');
+                    });
+                }
+            });
+        });
+
+        console.log(`✅ Cancel buttons setup complete. Found ${document.querySelectorAll('.delete-button').length} buttons.`);
+        
+        // Complete appointment functionality
+        document.querySelectorAll('.action-complete').forEach(button => {
             button.addEventListener('click', function() {
                 const appointmentId = this.getAttribute('data-id');
-                if(confirm(`Are you sure you want to cancel this appointment?`)) {
-                    // Send delete request to the server
-                    fetch(`/cancel_appointment/${appointmentId}`, {
+                if(confirm(`Mark this appointment as completed?`)) {
+                    fetch(`/complete_appointment/${appointmentId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
                         }
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            // Remove row from table
+                            showNotification('Appointment marked as completed', 'success');
+                            // Update the row to show completed status
                             const row = this.closest('tr');
-                            row.parentNode.removeChild(row);
-                            showNotification('Appointment cancelled successfully', 'success');
+                            const statusCell = row.cells[4];
+                            statusCell.innerHTML = '<span class="status-badge status-completed"><i class="fas fa-check-circle"></i> Completed</span>';
+                            
+                            // Update action buttons
+                            const actionsCell = row.cells[5];
+                            actionsCell.innerHTML = '';
+                            actionsCell.appendChild(document.querySelector(`[href*="${appointmentId}"]`).cloneNode(true));
+                            actionsCell.innerHTML += '<span class="text-muted"><i class="fas fa-check-circle"></i> Completed</span>';
                         } else {
-                            showNotification('Error cancelling appointment: ' + data.error, 'error');
+                            showNotification('Error completing appointment: ' + data.error, 'error');
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        showNotification('An error occurred while cancelling the appointment.', 'error');
+                        showNotification('An error occurred while completing the appointment.', 'error');
                     });
                 }
+            });
+        });
+        
+        // Reactivate appointment functionality
+        function reactivateAppointment(appointmentId, row) {
+            const patientName = row.cells[1].textContent.trim();
+            
+            if(confirm(`Reactivate the appointment for ${patientName}?`)) {
+                console.log(`Reactivating appointment ID: ${appointmentId}`);
+                
+                fetch(`/reactivate_appointment/${appointmentId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Appointment reactivated successfully!', 'success');
+                        
+                        // Reload the page to reflect changes
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showNotification(data.error || 'Failed to reactivate appointment', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Reactivation error:', error);
+                    showNotification('Failed to reactivate appointment: ' + error.message, 'error');
+                });
+            }
+        }
+        
+        // Setup existing reactivate buttons
+        document.querySelectorAll('.action-reactivate').forEach(button => {
+            button.addEventListener('click', function() {
+                const appointmentId = this.getAttribute('data-id');
+                const row = this.closest('tr');
+                reactivateAppointment(appointmentId, row);
             });
         });
         
@@ -300,18 +1192,16 @@
             const dateFilter = document.getElementById('dateFilter').value;
             const patientFilter = document.getElementById('patientFilter').value.toLowerCase();
             
-            // Simple client-side filtering
             const table = document.getElementById('appointmentsTable');
             const rows = table.getElementsByTagName('tr');
             
             for (let i = 1; i < rows.length; i++) {
                 const cells = rows[i].getElementsByTagName('td');
-                const dateText = cells[2].textContent.toLowerCase(); // Date is in column 3
-                const patientText = cells[1].textContent.toLowerCase(); // Patient is in column 2
+                const dateText = cells[2].textContent.toLowerCase();
+                const patientText = cells[1].textContent.toLowerCase();
                 
                 let dateMatch = true;
                 if (dateFilter) {
-                    // This is a simple match - in a real app you'd want to do actual date comparison
                     dateMatch = dateText.includes(dateFilter);
                 }
                 
@@ -336,7 +1226,6 @@
             modal.style.display = 'block';
             document.body.classList.add('modal-open');
             
-            // Set default date to today
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('appointmentDate').value = today;
         });
@@ -356,7 +1245,6 @@
             }
         });
         
-        // Patient selection buttons
         document.getElementById('selectExistingPatient').addEventListener('click', function() {
             document.getElementById('patient').focus();
         });
@@ -378,11 +1266,9 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Add the new appointment to the table
                     closeModal();
                     showNotification('Appointment scheduled successfully', 'success');
                     
-                    // Reload the page to show the new appointment
                     setTimeout(() => {
                         window.location.reload();
                     }, 1000);
@@ -396,26 +1282,74 @@
             });
         });
         
-        // Notification function
+        // Improved notification function
         function showNotification(message, type = 'info') {
+            console.log(`Showing notification: ${type} - ${message}`);
+            
+            // Remove any existing notifications
+            const existingNotifications = document.querySelectorAll('.notification-popup');
+            existingNotifications.forEach(notification => {
+                notification.remove();
+            });
+            
             const notification = document.createElement('div');
             notification.className = `notification-popup ${type}`;
-            notification.textContent = message;
+            
+            // Add icon based on type
+            let icon = '';
+            switch(type) {
+                case 'success':
+                    icon = '<i class="fas fa-check-circle"></i> ';
+                    break;
+                case 'error':
+                    icon = '<i class="fas fa-exclamation-circle"></i> ';
+                    break;
+                case 'warning':
+                    icon = '<i class="fas fa-exclamation-triangle"></i> ';
+                    break;
+                case 'info':
+                    icon = '<i class="fas fa-info-circle"></i> ';
+                    break;
+            }
+            
+            notification.innerHTML = icon + message;
+            
+            // Style the notification
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 5px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                max-width: 350px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                ${type === 'success' ? 'background-color: #4caf50;' : ''}
+                ${type === 'error' ? 'background-color: #f44336;' : ''}
+                ${type === 'warning' ? 'background-color: #ff9800;' : ''}
+                ${type === 'info' ? 'background-color: #2196f3;' : ''}
+            `;
             
             document.body.appendChild(notification);
             
-            // Show notification
+            // Show the notification
             setTimeout(() => {
-                notification.classList.add('show');
+                notification.style.transform = 'translateX(0)';
             }, 10);
             
-            // Hide and remove after a delay
+            // Auto-hide after 4 seconds
             setTimeout(() => {
-                notification.classList.remove('show');
+                notification.style.transform = 'translateX(100%)';
                 setTimeout(() => {
-                    document.body.removeChild(notification);
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
                 }, 300);
-            }, 3000);
+            }, 4000);
         }
 
         // Reschedule modal functionality
@@ -423,29 +1357,23 @@
         const closeRescheduleModalBtn = document.getElementById('closeRescheduleModal');
         const cancelRescheduleBtn = document.getElementById('cancelReschedule');
 
-        // Replace edit button click events with reschedule functionality
         document.querySelectorAll('.edit-button').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
-                const appointmentId = this.getAttribute('href').split('/').pop();
+                const appointmentId = this.getAttribute('data-id');
                 const row = this.closest('tr');
                 const patient = row.cells[1].textContent;
                 const date = row.cells[2].textContent;
                 const time = row.cells[3].textContent;
                 
-                // Fill the reschedule form with current data
                 document.getElementById('appointmentId').value = appointmentId;
                 document.getElementById('currentPatient').textContent = patient;
                 document.getElementById('currentDate').textContent = date;
                 document.getElementById('currentTime').textContent = time;
                 
-                // Set default values for new date and time
-                // Since we don't have the date in YYYY-MM-DD format in the table, 
-                // just use today's date as default
                 const today = new Date().toISOString().split('T')[0];
                 document.getElementById('newAppointmentDate').value = today;
                 
-                // Try to parse the existing time or set it to empty
                 let timeValue = '';
                 if (time.match(/^\d{1,2}:\d{2}/)) {
                     timeValue = time.trim();
@@ -453,7 +1381,6 @@
                 document.getElementById('newAppointmentTime').value = timeValue;
                 document.getElementById('rescheduleReason').value = '';
                 
-                // Show the modal
                 rescheduleModal.style.display = 'block';
                 document.body.classList.add('modal-open');
             });
@@ -465,7 +1392,6 @@
             document.getElementById('rescheduleAppointmentForm').reset();
         }
 
-        // Close modal events
         closeRescheduleModalBtn.addEventListener('click', closeRescheduleModal);
         cancelRescheduleBtn.addEventListener('click', closeRescheduleModal);
 
@@ -475,14 +1401,11 @@
             }
         });
 
-        // Reschedule form submission
         document.getElementById('rescheduleAppointmentForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const formData = new FormData(this);
-            const appointmentId = formData.get('appointment_id');
             
-            // Send the reschedule request to the server
             fetch('/reschedule_appointment', {
                 method: 'POST',
                 body: formData
@@ -492,15 +1415,12 @@
                 if (data.success) {
                     closeRescheduleModal();
                     
-                    // Update the row in the table with the new date and time
-                    const row = document.querySelector(`.edit-button[href$="${appointmentId}"]`).closest('tr');
+                    const appointmentId = formData.get('appointment_id');
+                    const row = document.querySelector(`.edit-button[data-id="${appointmentId}"]`).closest('tr');
                     
-                    // Format the date nicely for display
                     const newDate = new Date(formData.get('date'));
                     const options = { year: 'numeric', month: 'long', day: 'numeric' };
                     row.cells[2].textContent = newDate.toLocaleDateString('en-US', options);
-                    
-                    // Format the time
                     row.cells[3].textContent = formData.get('time');
                     
                     showNotification('Appointment rescheduled successfully', 'success');
@@ -513,6 +1433,24 @@
                 showNotification('An error occurred while rescheduling the appointment.', 'error');
             });
         });
+
+        // Debug function - you can call this in browser console
+        function debugCancelButtons() {
+            const deleteButtons = document.querySelectorAll('.delete-button');
+            console.log(`Found ${deleteButtons.length} delete buttons`);
+            
+            deleteButtons.forEach((button, index) => {
+                const appointmentId = button.getAttribute('data-id');
+                const row = button.closest('tr');
+                const patientName = row ? row.cells[1].textContent.trim() : 'Unknown';
+                console.log(`Button ${index + 1}: ID=${appointmentId}, Patient=${patientName}`);
+            });
+        }
+
+        console.log('✅ Fixed appointment cancellation script loaded');
+        console.log('🔧 Run debugCancelButtons() in console to check button setup');
+        console.log('🖨️ Print functionality ready - Press Ctrl+P to print with filters');
+        console.log('📋 Page setup complete!');
     </script>
 </body>
 </html>

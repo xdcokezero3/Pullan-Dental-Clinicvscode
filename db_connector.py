@@ -195,13 +195,14 @@ class Patient(db.Model):
 class Appointment(db.Model):
     __tablename__ = 'appointment'
     
-    appid = db.Column(db.Integer, primary_key=True)
-    apppatient = db.Column(db.String(255))
-    apptime = db.Column(db.String(255))
+    appid = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    apppatient = db.Column(db.String(100))
+    apptime = db.Column(db.String(20))
     appdate = db.Column(db.Date)
+    status = db.Column(db.String(20), default='active')  # ← This line should exist
     
     def __repr__(self):
-        return f"<Appointment {self.appid}: {self.apppatient} on {self.appdate}>"
+        return f'<Appointment {self.appid}: {self.apppatient} on {self.appdate} at {self.apptime} - {self.status}>'
     
     def formatted_id(self):
         return f"APT-{self.appid:03d}"

@@ -6,6 +6,240 @@
     <title>Pullan Dental Clinic - Patients</title>
     <link rel="stylesheet" href="../static/css/patients.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        /* Additional styles for status filtering */
+        .status-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .status-filter {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background: white;
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-filter:hover {
+            background: #f8f9fa;
+            border-color: #007bff;
+            color: #007bff;
+        }
+        
+        .status-filter.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .status-badge {
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-active .status-badge {
+            background: #28a745;
+        }
+        
+        .status-inactive .status-badge {
+            background: #dc3545;
+        }
+        
+        .status-all .status-badge {
+            background: #17a2b8;
+        }
+        
+        .patient-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .patient-status.active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .patient-status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .action-button.reactivate-button {
+            background: #28a745;
+            color: white;
+        }
+        
+        .action-button.reactivate-button:hover {
+            background: #218838;
+        }
+        
+        .action-button.deactivate-button {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .action-button.deactivate-button:hover {
+            background: #e0a800;
+        }
+        
+        tr.inactive-row {
+            background-color: #f8f9fa;
+            opacity: 0.8;
+        }
+        
+        tr.inactive-row td {
+            color: #6c757d;
+        }
+        /* Add these styles to your patients.css file to properly style the page actions */
+
+.page-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 0 5px;
+}
+
+.page-title h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.page-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.print-button {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.print-button:hover {
+    background: #545b62;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    text-decoration: none;
+    color: white;
+}
+
+.print-button i {
+    font-size: 16px;
+}
+
+.add-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.add-button:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.add-button i {
+    font-size: 16px;
+}
+
+/* Filter indicator for print button */
+.print-button.filtered {
+    background: #28a745;
+    position: relative;
+}
+
+.print-button.filtered:hover {
+    background: #218838;
+}
+
+.print-button.filtered::after {
+    content: attr(data-filter);
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ffc107;
+    color: #000;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: bold;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .page-title {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .page-title h1 {
+        text-align: center;
+    }
+    
+    .page-actions {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .print-button,
+    .add-button {
+        flex: 1;
+        min-width: 140px;
+        justify-content: center;
+    }
+}
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -43,7 +277,7 @@
             <!-- Header -->
             <div class="header">
                 <div class="search-bar">
-                    <input type="text" id="searchInput" placeholder="Search...">
+                    <input type="text" id="searchInput" placeholder="Search patients...">
                     <i class="fas fa-search"></i>
                 </div>
                 <div class="user-info">
@@ -64,12 +298,55 @@
             </div>
 
             <div class="page-title">
-                <h1>Patients</h1>
-                <button class="add-button" id="openAddPatientModal">
-                    <i class="fas fa-plus"></i> Add New Patient
-                </button>
+                <h1>Patients Management</h1>
+                <div class="page-actions">
+                    <!-- UPDATED PRINT BUTTON - Now includes current filter -->
+                    <a href="{{ url_for('print_patients_report', status=status_filter) }}" 
+                       class="print-button {{ 'filtered' if status_filter != 'all' else '' }}" 
+                       target="_blank"
+                       {% if status_filter != 'all' %}
+                       data-filter="{{ status_filter.title() }}"
+                       title="Print {{ status_filter.title() }} Patients Report"
+                       {% else %}
+                       title="Print All Patients Report"
+                       {% endif %}>
+                        <i class="fas fa-print"></i> 
+                        {% if status_filter == 'active' %}
+                            Print Active Patients
+                        {% elif status_filter == 'inactive' %}
+                            Print Inactive Patients
+                        {% else %}
+                            Print All Patients
+                        {% endif %}
+                    </a>
+                    <button class="add-button" id="openAddPatientModal">
+                        <i class="fas fa-plus"></i> Add New Patient
+                    </button>
+                </div>
             </div>
             <div class="date">{{ current_date }}</div>
+
+            <!-- Status Filters -->
+            <div class="status-filters">
+                <a href="{{ url_for('patients', status='active') }}" 
+                   class="status-filter status-active {{ 'active' if status_filter == 'active' else '' }}">
+                    <i class="fas fa-user-check"></i>
+                    Active Patients
+                    <span class="status-badge">{{ active_count }}</span>
+                </a>
+                <a href="{{ url_for('patients', status='inactive') }}" 
+                   class="status-filter status-inactive {{ 'active' if status_filter == 'inactive' else '' }}">
+                    <i class="fas fa-user-times"></i>
+                    Inactive Patients
+                    <span class="status-badge">{{ inactive_count }}</span>
+                </a>
+                <a href="{{ url_for('patients', status='all') }}" 
+                   class="status-filter status-all {{ 'active' if status_filter == 'all' else '' }}">
+                    <i class="fas fa-users"></i>
+                    All Patients
+                    <span class="status-badge">{{ total_count }}</span>
+                </a>
+            </div>
 
             <div class="patients-table">
                 <table id="patientsTable">
@@ -81,30 +358,51 @@
                             <th>Gender</th>
                             <th>Age</th>
                             <th>Address</th>
+                            <th>Status</th>
                             <th>Last Visit</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for patient in patients %}
-                        <tr>
+                        <tr {{ 'class=inactive-row' if not patient.is_active else '' }}>
                             <td>{{ patient.id }}</td>
                             <td>{{ patient.name }}</td>
                             <td>{{ patient.contact }}</td>
                             <td>{{ patient.gender }}</td>
                             <td>{{ patient.age }}</td>
                             <td>{{ patient.address }}</td>
+                            <td>
+                                <span class="patient-status {{ 'active' if patient.is_active else 'inactive' }}">
+                                    {{ patient.status }}
+                                </span>
+                            </td>
                             <td>{{ patient.last_visit }}</td>
                             <td>
-                                <a href="{{ url_for('patient_details', patient_id=patient.id|replace('PAT-', '')|int) }}" class="action-button view-button" title="View Details">
+                                <a href="{{ url_for('patient_details', patient_id=patient.id|replace('PAT-', '')|int) }}" 
+                                   class="action-button view-button" title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ url_for('edit_patient', patient_id=patient.id|replace('PAT-', '')|int) }}" class="action-button edit-button" title="Edit Patient">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button class="action-button delete-button" data-id="{{ patient.id|replace('PAT-', '')|int }}" title="Delete Patient">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                
+                                {% if patient.is_active %}
+                                    <a href="{{ url_for('edit_patient', patient_id=patient.id|replace('PAT-', '')|int) }}" 
+                                       class="action-button edit-button" title="Edit Patient">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button class="action-button deactivate-button" 
+                                            data-id="{{ patient.id|replace('PAT-', '')|int }}" 
+                                            data-name="{{ patient.name }}"
+                                            title="Deactivate Patient">
+                                        <i class="fas fa-user-times"></i>
+                                    </button>
+                                {% else %}
+                                    <button class="action-button reactivate-button" 
+                                            data-id="{{ patient.id|replace('PAT-', '')|int }}" 
+                                            data-name="{{ patient.name }}"
+                                            title="Reactivate Patient">
+                                        <i class="fas fa-user-check"></i>
+                                    </button>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -210,7 +508,7 @@
     </div>
 
     <script>
-        // Search functionality
+        // Search functionality with filter awareness
         document.getElementById('searchInput').addEventListener('keyup', function() {
             const searchValue = this.value.toLowerCase();
             const table = document.getElementById('patientsTable');
@@ -230,14 +528,50 @@
                 
                 rows[i].style.display = found ? '' : 'none';
             }
+            
+            // Update print button to include search filter if search is active
+            updatePrintButtonWithSearch(searchValue);
         });
         
-        // Delete patient functionality
-        document.querySelectorAll('.delete-button').forEach(button => {
+        // Function to update print button URL with search parameter
+        function updatePrintButtonWithSearch(searchValue) {
+            const printButton = document.querySelector('.print-button');
+            const currentHref = printButton.getAttribute('href');
+            const baseUrl = currentHref.split('?')[0]; // Remove existing parameters
+            const currentStatus = '{{ status_filter }}';
+            
+            if (searchValue.trim()) {
+                printButton.href = `${baseUrl}?status=${currentStatus}&search=${encodeURIComponent(searchValue)}`;
+                printButton.innerHTML = '<i class="fas fa-print"></i> Print Filtered Results';
+                printButton.classList.add('filtered');
+                printButton.setAttribute('data-filter', 'Search');
+            } else {
+                printButton.href = `${baseUrl}?status=${currentStatus}`;
+                {% if status_filter == 'active' %}
+                    printButton.innerHTML = '<i class="fas fa-print"></i> Print Active Patients';
+                {% elif status_filter == 'inactive' %}
+                    printButton.innerHTML = '<i class="fas fa-print"></i> Print Inactive Patients';
+                {% else %}
+                    printButton.innerHTML = '<i class="fas fa-print"></i> Print All Patients';
+                {% endif %}
+                
+                {% if status_filter != 'all' %}
+                    printButton.classList.add('filtered');
+                    printButton.setAttribute('data-filter', '{{ status_filter.title() }}');
+                {% else %}
+                    printButton.classList.remove('filtered');
+                    printButton.removeAttribute('data-filter');
+                {% endif %}
+            }
+        }
+        
+        // Deactivate patient functionality
+        document.querySelectorAll('.deactivate-button').forEach(button => {
             button.addEventListener('click', function() {
                 const patientId = this.getAttribute('data-id');
-                if(confirm(`Are you sure you want to delete this patient?`)) {
-                    fetch(`/delete_patient/${patientId}`, {
+                const patientName = this.getAttribute('data-name');
+                if(confirm(`Are you sure you want to deactivate ${patientName}? This will hide them from the active patients list but they can be reactivated later.`)) {
+                    fetch(`/deactivate_patient/${patientId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -247,16 +581,51 @@
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            // Remove the row from the table
-                            this.closest('tr').remove();
-                            showNotification('Patient deleted successfully', 'success');
+                            showNotification('Patient deactivated successfully', 'success');
+                            // Reload the page to update the view
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
                         } else {
-                            showNotification('Error deleting patient: ' + data.error, 'error');
+                            showNotification('Error deactivating patient: ' + data.error, 'error');
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        showNotification('An error occurred while deleting the patient.', 'error');
+                        showNotification('An error occurred while deactivating the patient.', 'error');
+                    });
+                }
+            });
+        });
+        
+        // Reactivate patient functionality
+        document.querySelectorAll('.reactivate-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const patientId = this.getAttribute('data-id');
+                const patientName = this.getAttribute('data-name');
+                if(confirm(`Are you sure you want to reactivate ${patientName}?`)) {
+                    fetch(`/reactivate_patient/${patientId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification('Patient reactivated successfully', 'success');
+                            // Reload the page to update the view
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } else {
+                            showNotification('Error reactivating patient: ' + data.error, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('An error occurred while reactivating the patient.', 'error');
                     });
                 }
             });
@@ -301,62 +670,12 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Add the new patient to the table
-                    const table = document.querySelector('#patientsTable tbody');
-                    const newRow = table.insertRow();
-                    
-                    const patient = data.patient;
-                    
-                    newRow.innerHTML = `
-                        <td>${patient.id}</td>
-                        <td>${patient.name}</td>
-                        <td>${patient.contact}</td>
-                        <td>${patient.gender}</td>
-                        <td>${patient.age}</td>
-                        <td>${patient.address}</td>
-                        <td>${patient.last_visit}</td>
-                        <td>
-                            <a href="/patient/${patient.raw_id}" class="action-button view-button" title="View Details">
-                                <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="/edit_patient/${patient.raw_id}" class="action-button edit-button" title="Edit Patient">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button class="action-button delete-button" data-id="${patient.raw_id}" title="Delete Patient">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    
-                    // Add event listener to the new delete button
-                    newRow.querySelector('.delete-button').addEventListener('click', function() {
-                        const patientId = this.getAttribute('data-id');
-                        if(confirm(`Are you sure you want to delete this patient?`)) {
-                            fetch(`/delete_patient/${patientId}`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                }
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success) {
-                                    this.closest('tr').remove();
-                                    showNotification('Patient deleted successfully', 'success');
-                                } else {
-                                    showNotification('Error deleting patient: ' + data.error, 'error');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                                showNotification('An error occurred while deleting the patient.', 'error');
-                            });
-                        }
-                    });
-                    
                     closeModal();
                     showNotification('Patient added successfully', 'success');
+                    // Reload the page to show the new patient
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                 } else {
                     showNotification('Error adding patient: ' + data.error, 'error');
                 }
@@ -373,35 +692,46 @@
             notification.className = `notification-popup ${type}`;
             notification.textContent = message;
             
+            // Add styles for notification
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 5px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                transform: translateX(400px);
+                transition: transform 0.3s ease;
+            `;
+            
+            // Set background color based on type
+            if (type === 'success') {
+                notification.style.backgroundColor = '#28a745';
+            } else if (type === 'error') {
+                notification.style.backgroundColor = '#dc3545';
+            } else {
+                notification.style.backgroundColor = '#17a2b8';
+            }
+            
             document.body.appendChild(notification);
             
             // Show notification
             setTimeout(() => {
-                notification.classList.add('show');
+                notification.style.transform = 'translateX(0)';
             }, 10);
             
             // Hide and remove after a delay
             setTimeout(() => {
-                notification.classList.remove('show');
+                notification.style.transform = 'translateX(400px)';
                 setTimeout(() => {
-                    document.body.removeChild(notification);
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
                 }, 300);
             }, 3000);
         }
-        
-        // Simple script to handle current date
-        document.addEventListener('DOMContentLoaded', function() {
-            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            
-            const now = new Date();
-            const day = days[now.getDay()];
-            const date = now.getDate();
-            const month = months[now.getMonth()];
-            const year = now.getFullYear();
-            
-            document.querySelector('.date').textContent = `${day}, ${month} ${date}, ${year}`;
-        });
     </script>
 </body>
 </html>

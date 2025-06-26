@@ -49,14 +49,16 @@
                 <div class="user-info">
                     <div class="notifications">
                         <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
+                        {% if alerts and (alerts.low_stock > 0 or alerts.expired_items > 0) %}
+                        <span class="badge">{{ alerts.low_stock + alerts.expired_items }}</span>
+                        {% endif %}
                     </div>
                     <div class="messages">
                         <i class="fas fa-envelope"></i>
-                        <span class="badge">5</span>
+                        <span class="badge">0</span>
                     </div>
                     <div class="user">
-                        <span>{{ session.get('username', 'User') }}</span>
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
                         <img src="../img/user-placeholder.jpg" alt="User">
                         <i class="fas fa-chevron-down"></i>
                     </div>
@@ -66,7 +68,13 @@
             <!-- Dashboard Overview -->
             <div class="dashboard-overview">
                 <h1>Dashboard Overview</h1>
-                <p class="date">Tuesday, April 15, 2025</p>
+                <p class="date">{{ current_date or 'Loading...' }}</p>
+                
+                {% if error %}
+                <div class="alert alert-error">
+                    <strong>Error:</strong> {{ error }}
+                </div>
+                {% endif %}
                 
                 <!-- Stats Cards -->
                 <div class="stats-cards">
@@ -75,11 +83,17 @@
                             <i class="fas fa-user-injured"></i>
                         </div>
                         <div class="card-info">
-                            <h3>42</h3>
+                            <h3>{{ stats.total_patients if stats else 0 }}</h3>
                             <p>Total Patients</p>
                         </div>
                         <div class="card-stats">
-                            <span class="positive"><i class="fas fa-arrow-up"></i> 12%</span>
+                            {% if stats and stats.patient_growth >= 0 %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> {{ stats.patient_growth|round|int }}%</span>
+                            {% elif stats %}
+                            <span class="negative"><i class="fas fa-arrow-down"></i> {{ (stats.patient_growth * -1)|round|int }}%</span>
+                            {% else %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 0%</span>
+                            {% endif %}
                             <span>vs last month</span>
                         </div>
                     </div>
@@ -89,11 +103,17 @@
                             <i class="fas fa-calendar-check"></i>
                         </div>
                         <div class="card-info">
-                            <h3>15</h3>
+                            <h3>{{ stats.todays_appointments if stats else 0 }}</h3>
                             <p>Today's Appointments</p>
                         </div>
                         <div class="card-stats">
-                            <span class="positive"><i class="fas fa-arrow-up"></i> 5%</span>
+                            {% if stats and stats.appointment_growth >= 0 %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> {{ stats.appointment_growth|round|int }}%</span>
+                            {% elif stats %}
+                            <span class="negative"><i class="fas fa-arrow-down"></i> {{ (stats.appointment_growth * -1)|round|int }}%</span>
+                            {% else %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 0%</span>
+                            {% endif %}
                             <span>vs yesterday</span>
                         </div>
                     </div>
@@ -103,11 +123,17 @@
                             <i class="fas fa-dollar-sign"></i>
                         </div>
                         <div class="card-info">
-                            <h3>$3,540</h3>
+                            <h3>${{ "{:,}".format(stats.todays_revenue|int) if stats and stats.todays_revenue else "0" }}</h3>
                             <p>Today's Revenue</p>
                         </div>
                         <div class="card-stats">
-                            <span class="negative"><i class="fas fa-arrow-down"></i> 3%</span>
+                            {% if stats and stats.revenue_growth >= 0 %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> {{ stats.revenue_growth|round|int }}%</span>
+                            {% elif stats %}
+                            <span class="negative"><i class="fas fa-arrow-down"></i> {{ (stats.revenue_growth * -1)|round|int }}%</span>
+                            {% else %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 0%</span>
+                            {% endif %}
                             <span>vs yesterday</span>
                         </div>
                     </div>
@@ -117,11 +143,17 @@
                             <i class="fas fa-tooth"></i>
                         </div>
                         <div class="card-info">
-                            <h3>28</h3>
+                            <h3>{{ stats.this_week_treatments if stats else 0 }}</h3>
                             <p>Treatments This Week</p>
                         </div>
                         <div class="card-stats">
-                            <span class="positive"><i class="fas fa-arrow-up"></i> 18%</span>
+                            {% if stats and stats.treatment_growth >= 0 %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> {{ stats.treatment_growth|round|int }}%</span>
+                            {% elif stats %}
+                            <span class="negative"><i class="fas fa-arrow-down"></i> {{ (stats.treatment_growth * -1)|round|int }}%</span>
+                            {% else %}
+                            <span class="positive"><i class="fas fa-arrow-up"></i> 0%</span>
+                            {% endif %}
                             <span>vs last week</span>
                         </div>
                     </div>
@@ -131,10 +163,11 @@
                 <div class="appointments-section">
                     <div class="section-header">
                         <h2>Today's Appointments</h2>
-                        <a href="#" class="view-all">View All</a>
+                        <a href="{{ url_for('appointments') }}" class="view-all">View All</a>
                     </div>
                     
                     <div class="appointments-list">
+                        {% if appointments and appointments|length > 0 %}
                         <table>
                             <thead>
                                 <tr>
@@ -147,113 +180,51 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {% for appointment in appointments[:5] %}
                                 <tr>
                                     <td>
                                         <div class="patient-info">
-                                            <img src="../img/patient1.jpg" alt="Patient">
+                                            <img src="../img/user-placeholder.jpg" alt="Patient">
                                             <div>
-                                                <p class="name">Sarah Johnson</p>
-                                                <p class="id">ID: PAT-001</p>
+                                                <p class="name">{{ appointment.patient_name }}</p>
+                                                <p class="id">ID: {{ appointment.patient_id }}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td>09:30 AM</td>
-                                    <td>Teeth Cleaning</td>
-                                    <td>Dr. Anderson</td>
-                                    <td><span class="status completed">Completed</span></td>
+                                    <td>{{ appointment.time }}</td>
+                                    <td>{{ appointment.treatment }}</td>
+                                    <td>{{ appointment.doctor }}</td>
+                                    <td>
+                                        {% if appointment.status == 'completed' %}
+                                        <span class="status completed">Completed</span>
+                                        {% elif appointment.status == 'in-progress' %}
+                                        <span class="status in-progress">In Progress</span>
+                                        {% else %}
+                                        <span class="status pending">Pending</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <div class="actions">
-                                            <button class="view"><i class="fas fa-eye"></i></button>
-                                            <button class="edit"><i class="fas fa-edit"></i></button>
+                                            <button class="view" onclick="window.location.href='{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}'">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="edit" onclick="window.location.href='{{ url_for('edit_appointment', appointment_id=appointment.raw_id) }}'">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td>
-                                        <div class="patient-info">
-                                            <img src="../img/patient2.jpg" alt="Patient">
-                                            <div>
-                                                <p class="name">John Davis</p>
-                                                <p class="id">ID: PAT-023</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>10:15 AM</td>
-                                    <td>Root Canal</td>
-                                    <td>Dr. Smith</td>
-                                    <td><span class="status in-progress">In Progress</span></td>
-                                    <td>
-                                        <div class="actions">
-                                            <button class="view"><i class="fas fa-eye"></i></button>
-                                            <button class="edit"><i class="fas fa-edit"></i></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div class="patient-info">
-                                            <img src="../img/patient3.jpg" alt="Patient">
-                                            <div>
-                                                <p class="name">Emily Wilson</p>
-                                                <p class="id">ID: PAT-045</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>11:45 AM</td>
-                                    <td>Consultation</td>
-                                    <td>Dr. Lee</td>
-                                    <td><span class="status pending">Pending</span></td>
-                                    <td>
-                                        <div class="actions">
-                                            <button class="view"><i class="fas fa-eye"></i></button>
-                                            <button class="edit"><i class="fas fa-edit"></i></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div class="patient-info">
-                                            <img src="../img/patient4.jpg" alt="Patient">
-                                            <div>
-                                                <p class="name">Robert Brown</p>
-                                                <p class="id">ID: PAT-032</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>01:30 PM</td>
-                                    <td>Filling</td>
-                                    <td>Dr. Smith</td>
-                                    <td><span class="status pending">Pending</span></td>
-                                    <td>
-                                        <div class="actions">
-                                            <button class="view"><i class="fas fa-eye"></i></button>
-                                            <button class="edit"><i class="fas fa-edit"></i></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div class="patient-info">
-                                            <img src="../img/patient5.jpg" alt="Patient">
-                                            <div>
-                                                <p class="name">Lisa Garcia</p>
-                                                <p class="id">ID: PAT-018</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>03:00 PM</td>
-                                    <td>Crown Fitting</td>
-                                    <td>Dr. Anderson</td>
-                                    <td><span class="status pending">Pending</span></td>
-                                    <td>
-                                        <div class="actions">
-                                            <button class="view"><i class="fas fa-eye"></i></button>
-                                            <button class="edit"><i class="fas fa-edit"></i></button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
+                        {% else %}
+                        <div class="no-data">
+                            <i class="fas fa-calendar-times"></i>
+                            <h3>No appointments today</h3>
+                            <p>There are no appointments scheduled for today.</p>
+                            <a href="{{ url_for('appointments') }}" class="btn btn-primary">Schedule Appointment</a>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -263,39 +234,31 @@
                     <div class="recent-patients">
                         <div class="section-header">
                             <h2>Recent Patients</h2>
-                            <a href="#" class="view-all">View All</a>
+                            <a href="{{ url_for('patients') }}" class="view-all">View All</a>
                         </div>
                         
                         <div class="patient-cards">
-                            <div class="patient-card">
-                                <img src="../img/patient1.jpg" alt="Patient">
-                                <div class="patient-details">
-                                    <h4>Sarah Johnson</h4>
-                                    <p>Last Visit: Apr 12, 2025</p>
-                                    <p>Treatment: Teeth Cleaning</p>
-                                    <button class="view-profile">View Profile</button>
+                            {% if recent_patients and recent_patients|length > 0 %}
+                                {% for patient in recent_patients[:3] %}
+                                <div class="patient-card">
+                                    <img src="../img/user-placeholder.jpg" alt="Patient">
+                                    <div class="patient-details">
+                                        <h4>{{ patient.name }}</h4>
+                                        <p>Last Visit: {{ patient.last_visit }}</p>
+                                        <p>Treatment: {{ patient.treatment }}</p>
+                                        <button class="view-profile" onclick="window.location.href='{{ url_for('patient_details', patient_id=patient.raw_id) }}'">
+                                            View Profile
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div class="patient-card">
-                                <img src="../img/patient2.jpg" alt="Patient">
-                                <div class="patient-details">
-                                    <h4>John Davis</h4>
-                                    <p>Last Visit: Apr 15, 2025</p>
-                                    <p>Treatment: Root Canal</p>
-                                    <button class="view-profile">View Profile</button>
+                                {% endfor %}
+                            {% else %}
+                                <div class="no-data">
+                                    <i class="fas fa-user-injured"></i>
+                                    <h4>No recent patients</h4>
+                                    <p>No recent patient visits found.</p>
                                 </div>
-                            </div>
-                            
-                            <div class="patient-card">
-                                <img src="../img/patient3.jpg" alt="Patient">
-                                <div class="patient-details">
-                                    <h4>Emily Wilson</h4>
-                                    <p>Last Visit: Apr 15, 2025</p>
-                                    <p>Treatment: Consultation</p>
-                                    <button class="view-profile">View Profile</button>
-                                </div>
-                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     
@@ -305,7 +268,7 @@
                             <h2>Calendar</h2>
                             <div class="calendar-nav">
                                 <button><i class="fas fa-chevron-left"></i></button>
-                                <span>April 2025</span>
+                                <span id="calendar-month-year">{{ current_date.split(',')[1].strip() if current_date else 'Loading...' }}</span>
                                 <button><i class="fas fa-chevron-right"></i></button>
                             </div>
                         </div>
@@ -320,69 +283,51 @@
                                 <div>Fri</div>
                                 <div>Sat</div>
                             </div>
-                            <div class="calendar-days">
-                                <div class="prev-month">30</div>
-                                <div class="prev-month">31</div>
-                                <div>1</div>
-                                <div>2</div>
-                                <div>3</div>
-                                <div>4</div>
-                                <div>5</div>
-                                <div>6</div>
-                                <div>7</div>
-                                <div>8</div>
-                                <div>9</div>
-                                <div>10</div>
-                                <div>11</div>
-                                <div>12</div>
-                                <div>13</div>
-                                <div>14</div>
-                                <div class="current-day">15</div>
-                                <div>16</div>
-                                <div>17</div>
-                                <div>18</div>
-                                <div>19</div>
-                                <div>20</div>
-                                <div>21</div>
-                                <div>22</div>
-                                <div>23</div>
-                                <div>24</div>
-                                <div>25</div>
-                                <div>26</div>
-                                <div>27</div>
-                                <div>28</div>
-                                <div>29</div>
-                                <div>30</div>
-                                <div class="next-month">1</div>
-                                <div class="next-month">2</div>
-                                <div class="next-month">3</div>
+                            <div class="calendar-days" id="calendar-days">
+                                <!-- Calendar days will be populated by JavaScript -->
                             </div>
                         </div>
                         
                         <div class="upcoming-events">
                             <h3>Upcoming Events</h3>
-                            <div class="event">
-                                <div class="event-dot staff-meeting"></div>
-                                <div class="event-details">
-                                    <p class="event-title">Staff Meeting</p>
-                                    <p class="event-time">Apr 16, 9:00 AM</p>
+                            {% if upcoming_events and upcoming_events|length > 0 %}
+                                {% for event in upcoming_events %}
+                                <div class="event">
+                                    <div class="event-dot {{ event.type }}"></div>
+                                    <div class="event-details">
+                                        <p class="event-title">{{ event.title }}</p>
+                                        <p class="event-time">{{ event.date }}, {{ event.time }}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="event">
-                                <div class="event-dot inventory"></div>
-                                <div class="event-details">
-                                    <p class="event-title">Inventory Check</p>
-                                    <p class="event-time">Apr 18, 2:00 PM</p>
+                                {% endfor %}
+                            {% else %}
+                                <div class="no-events">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <p>No upcoming events</p>
                                 </div>
-                            </div>
-                            <div class="event">
-                                <div class="event-dot training"></div>
-                                <div class="event-details">
-                                    <p class="event-title">New Equipment Training</p>
-                                    <p class="event-time">Apr 20, 10:00 AM</p>
-                                </div>
-                            </div>
+                            {% endif %}
                         </div>
+                        
+                        <!-- Inventory Alerts -->
+                        {% if alerts and (alerts.low_stock > 0 or alerts.expired_items > 0) %}
+                        <div class="inventory-alerts">
+                            <h3>Inventory Alerts</h3>
+                            {% if alerts.low_stock > 0 %}
+                            <div class="alert-item low-stock">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>{{ alerts.low_stock }} item(s) low in stock</span>
+                                <a href="{{ url_for('inventory') }}?filter=low_stock">View</a>
+                            </div>
+                            {% endif %}
+                            {% if alerts.expired_items > 0 %}
+                            <div class="alert-item expired">
+                                <i class="fas fa-times-circle"></i>
+                                <span>{{ alerts.expired_items }} item(s) expired</span>
+                                <a href="{{ url_for('inventory') }}?filter=expired">View</a>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -390,7 +335,7 @@
     </div>
     
     <script>
-        // Simple script to handle current date
+        // Enhanced script to handle current date and calendar
         document.addEventListener('DOMContentLoaded', function() {
             const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -401,8 +346,176 @@
             const month = months[now.getMonth()];
             const year = now.getFullYear();
             
-            document.querySelector('.date').textContent = `${day}, ${month} ${date}, ${year}`;
+            // Update the date display if not provided by server
+            const dateElement = document.querySelector('.date');
+            if (dateElement && (!dateElement.textContent || dateElement.textContent === 'Loading...')) {
+                dateElement.textContent = `${day}, ${month} ${date}, ${year}`;
+            }
+            
+            // Update calendar month/year display
+            const calendarMonthYear = document.getElementById('calendar-month-year');
+            if (calendarMonthYear && calendarMonthYear.textContent === 'Loading...') {
+                calendarMonthYear.textContent = `${month} ${year}`;
+            }
+            
+            // Generate calendar days
+            generateCalendar(now.getFullYear(), now.getMonth());
         });
+        
+        function generateCalendar(year, month) {
+            const calendarDays = document.getElementById('calendar-days');
+            if (!calendarDays) return;
+            
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startingDayOfWeek = firstDay.getDay();
+            
+            calendarDays.innerHTML = '';
+            
+            // Add empty cells for days before the first day of the month
+            for (let i = 0; i < startingDayOfWeek; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'prev-month';
+                const prevMonthDay = new Date(year, month, 0 - (startingDayOfWeek - 1 - i));
+                emptyDay.textContent = prevMonthDay.getDate();
+                calendarDays.appendChild(emptyDay);
+            }
+            
+            // Add days of the current month
+            const today = new Date();
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayElement = document.createElement('div');
+                dayElement.textContent = day;
+                
+                // Highlight today
+                if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                    dayElement.className = 'current-day';
+                }
+                
+                calendarDays.appendChild(dayElement);
+            }
+            
+            // Fill remaining cells with next month days
+            const totalCells = calendarDays.children.length;
+            const remainingCells = 42 - totalCells; // 6 rows × 7 days
+            for (let day = 1; day <= remainingCells; day++) {
+                const nextMonthDay = document.createElement('div');
+                nextMonthDay.className = 'next-month';
+                nextMonthDay.textContent = day;
+                calendarDays.appendChild(nextMonthDay);
+            }
+        }
+        
+        // Auto-refresh dashboard every 5 minutes
+        setTimeout(function() {
+            window.location.reload();
+        }, 300000); // 5 minutes
     </script>
+    
+    <style>
+        /* Additional styles for new elements */
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .no-data i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #ddd;
+        }
+        
+        .no-data h3, .no-data h4 {
+            margin: 10px 0;
+            color: #555;
+        }
+        
+        .no-data p {
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            display: inline-block;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .inventory-alerts {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .inventory-alerts h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .alert-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .alert-item.low-stock {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .alert-item.expired {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .alert-item i {
+            margin-right: 8px;
+        }
+        
+        .alert-item a {
+            margin-left: auto;
+            color: inherit;
+            font-weight: bold;
+        }
+        
+        .no-events {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .no-events i {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #ddd;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
 </body>
 </html>

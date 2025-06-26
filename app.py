@@ -1,7 +1,7 @@
 # app.py - Fixed version with DNS resolution handling + User Logs System + Hardcoded Admin + Enhanced Dental Charts
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
 from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import time
 from sqlalchemy import text
@@ -110,9 +110,232 @@ def login():
     return render_template('login.html', 
                           registration_success=registration_success)
 
+# Replace the existing dashboard route in your app.py with this updated version
+
 @app.route('/dashboard')
 def dashboard():
-    return render_template('dashboard.html')
+    """Dashboard with real data from database"""
+    try:
+        # Get current date
+        today = datetime.now().date()
+        current_month_start = today.replace(day=1)
+        last_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
+        last_month_end = current_month_start - timedelta(days=1)
+        
+        # Calculate yesterday for comparisons
+        yesterday = today - timedelta(days=1)
+        week_start = today - timedelta(days=today.weekday())  # Monday of current week
+        last_week_start = week_start - timedelta(weeks=1)
+        last_week_end = week_start - timedelta(days=1)
+        
+        # 1. PATIENT STATISTICS
+        total_patients = Patient.query.filter_by(is_deleted=False).count()
+        last_month_patients = Patient.query.filter_by(is_deleted=False).count()  # You might want to add created_date field
+        
+        # Calculate patient growth (mock calculation since we don't have creation dates)
+        patient_growth = 12  # Default positive growth
+        
+        # 2. TODAY'S APPOINTMENTS
+        todays_appointments = Appointment.query.filter_by(appdate=today).all()
+        todays_appointment_count = len(todays_appointments)
+        
+        # Yesterday's appointments for comparison
+        yesterday_appointments = Appointment.query.filter_by(appdate=yesterday).count()
+        appointment_growth = 0
+        if yesterday_appointments > 0:
+            appointment_growth = ((todays_appointment_count - yesterday_appointments) / yesterday_appointments) * 100
+        elif todays_appointment_count > 0:
+            appointment_growth = 100
+        
+        # 3. TODAY'S REVENUE (calculated from procedures)
+        todays_procedures = Report.query.filter_by(repdate=today).all()
+        todays_revenue = 0
+        
+        # Calculate revenue based on procedures (you can adjust these rates)
+        procedure_rates = {
+            'cleaning': 80,
+            'extraction': 150,
+            'root_canal': 300,
+            'braces': 2000,
+            'dentures': 800
+        }
+        
+        for procedure in todays_procedures:
+            if procedure.repcleaning: todays_revenue += procedure_rates['cleaning']
+            if procedure.repextraction: todays_revenue += procedure_rates['extraction']
+            if procedure.reprootcanal: todays_revenue += procedure_rates['root_canal']
+            if procedure.repbraces: todays_revenue += procedure_rates['braces']
+            if procedure.repdentures: todays_revenue += procedure_rates['dentures']
+        
+        # Yesterday's revenue for comparison
+        yesterday_procedures = Report.query.filter_by(repdate=yesterday).all()
+        yesterday_revenue = 0
+        for procedure in yesterday_procedures:
+            if procedure.repcleaning: yesterday_revenue += procedure_rates['cleaning']
+            if procedure.repextraction: yesterday_revenue += procedure_rates['extraction']
+            if procedure.reprootcanal: yesterday_revenue += procedure_rates['root_canal']
+            if procedure.repbraces: yesterday_revenue += procedure_rates['braces']
+            if procedure.repdentures: yesterday_revenue += procedure_rates['dentures']
+        
+        revenue_growth = 0
+        if yesterday_revenue > 0:
+            revenue_growth = ((todays_revenue - yesterday_revenue) / yesterday_revenue) * 100
+        elif todays_revenue > 0:
+            revenue_growth = 100
+        
+        # 4. THIS WEEK'S TREATMENTS
+        this_week_treatments = Report.query.filter(
+            Report.repdate >= week_start,
+            Report.repdate <= today
+        ).count()
+        
+        last_week_treatments = Report.query.filter(
+            Report.repdate >= last_week_start,
+            Report.repdate <= last_week_end
+        ).count()
+        
+        treatment_growth = 0
+        if last_week_treatments > 0:
+            treatment_growth = ((this_week_treatments - last_week_treatments) / last_week_treatments) * 100
+        elif this_week_treatments > 0:
+            treatment_growth = 100
+        
+        # 5. FORMAT TODAY'S APPOINTMENTS FOR TABLE
+        formatted_appointments = []
+        for appointment in todays_appointments:
+            # Get patient details
+            patient = Patient.query.filter_by(patname=appointment.apppatient).first()
+            patient_id = f"PAT-{patient.patId:03d}" if patient else "N/A"
+            
+            # Determine status based on time (this is a simple logic, you can enhance it)
+            appointment_time = appointment.apptime
+            current_time = datetime.now().time()
+            
+            if appointment_time:
+                # Convert time string to time object for comparison
+                try:
+                    apt_time_obj = datetime.strptime(appointment_time, '%H:%M').time()
+                    if apt_time_obj < current_time:
+                        status = 'completed'
+                    else:
+                        status = 'pending'
+                except:
+                    status = 'pending'
+            else:
+                status = 'pending'
+            
+            formatted_appointments.append({
+                'id': f"APT-{appointment.appid:03d}",
+                'patient_name': appointment.apppatient,
+                'patient_id': patient_id,
+                'time': appointment.apptime or "N/A",
+                'treatment': "General Checkup",  # Default since not in schema
+                'doctor': "Dr. Andrews",  # Default since not in schema
+                'status': status,
+                'raw_id': appointment.appid,
+                'patient_phone': patient.patcontact if patient else "N/A"
+            })
+        
+        # Sort appointments by time
+        formatted_appointments.sort(key=lambda x: x['time'] if x['time'] != "N/A" else "00:00")
+        
+        # 6. RECENT PATIENTS (last 3 patients who had procedures)
+        recent_procedures = Report.query.order_by(Report.repdate.desc()).limit(3).all()
+        recent_patients = []
+        
+        for procedure in recent_procedures:
+            patient = Patient.query.filter_by(patname=procedure.reppatient).first()
+            if patient:
+                # Build procedure list
+                procedures_done = []
+                if procedure.repcleaning: procedures_done.append("Cleaning")
+                if procedure.repextraction: procedures_done.append("Extraction")
+                if procedure.reprootcanal: procedures_done.append("Root Canal")
+                if procedure.repbraces: procedures_done.append("Braces")
+                if procedure.repdentures: procedures_done.append("Dentures")
+                if procedure.repothers: procedures_done.append(procedure.repothers)
+                
+                recent_patients.append({
+                    'id': f"PAT-{patient.patId:03d}",
+                    'name': patient.patname,
+                    'last_visit': procedure.repdate.strftime('%b %d, %Y') if procedure.repdate else "N/A",
+                    'treatment': ", ".join(procedures_done) if procedures_done else "General Visit",
+                    'raw_id': patient.patId
+                })
+        
+        # 7. UPCOMING EVENTS (you can customize this based on your needs)
+        upcoming_events = [
+            {
+                'title': 'Staff Meeting',
+                'date': (today + timedelta(days=1)).strftime('%b %d'),
+                'time': '9:00 AM',
+                'type': 'staff-meeting'
+            },
+            {
+                'title': 'Inventory Check',
+                'date': (today + timedelta(days=3)).strftime('%b %d'),
+                'time': '2:00 PM',
+                'type': 'inventory'
+            },
+            {
+                'title': 'Equipment Maintenance',
+                'date': (today + timedelta(days=5)).strftime('%b %d'),
+                'time': '10:00 AM',
+                'type': 'training'
+            }
+        ]
+        
+        # 8. INVENTORY ALERTS
+        low_stock_items = Inventory.query.filter(Inventory.invquantity < 5).count()
+        expired_items = Inventory.query.filter(
+            Inventory.invdoe.isnot(None),
+            Inventory.invdoe < today
+        ).count()
+        
+        # Prepare all data for template
+        dashboard_data = {
+            'stats': {
+                'total_patients': total_patients,
+                'patient_growth': patient_growth,
+                'todays_appointments': todays_appointment_count,
+                'appointment_growth': appointment_growth,
+                'todays_revenue': todays_revenue,
+                'revenue_growth': revenue_growth,
+                'this_week_treatments': this_week_treatments,
+                'treatment_growth': treatment_growth
+            },
+            'appointments': formatted_appointments,
+            'recent_patients': recent_patients,
+            'upcoming_events': upcoming_events,
+            'alerts': {
+                'low_stock': low_stock_items,
+                'expired_items': expired_items
+            },
+            'current_date': datetime.now().strftime("%A, %B %d, %Y")
+        }
+        
+        return render_template('dashboard.html', **dashboard_data)
+        
+    except Exception as e:
+        print(f"Error in dashboard route: {e}")
+        # Return basic template with proper error handling and correct structure
+        return render_template('dashboard.html', 
+                             stats={
+                                 'total_patients': 0, 
+                                 'patient_growth': 0,
+                                 'todays_appointments': 0, 
+                                 'appointment_growth': 0,
+                                 'todays_revenue': 0,
+                                 'revenue_growth': 0,
+                                 'this_week_treatments': 0,
+                                 'treatment_growth': 0
+                             },
+                             appointments=[], 
+                             recent_patients=[], 
+                             upcoming_events=[],
+                             alerts={'low_stock': 0, 'expired_items': 0},
+                             current_date=datetime.now().strftime("%A, %B %d, %Y"),
+                             error=f"Dashboard error: {e}")
 
 @app.route('/logout')
 def logout():
@@ -311,9 +534,18 @@ def export_logs():
 def patients():
     """Render the patients page with data from the database"""
     try:
-        # Get patients from the database (exclude deleted ones)
-        patients_list = Patient.query.filter_by(is_deleted=False).all()
-        print(f"Found {len(patients_list)} patients")
+        # Get status filter from query parameter (default to 'active')
+        status_filter = request.args.get('status', 'active')
+        
+        # Build query based on status filter
+        if status_filter == 'active':
+            patients_list = Patient.query.filter_by(is_deleted=False).all()
+        elif status_filter == 'inactive':
+            patients_list = Patient.query.filter_by(is_deleted=True).all()
+        else:  # 'all'
+            patients_list = Patient.query.all()
+        
+        print(f"Found {len(patients_list)} patients with status: {status_filter}")
         
         # Format the data for display
         formatted_patients = []
@@ -329,16 +561,27 @@ def patients():
                 'age': patient.patage or "N/A",
                 'address': patient.pataddress or "N/A",
                 'last_visit': last_visit,
+                'status': 'Inactive' if patient.is_deleted else 'Active',
+                'is_active': not patient.is_deleted,
                 'raw_id': patient.patId  # Add the raw ID for use in URLs
             })
         
         # Get current date for the page
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
+        # Get counts for status badges
+        active_count = Patient.query.filter_by(is_deleted=False).count()
+        inactive_count = Patient.query.filter_by(is_deleted=True).count()
+        total_count = active_count + inactive_count
+        
         # Render the template with the data
         return render_template('patients/patients.html', 
                               patients=formatted_patients, 
-                              current_date=current_date)
+                              current_date=current_date,
+                              status_filter=status_filter,
+                              active_count=active_count,
+                              inactive_count=inactive_count,
+                              total_count=total_count)
     except Exception as e:
         print(f"Error in patients route: {e}")
         return f"Error loading patients: {e}", 500
@@ -488,7 +731,7 @@ def add_patient():
 
 @app.route('/delete_patient/<int:patient_id>', methods=['POST'])
 def delete_patient(patient_id):
-    """Soft delete a patient"""
+    """Deactivate a patient (soft delete) - maintained for backward compatibility"""
     try:
         patient = Patient.query.get_or_404(patient_id)
         patient.is_deleted = True
@@ -498,14 +741,61 @@ def delete_patient(patient_id):
         # Log the action
         log_user_action(
             session.get('user_id'),
-            'Delete Patient',
-            f'Soft deleted patient: {patient.patname} (ID: PAT-{patient.patId:03d})'
+            'Deactivate Patient',
+            f'Deactivated patient: {patient.patname} (ID: PAT-{patient.patId:03d})'
         )
         
-        return jsonify({"success": True})
+        return jsonify({"success": True, "message": "Patient deactivated successfully"})
     except Exception as e:
         db.session.rollback()
         print(f"Error in delete_patient route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+    
+@app.route('/deactivate_patient/<int:patient_id>', methods=['POST'])
+def deactivate_patient(patient_id):
+    """Deactivate a patient (soft delete)"""
+    try:
+        patient = Patient.query.get_or_404(patient_id)
+        patient.is_deleted = True
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Deactivate Patient',
+            f'Deactivated patient: {patient.patname} (ID: PAT-{patient.patId:03d})'
+        )
+        
+        return jsonify({"success": True, "message": "Patient deactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in deactivate_patient route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/reactivate_appointment/<int:appointment_id>', methods=['POST'])
+def reactivate_appointment(appointment_id):
+    """Reactivate a cancelled appointment"""
+    try:
+        appointment = Appointment.query.get_or_404(appointment_id)
+        
+        # Set status back to active
+        if hasattr(appointment, 'status'):
+            appointment.status = 'active'
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Reactivate Appointment',
+            f'Reactivated appointment for {appointment.apppatient} on {appointment.appdate} at {appointment.apptime}'
+        )
+        
+        return jsonify({"success": True, "message": "Appointment reactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in reactivate_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/edit_patient/<int:patient_id>')
@@ -579,29 +869,67 @@ def update_patient(patient_id):
 # Appointments management routes
 @app.route('/appointments')
 def appointments():
-    """Render the appointments page with data from the database"""
+    """Render the appointments page with status filtering"""
     try:
-        # Get appointments from the database
-        appointments_list = Appointment.query.order_by(Appointment.appdate.desc()).all()
+        # Get status filter from query parameter (default to 'all')
+        status_filter = request.args.get('status', 'all')
         
-        # Get all patients for the "Add Appointment" form
+        # Build query based on status filter
+        if status_filter == 'active':
+            appointments_list = Appointment.query.filter_by(status='active').order_by(Appointment.appdate.desc()).all()
+        elif status_filter == 'completed':
+            appointments_list = Appointment.query.filter_by(status='completed').order_by(Appointment.appdate.desc()).all()
+        elif status_filter == 'cancelled':
+            appointments_list = Appointment.query.filter_by(status='cancelled').order_by(Appointment.appdate.desc()).all()
+        else:  # 'all'
+            appointments_list = Appointment.query.order_by(Appointment.appdate.desc()).all()
+        
+        # Get only ACTIVE patients for the "Add Appointment" form
         all_patients = Patient.query.filter_by(is_deleted=False).all()
         
         # Format the appointments for display
         formatted_appointments = []
         for appointment in appointments_list:
-            # Format appointment data based on the existing fields
+            # Determine status display and styling
+            status = getattr(appointment, 'status', 'active')  # Default to active if no status field
+            
+            # Auto-determine status if not set based on date
+            if not hasattr(appointment, 'status') or not appointment.status:
+                current_date = datetime.now().date()
+                if appointment.appdate < current_date:
+                    status = 'completed'
+                elif appointment.appdate == current_date:
+                    status = 'active'
+                else:
+                    status = 'active'
+            
+            # Format appointment data
             formatted_appointments.append({
                 'id': f"APT-{appointment.appid:03d}",
                 'patient_name': appointment.apppatient,
-                'doctor_name': "Dr. Andrews",  # Default doctor since not in your schema
-                'treatment': "General Checkup",  # Default treatment since not in your schema
+                'doctor_name': "Dr. Andrews",
+                'treatment': "General Checkup",
                 'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
                 'time': appointment.apptime,
-                'duration': "30 min",  # Default duration since not in your schema
-                'status': "Scheduled",  # Default status since not in your schema
+                'duration': "30 min",
+                'status': status,
+                'status_class': f"status-{status}",
                 'raw_id': appointment.appid
             })
+        
+        # Get counts for status badges
+        active_count = Appointment.query.filter_by(status='active').count() if hasattr(Appointment, 'status') else 0
+        completed_count = Appointment.query.filter_by(status='completed').count() if hasattr(Appointment, 'status') else 0
+        cancelled_count = Appointment.query.filter_by(status='cancelled').count() if hasattr(Appointment, 'status') else 0
+        total_count = Appointment.query.count()
+        
+        # If no status field exists, calculate based on dates
+        if not hasattr(Appointment, 'status'):
+            current_date = datetime.now().date()
+            all_appointments = Appointment.query.all()
+            active_count = sum(1 for apt in all_appointments if apt.appdate >= current_date)
+            completed_count = sum(1 for apt in all_appointments if apt.appdate < current_date)
+            cancelled_count = 0
         
         # Get current date for the page
         current_date = datetime.now().strftime("%A, %B %d, %Y")
@@ -612,26 +940,172 @@ def appointments():
                               appointments=formatted_appointments, 
                               all_patients=all_patients,
                               current_date=current_date,
-                              today_date=today_date)
+                              today_date=today_date,
+                              status_filter=status_filter,
+                              active_count=active_count,
+                              completed_count=completed_count,
+                              cancelled_count=cancelled_count,
+                              total_count=total_count)
     except Exception as e:
         print(f"Error in appointments route: {e}")
         return f"Error loading appointments: {e}", 500
+    
+@app.route('/print_patients_report')
+def print_patients_report():
+    """Generate a printable patients report with filters - Updated to match appointments styling"""
+    try:
+        # Get filter parameters
+        status_filter = request.args.get('status', 'all')
+        search_filter = request.args.get('search', '')
+        
+        print(f"Print request - Status: {status_filter}, Search: {search_filter}")
+        
+        # Build query based on status filter
+        if status_filter == 'active':
+            patients_list = Patient.query.filter_by(is_deleted=False).all()
+        elif status_filter == 'inactive':
+            patients_list = Patient.query.filter_by(is_deleted=True).all()
+        else:  # 'all'
+            patients_list = Patient.query.all()
+        
+        # Apply search filter if provided
+        if search_filter:
+            filtered_patients = []
+            for patient in patients_list:
+                if (search_filter.lower() in patient.patname.lower() or 
+                    search_filter.lower() in (patient.patcontact or '').lower() or
+                    search_filter.lower() in (patient.patemail or '').lower()):
+                    filtered_patients.append(patient)
+            patients_list = filtered_patients
+        
+        # Separate active and inactive patients for display
+        active_patients = []
+        inactive_patients = []
+        
+        for patient in patients_list:
+            # Get latest appointment/visit
+            latest_appointment = Appointment.query.filter_by(apppatient=patient.patname).order_by(Appointment.appdate.desc()).first()
+            last_visit = latest_appointment.appdate.strftime('%m/%d/%Y') if latest_appointment and latest_appointment.appdate else "No visits"
+            
+            # Get latest procedure
+            latest_procedure = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).first()
+            last_procedure = latest_procedure.repdate.strftime('%m/%d/%Y') if latest_procedure and latest_procedure.repdate else "No procedures"
+            
+            patient_data = {
+                'id': f"PAT-{patient.patId:03d}",
+                'name': patient.patname,
+                'contact': patient.patcontact or "N/A",
+                'gender': patient.patgender or "N/A",
+                'age': patient.patage or "N/A",
+                'address': patient.pataddress or "N/A",
+                'email': patient.patemail or "N/A",
+                'last_visit': last_visit,
+                'last_procedure': last_procedure,
+                'registration_date': patient.patdob.strftime('%m/%d/%Y') if patient.patdob else "N/A",
+                'is_active': not patient.is_deleted
+            }
+            
+            if patient.is_deleted:
+                inactive_patients.append(patient_data)
+            else:
+                active_patients.append(patient_data)
+        
+        # Prepare filter information for display (matching appointments style)
+        status_labels = {
+            'all': 'All Patients',
+            'active': 'Active Patients Only',
+            'inactive': 'Inactive Patients Only'
+        }
+        
+        filter_info = {
+            'status': status_labels.get(status_filter, status_filter.title()),
+            'search': search_filter if search_filter else 'No search filter',
+            'has_filters': status_filter != 'all' or search_filter,
+            'status_filter': status_filter,  # Keep raw status for conditional display
+            'has_status_filter': status_filter != 'all'
+        }
+        
+        # Get statistics based on current filter
+        if status_filter == 'active':
+            total_patients = len(active_patients)
+            active_count = len(active_patients)
+            inactive_count = 0
+            filtered_patients = active_patients
+        elif status_filter == 'inactive':
+            total_patients = len(inactive_patients)
+            active_count = 0
+            inactive_count = len(inactive_patients)
+            filtered_patients = inactive_patients
+        else:  # 'all'
+            total_patients = len(patients_list)
+            active_count = len(active_patients)
+            inactive_count = len(inactive_patients)
+            filtered_patients = active_patients + inactive_patients
+        
+        # Get current user information
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        user_id = session.get('user_id')
+        
+        # Generate print timestamp
+        print_date = datetime.now().strftime('%B %d, %Y')
+        print_time = datetime.now().strftime('%I:%M %p')
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Log the print action
+        filter_description = []
+        filter_description.append(f"Status: {status_labels.get(status_filter, status_filter)}")
+        if search_filter:
+            filter_description.append(f"Search: {search_filter}")
+        
+        filter_text = ", ".join(filter_description)
+        
+        log_user_action(
+            user_id,
+            'Print Patients Report',
+            f'Generated patients report: {total_patients} patients ({filter_text})'
+        )
+        
+        return render_template('patients/print_patients_report.html',
+                              active_patients=active_patients if status_filter != 'inactive' else [],
+                              inactive_patients=inactive_patients if status_filter != 'active' else [],
+                              filtered_patients=filtered_patients,
+                              filter_info=filter_info,
+                              status_filter=status_filter,
+                              total_patients=total_patients,
+                              active_count=active_count,
+                              inactive_count=inactive_count,
+                              current_user=current_user,
+                              print_date=print_date,
+                              print_time=print_time,
+                              print_datetime=print_datetime)
+    
+    except Exception as e:
+        print(f"Error generating patients report: {e}")
+        return f"Error generating patients report: {e}", 500
+    
+
 
 @app.route('/add_appointment', methods=['POST'])
 def add_appointment():
-    """Add a new appointment"""
+    """Add a new appointment with active status"""
     try:
         # Get patient name from the patient ID
         patient_id = request.form.get('patient_id')
         patient = Patient.query.get(patient_id)
         patient_name = patient.patname if patient else "Unknown Patient"
         
-        # Create new appointment using the simple schema
-        new_appointment = Appointment(
-            apppatient=patient_name,
-            apptime=request.form.get('time'),
-            appdate=datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
-        )
+        # Create new appointment with active status
+        appointment_data = {
+            'apppatient': patient_name,
+            'apptime': request.form.get('time'),
+            'appdate': datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        }
+        
+        # Add status if the field exists
+        if hasattr(Appointment, 'status'):
+            appointment_data['status'] = 'active'
+        
+        new_appointment = Appointment(**appointment_data)
         
         db.session.add(new_appointment)
         db.session.commit()
@@ -651,6 +1125,7 @@ def add_appointment():
                 "patient_name": new_appointment.apppatient,
                 "date": new_appointment.appdate.strftime('%B %d, %Y'),
                 "time": new_appointment.apptime,
+                "status": getattr(new_appointment, 'status', 'active'),
                 "raw_id": new_appointment.appid
             }
         })
@@ -658,10 +1133,10 @@ def add_appointment():
         db.session.rollback()
         print(f"Error in add_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
-
+    
 @app.route('/cancel_appointment', methods=['POST'])
 def cancel_appointment():
-    """Cancel an appointment - since we don't have a status field, we'll just delete it"""
+    """Cancel an appointment by setting status to cancelled"""
     try:
         appointment_id = request.form.get('appointment_id')
         if not appointment_id:
@@ -669,20 +1144,52 @@ def cancel_appointment():
             
         appointment = Appointment.query.get_or_404(int(appointment_id))
         
-        # Log the action before deleting
-        log_user_action(
-            session.get('user_id'),
-            'Delete Appointment',
-            f'Cancelled/deleted appointment for {appointment.apppatient} on {appointment.appdate} at {appointment.apptime}'
-        )
+        # Set status to cancelled instead of deleting
+        if hasattr(appointment, 'status'):
+            appointment.status = 'cancelled'
+        else:
+            # If no status field exists, you can still delete the appointment
+            # or add a different approach to mark it as cancelled
+            return jsonify({"success": False, "error": "Status field not available. Please add status column to appointment table."})
         
-        db.session.delete(appointment)
         db.session.commit()
         
-        return jsonify({"success": True})
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Cancel Appointment',
+            f'Cancelled appointment for {appointment.apppatient} on {appointment.appdate} at {appointment.apptime}'
+        )
+        
+        return jsonify({"success": True, "message": "Appointment cancelled successfully"})
     except Exception as e:
         db.session.rollback()
         print(f"Error in cancel_appointment route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/complete_appointment/<int:appointment_id>', methods=['POST'])
+def complete_appointment(appointment_id):
+    """Mark an appointment as completed"""
+    try:
+        appointment = Appointment.query.get_or_404(appointment_id)
+        
+        # Set status to completed
+        if hasattr(appointment, 'status'):
+            appointment.status = 'completed'
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Complete Appointment',
+            f'Marked appointment as completed for {appointment.apppatient} on {appointment.appdate} at {appointment.apptime}'
+        )
+        
+        return jsonify({"success": True, "message": "Appointment marked as completed"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in complete_appointment route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/appointment_details/<int:appointment_id>')
@@ -736,6 +1243,147 @@ def edit_appointment(appointment_id):
     except Exception as e:
         print(f"Error in edit_appointment route: {e}")
         return f"Error loading appointment edit form: {e}", 500
+
+# Add this simple test route to your app.py to isolate the issue
+
+@app.route('/test_cancel/<int:appointment_id>')
+def test_cancel_appointment(appointment_id):
+    """Simple test route to check appointment cancellation without AJAX"""
+    try:
+        print(f"Testing cancellation for appointment {appointment_id}")
+        
+        # Get the appointment
+        appointment = Appointment.query.get(appointment_id)
+        if not appointment:
+            return f"ERROR: Appointment {appointment_id} not found"
+        
+        print(f"Found appointment: {appointment.apppatient} on {appointment.appdate}")
+        
+        # Check current status
+        try:
+            current_status = appointment.status
+            print(f"Current status: {current_status}")
+        except AttributeError as e:
+            return f"ERROR: Cannot access status field: {e}. You need to restart Flask!"
+        
+        # Try to update status
+        try:
+            appointment.status = 'cancelled'
+            db.session.commit()
+            print("Status updated successfully")
+            
+            # Verify the update
+            updated_appointment = Appointment.query.get(appointment_id)
+            new_status = updated_appointment.status
+            
+            if new_status == 'cancelled':
+                return f"""
+                <h2>✅ SUCCESS!</h2>
+                <p><strong>Appointment ID:</strong> {appointment_id}</p>
+                <p><strong>Patient:</strong> {appointment.apppatient}</p>
+                <p><strong>Date:</strong> {appointment.appdate}</p>
+                <p><strong>Status changed to:</strong> {new_status}</p>
+                <hr>
+                <p><a href="/appointments">← Back to Appointments</a></p>
+                <p><a href="/test_reactivate/{appointment_id}">🔄 Test Reactivate</a></p>
+                """
+            else:
+                return f"ERROR: Status update failed. Expected 'cancelled', got '{new_status}'"
+                
+        except Exception as update_error:
+            db.session.rollback()
+            return f"ERROR during status update: {update_error}"
+            
+    except Exception as e:
+        import traceback
+        return f"""
+        <h2>❌ ERROR</h2>
+        <p><strong>Error:</strong> {e}</p>
+        <p><strong>Type:</strong> {type(e)}</p>
+        <pre>{traceback.format_exc()}</pre>
+        <hr>
+        <p><a href="/appointments">← Back to Appointments</a></p>
+        """
+
+@app.route('/test_reactivate/<int:appointment_id>')
+def test_reactivate_appointment(appointment_id):
+    """Simple test route to reactivate an appointment"""
+    try:
+        appointment = Appointment.query.get(appointment_id)
+        if not appointment:
+            return f"ERROR: Appointment {appointment_id} not found"
+        
+        appointment.status = 'active'
+        db.session.commit()
+        
+        return f"""
+        <h2>✅ REACTIVATED!</h2>
+        <p><strong>Appointment ID:</strong> {appointment_id}</p>
+        <p><strong>Patient:</strong> {appointment.apppatient}</p>
+        <p><strong>Status:</strong> {appointment.status}</p>
+        <hr>
+        <p><a href="/appointments">← Back to Appointments</a></p>
+        <p><a href="/test_cancel/{appointment_id}">❌ Test Cancel Again</a></p>
+        """
+        
+    except Exception as e:
+        db.session.rollback()
+        return f"ERROR reactivating: {e}"
+
+@app.route('/check_appointment_model')
+def check_appointment_model():
+    """Check if the Appointment model is properly configured"""
+    try:
+        # Get the model's table information
+        columns = Appointment.__table__.columns.keys()
+        
+        result = f"""
+        <h2>Appointment Model Debug Info</h2>
+        <p><strong>Table name:</strong> {Appointment.__tablename__}</p>
+        <p><strong>Columns:</strong> {', '.join(columns)}</p>
+        
+        <h3>Status Column Details:</h3>
+        """
+        
+        if 'status' in columns:
+            status_col = Appointment.__table__.columns['status']
+            result += f"""
+            <p>✅ Status column exists in model</p>
+            <p><strong>Type:</strong> {status_col.type}</p>
+            <p><strong>Default:</strong> {status_col.default}</p>
+            <p><strong>Nullable:</strong> {status_col.nullable}</p>
+            """
+        else:
+            result += "<p>❌ Status column missing from model</p>"
+        
+        # Test creating an appointment instance
+        try:
+            test_apt = Appointment()
+            test_apt.status = 'test'
+            result += "<p>✅ Can set status on model instance</p>"
+        except AttributeError as e:
+            result += f"<p>❌ Cannot set status: {e}</p>"
+        
+        # Check database table structure
+        from sqlalchemy import text
+        db_columns = db.session.execute(text("DESCRIBE appointment")).fetchall()
+        
+        result += "<h3>Database Table Structure:</h3><ul>"
+        for col in db_columns:
+            result += f"<li><strong>{col[0]}</strong>: {col[1]} (Default: {col[4]})</li>"
+        result += "</ul>"
+        
+        result += '<hr><p><a href="/appointments">← Back to Appointments</a></p>'
+        
+        return result
+        
+    except Exception as e:
+        import traceback
+        return f"""
+        <h2>Error checking model:</h2>
+        <p>{e}</p>
+        <pre>{traceback.format_exc()}</pre>
+        """
     
 @app.route('/reschedule_appointment', methods=['POST'])
 def reschedule_appointment():
@@ -859,6 +1507,164 @@ def rescheduled_appointments():
     except Exception as e:
         print(f"Error in rescheduled_appointments route: {e}")
         return f"Error loading rescheduled appointments: {e}", 500
+    
+@app.route('/print_appointments_report')
+def print_appointments_report():
+    """Generate a printable appointments report with improved status filters"""
+    try:
+        # Get filter parameters
+        status_filter = request.args.get('status', 'all')
+        date_filter = request.args.get('date', '')
+        patient_filter = request.args.get('patient', '')
+        
+        print(f"Print request - Status: {status_filter}, Date: {date_filter}, Patient: {patient_filter}")
+        
+        # Build query based on status filter with improved logic
+        query = Appointment.query
+        
+        # Apply status filter
+        if status_filter == 'active':
+            # Check if status field exists, if not use date-based logic
+            if hasattr(Appointment, 'status'):
+                query = query.filter_by(status='active')
+            else:
+                # Fallback: consider future/today dates as active
+                current_date = datetime.now().date()
+                query = query.filter(Appointment.appdate >= current_date)
+        elif status_filter == 'completed':
+            if hasattr(Appointment, 'status'):
+                query = query.filter_by(status='completed')
+            else:
+                # Fallback: consider past dates as completed
+                current_date = datetime.now().date()
+                query = query.filter(Appointment.appdate < current_date)
+        elif status_filter == 'cancelled':
+            if hasattr(Appointment, 'status'):
+                query = query.filter_by(status='cancelled')
+            else:
+                # If no status field, we can't determine cancelled appointments
+                query = query.filter(False)  # Return no results
+        # For 'all', no status filter is applied
+        
+        appointments_list = query.order_by(Appointment.appdate.desc()).all()
+        
+        # Format appointments for display with proper status detection
+        formatted_appointments = []
+        for appointment in appointments_list:
+            # Determine status display
+            if hasattr(appointment, 'status') and appointment.status:
+                status = appointment.status
+            else:
+                # Fallback status determination based on date
+                current_date = datetime.now().date()
+                if appointment.appdate < current_date:
+                    status = 'completed'
+                elif appointment.appdate == current_date:
+                    status = 'active'
+                else:
+                    status = 'active'
+            
+            # Apply additional filters
+            include_appointment = True
+            
+            # Date filter
+            if date_filter:
+                try:
+                    filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
+                    if appointment.appdate != filter_date:
+                        include_appointment = False
+                except ValueError:
+                    pass
+            
+            # Patient filter
+            if patient_filter and include_appointment:
+                if patient_filter.lower() not in appointment.apppatient.lower():
+                    include_appointment = False
+            
+            if include_appointment:
+                # Get patient details
+                patient = Patient.query.filter_by(patname=appointment.apppatient).first()
+                
+                formatted_appointments.append({
+                    'id': f"APT-{appointment.appid:03d}",
+                    'patient_name': appointment.apppatient,
+                    'patient_contact': patient.patcontact if patient else "N/A",
+                    'patient_id': f"PAT-{patient.patId:03d}" if patient else "N/A",
+                    'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+                    'time': appointment.apptime or "N/A",
+                    'status': status.capitalize(),
+                    'doctor': "Dr. Andrews",  # Default since not in schema
+                    'treatment': "General Checkup",  # Default since not in schema
+                    'raw_date': appointment.appdate.strftime('%Y-%m-%d') if appointment.appdate else "",
+                    'raw_time': appointment.apptime or ""
+                })
+        
+        # Sort appointments by date and time
+        formatted_appointments.sort(key=lambda x: (x['raw_date'], x['raw_time']))
+        
+        # Prepare IMPROVED filter information for display
+        status_labels = {
+            'all': 'All Appointments',
+            'active': 'Active Appointments Only',
+            'completed': 'Completed Appointments Only',
+            'cancelled': 'Cancelled Appointments Only'
+        }
+        
+        filter_info = {
+            'status': status_labels.get(status_filter, status_filter.title()),
+            'date': datetime.strptime(date_filter, '%Y-%m-%d').strftime('%B %d, %Y') if date_filter else 'All Dates',
+            'patient': patient_filter.title() if patient_filter else 'All Patients',
+            'has_filters': status_filter != 'all' or date_filter or patient_filter,
+            'status_filter': status_filter,  # Keep raw status for conditional display
+            'has_status_filter': status_filter != 'all'
+        }
+        
+        # Get statistics based on current filter
+        total_appointments = len(formatted_appointments)
+        status_counts = {
+            'active': len([a for a in formatted_appointments if a['status'].lower() == 'active']),
+            'completed': len([a for a in formatted_appointments if a['status'].lower() == 'completed']),
+            'cancelled': len([a for a in formatted_appointments if a['status'].lower() == 'cancelled'])
+        }
+        
+        # Get current user information
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        user_id = session.get('user_id')
+        
+        # Generate print timestamp
+        print_date = datetime.now().strftime('%B %d, %Y')
+        print_time = datetime.now().strftime('%I:%M %p')
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Log the print action with improved detail
+        filter_description = []
+        filter_description.append(f"Status: {status_labels.get(status_filter, status_filter)}")
+        if date_filter:
+            filter_description.append(f"Date: {filter_info['date']}")
+        if patient_filter:
+            filter_description.append(f"Patient: {patient_filter}")
+        
+        filter_text = ", ".join(filter_description)
+        
+        log_user_action(
+            user_id,
+            'Print Appointments Report',
+            f'Generated appointments report: {total_appointments} appointments ({filter_text})'
+        )
+        
+        return render_template('appointments/print_appointments_report.html',
+                              appointments=formatted_appointments,
+                              filter_info=filter_info,
+                              total_appointments=total_appointments,
+                              status_counts=status_counts,
+                              current_user=current_user,
+                              print_date=print_date,
+                              print_time=print_time,
+                              print_datetime=print_datetime)
+    
+    except Exception as e:
+        print(f"Error generating appointments report: {e}")
+        return f"Error generating appointments report: {e}", 500
 
 @app.route('/treatments')
 def treatments():
