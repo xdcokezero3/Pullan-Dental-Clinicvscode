@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../static/css/staff_details.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
-        /* Modal styles - imported from staff.html */
+        /* Complete Modal and Page Styling */
         .modal {
             display: none;
             position: fixed;
@@ -71,10 +71,13 @@
         .close:hover,
         .close:focus {
             color: #f1f1f1;
+            text-decoration: none;
         }
 
         .modal-body {
             padding: 25px;
+            max-height: 60vh;
+            overflow-y: auto;
         }
 
         .form-row {
@@ -157,6 +160,118 @@
             background: #5a6268;
             transform: translateY(-1px);
         }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+
+        /* Admin-only message styles */
+        .admin-notice {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #1565c0;
+        }
+        
+        .admin-notice.warning {
+            background: #fff3e0;
+            border-color: #ff9800;
+            color: #ef6c00;
+        }
+
+        /* Confirmation modal styles */
+        .warning-text {
+            color: #dc3545;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .success-text {
+            color: #28a745;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .staff-info-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+
+        .staff-info-summary p {
+            margin: 5px 0;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                margin: 2% auto;
+            }
+            
+            .form-row {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .modal-footer,
+            .modal-actions {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn-primary,
+            .btn-secondary,
+            .btn-warning,
+            .btn-success {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -177,7 +292,6 @@
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
-                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
@@ -226,11 +340,26 @@
                         <p class="current-date">{{ current_date }}</p>
                     </div>
                     <div class="action-buttons">
-                        <button class="btn-primary" id="editStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-edit"></i> Edit Staff</button>
+                        <!-- ADMIN ONLY: Action Buttons -->
+                        {% if session.get('access_level') == 'admin' %}
+                        <button class="btn-primary" id="editStaffBtn" data-id="{{ staff.usersid }}">
+                            <i class="fas fa-edit"></i> Edit Staff
+                        </button>
                         {% if staff.is_active %}
-                            <button class="btn-warning" id="deactivateStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-user-times"></i> Deactivate Staff</button>
+                            <button class="btn-warning" id="deactivateStaffBtn" data-id="{{ staff.usersid }}">
+                                <i class="fas fa-user-times"></i> Deactivate Staff
+                            </button>
                         {% else %}
-                            <button class="btn-success" id="reactivateStaffBtn" data-id="{{ staff.usersid }}"><i class="fas fa-user-check"></i> Reactivate Staff</button>
+                            <button class="btn-success" id="reactivateStaffBtn" data-id="{{ staff.usersid }}">
+                                <i class="fas fa-user-check"></i> Reactivate Staff
+                            </button>
+                        {% endif %}
+                        {% else %}
+                        <!-- Non-admin notice -->
+                        <div class="admin-notice warning">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>View Only:</strong> You need administrator privileges to edit or manage this staff member.
+                        </div>
                         {% endif %}
                     </div>
                 </div>
@@ -357,429 +486,459 @@
         </div>
     </div>
 
-    <!-- Edit Staff Modal (Same as staff.html) -->
-    <div id="editStaffModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Edit Staff Member</h2>
-                <span class="close">&times;</span>
+<!-- ADMIN ONLY: Edit Staff Modal -->
+{% if session.get('access_level') == 'admin' %}
+<div id="editStaffModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit Staff Member</h2>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="staffForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password (Leave blank to keep current)</label>
+                        <input type="password" id="password" name="password" placeholder="Leave blank to keep current password">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="contact">Phone Number</label>
+                        <input type="tel" id="contact" name="contact" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="gender">Gender</label>
+                        <select id="gender" name="gender">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="address">Address</label>
+                        <input type="text" id="address" name="address">
+                    </div>
+                    <div class="form-group">
+                        <label for="cityzipcode">City/Zip Code</label>
+                        <input type="text" id="cityzipcode" name="cityzipcode">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dob">Date of Birth</label>
+                        <input type="date" id="dob" name="dob">
+                    </div>
+                    <div class="form-group">
+                        <label for="age">Age</label>
+                        <input type="number" id="age" name="age" min="18" max="100">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="religion">Religion</label>
+                        <input type="text" id="religion" name="religion">
+                    </div>
+                    <div class="form-group">
+                        <label for="access">Access Level</label>
+                        <select id="access" name="access" required>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="occupation">Occupation</label>
+                        <input type="text" id="occupation" name="occupation" required>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" id="cancelEditStaff">Cancel</button>
+            <button type="submit" class="btn-primary" id="saveStaffBtn" form="staffForm">Update Staff Member</button>
+        </div>
+    </div>
+</div>
+
+<!-- Deactivate Confirmation Modal -->
+<div id="deactivateConfirmModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Confirm Deactivation</h2>
+            <span class="close" id="closeDeactivateModal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p class="warning-text">Are you sure you want to deactivate this staff member? They will be moved to inactive status and won't be able to access the system.</p>
+            <div class="staff-info-summary">
+                <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
+                <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
+                <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
             </div>
-            <div class="modal-body">
-                <form id="staffForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input type="text" id="name" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="email">Email</label>
-                            <input type="email" id="email" name="email" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="username">Username</label>
-                            <input type="text" id="username" name="username" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="password">Password (Leave blank to keep current)</label>
-                            <input type="password" id="password" name="password" placeholder="Leave blank to keep current password">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="contact">Phone Number</label>
-                            <input type="tel" id="contact" name="contact" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="gender">Gender</label>
-                            <select id="gender" name="gender">
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="address">Address</label>
-                            <input type="text" id="address" name="address">
-                        </div>
-                        <div class="form-group">
-                            <label for="cityzipcode">City/Zip Code</label>
-                            <input type="text" id="cityzipcode" name="cityzipcode">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="dob">Date of Birth</label>
-                            <input type="date" id="dob" name="dob">
-                        </div>
-                        <div class="form-group">
-                            <label for="age">Age</label>
-                            <input type="number" id="age" name="age" min="18" max="100">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="religion">Religion</label>
-                            <input type="text" id="religion" name="religion">
-                        </div>
-                        <div class="form-group">
-                            <label for="access">Access Level</label>
-                            <select id="access" name="access" required>
-                                <option value="admin">Admin</option>
-                                <option value="user">User</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="occupation">Occupation</label>
-                            <input type="text" id="occupation" name="occupation" required>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn-secondary" id="cancelEditStaff">Cancel</button>
-                        <button type="submit" class="btn-primary" id="saveStaffBtn">Update Staff Member</button>
-                    </div>
-                </form>
+            <div class="modal-actions">
+                <button id="cancelDeactivateBtn" class="btn-secondary">Cancel</button>
+                <button id="confirmDeactivateBtn" class="btn-warning">Deactivate Staff</button>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Deactivate Confirmation Modal -->
-    <div id="deactivateConfirmModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Confirm Deactivation</h2>
-                <span class="close" id="closeDeactivateModal">&times;</span>
+<!-- Reactivate Confirmation Modal -->
+<div id="reactivateConfirmModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Confirm Reactivation</h2>
+            <span class="close" id="closeReactivateModal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p class="success-text">Are you sure you want to reactivate this staff member? They will regain access to the system.</p>
+            <div class="staff-info-summary">
+                <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
+                <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
+                <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
             </div>
-            <div class="modal-body">
-                <p class="warning-text">Are you sure you want to deactivate this staff member? They will be moved to inactive status and won't be able to access the system.</p>
-                <div class="staff-info-summary">
-                    <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
-                    <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
-                    <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
-                </div>
-                <div class="modal-actions">
-                    <button id="cancelDeactivateBtn" class="btn-secondary">Cancel</button>
-                    <button id="confirmDeactivateBtn" class="btn-warning">Deactivate Staff</button>
-                </div>
+            <div class="modal-actions">
+                <button id="cancelReactivateBtn" class="btn-secondary">Cancel</button>
+                <button id="confirmReactivateBtn" class="btn-success">Reactivate Staff</button>
             </div>
         </div>
     </div>
+</div>
+{% endif %}
 
-    <!-- Reactivate Confirmation Modal -->
-    <div id="reactivateConfirmModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Confirm Reactivation</h2>
-                <span class="close" id="closeReactivateModal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <p class="success-text">Are you sure you want to reactivate this staff member? They will regain access to the system.</p>
-                <div class="staff-info-summary">
-                    <p><strong>Name:</strong> {{ staff.usersrealname }}</p>
-                    <p><strong>Role:</strong> {{ staff.usersoccupation or 'Staff' }}</p>
-                    <p><strong>ID:</strong> STF-{{ '%03d' % staff.usersid }}</p>
-                </div>
-                <div class="modal-actions">
-                    <button id="cancelReactivateBtn" class="btn-secondary">Cancel</button>
-                    <button id="confirmReactivateBtn" class="btn-success">Reactivate Staff</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        /**
-         * Pullan Dental - Staff Details JavaScript
-         * Handles tabs switching, edit modal, deactivate/reactivate confirmation, etc.
-         */
-        document.addEventListener('DOMContentLoaded', function() {
-            // DOM Elements
-            const tabs = document.querySelectorAll('.tab');
-            const tabContents = document.querySelectorAll('.tab-content');
-            const editStaffBtn = document.getElementById('editStaffBtn');
-            const editStaffModal = document.getElementById('editStaffModal');
-            const closeModalBtn = document.querySelector('#editStaffModal .close');
-            const cancelEditStaffBtn = document.getElementById('cancelEditStaff');
-            const staffForm = document.getElementById('staffForm');
-            const deactivateStaffBtn = document.getElementById('deactivateStaffBtn');
-            const reactivateStaffBtn = document.getElementById('reactivateStaffBtn');
-            const deactivateConfirmModal = document.getElementById('deactivateConfirmModal');
-            const reactivateConfirmModal = document.getElementById('reactivateConfirmModal');
-            const closeDeactivateModalBtn = document.getElementById('closeDeactivateModal');
-            const closeReactivateModalBtn = document.getElementById('closeReactivateModal');
-            const cancelDeactivateBtn = document.getElementById('cancelDeactivateBtn');
-            const cancelReactivateBtn = document.getElementById('cancelReactivateBtn');
-            const confirmDeactivateBtn = document.getElementById('confirmDeactivateBtn');
-            const confirmReactivateBtn = document.getElementById('confirmReactivateBtn');
+<script>
+/**
+ * Pullan Dental - Staff Details JavaScript (Complete with Admin Checks)
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if user is admin
+    const isAdmin = {{ 'true' if session.get('access_level') == 'admin' else 'false' }};
+    
+    // DOM Elements
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    let currentStaffId = {{ staff.usersid }}; // Get the current staff ID from template
+    
+    // Tab Switching (always available)
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Remove active class from all tabs
+            tabs.forEach(t => t.classList.remove('active'));
+            // Add active class to clicked tab
+            this.classList.add('active');
             
-            let currentStaffId = {{ staff.usersid }}; // Get the current staff ID from template
-            
-            // Tab Switching
-            tabs.forEach(tab => {
-                tab.addEventListener('click', function() {
-                    // Remove active class from all tabs
-                    tabs.forEach(t => t.classList.remove('active'));
-                    // Add active class to clicked tab
-                    this.classList.add('active');
-                    
-                    // Switch tab content
-                    const tabId = this.getAttribute('data-tab');
-                    tabContents.forEach(content => {
-                        content.classList.remove('active');
-                        if (content.id === tabId) {
-                            content.classList.add('active');
-                        }
-                    });
-                });
+            // Switch tab content
+            const tabId = this.getAttribute('data-tab');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                if (content.id === tabId) {
+                    content.classList.add('active');
+                }
             });
-            
-            // Edit Staff Modal Functions
-            function openEditModal() {
+        });
+    });
+    
+    // ADMIN ONLY FUNCTIONALITY
+    if (isAdmin) {
+        const editStaffBtn = document.getElementById('editStaffBtn');
+        const editStaffModal = document.getElementById('editStaffModal');
+        const closeModalBtn = document.querySelector('#editStaffModal .close');
+        const cancelEditStaffBtn = document.getElementById('cancelEditStaff');
+        const staffForm = document.getElementById('staffForm');
+        const saveStaffBtn = document.getElementById('saveStaffBtn');
+        const deactivateStaffBtn = document.getElementById('deactivateStaffBtn');
+        const reactivateStaffBtn = document.getElementById('reactivateStaffBtn');
+        const deactivateConfirmModal = document.getElementById('deactivateConfirmModal');
+        const reactivateConfirmModal = document.getElementById('reactivateConfirmModal');
+        const closeDeactivateModalBtn = document.getElementById('closeDeactivateModal');
+        const closeReactivateModalBtn = document.getElementById('closeReactivateModal');
+        const cancelDeactivateBtn = document.getElementById('cancelDeactivateBtn');
+        const cancelReactivateBtn = document.getElementById('cancelReactivateBtn');
+        const confirmDeactivateBtn = document.getElementById('confirmDeactivateBtn');
+        const confirmReactivateBtn = document.getElementById('confirmReactivateBtn');
+        
+        // Edit Staff Modal Functions
+        function openEditModal() {
+            if (editStaffModal) {
                 editStaffModal.style.display = 'block';
             }
-            
-            function closeEditModal() {
+        }
+        
+        function closeEditModal() {
+            if (editStaffModal) {
                 editStaffModal.style.display = 'none';
             }
-            
-            // Edit Staff Button Click
-            if (editStaffBtn) {
-                editStaffBtn.addEventListener('click', function() {
-                    const staffId = this.getAttribute('data-id');
-                    currentStaffId = staffId;
+        }
+        
+        // Edit Staff Button Click
+        if (editStaffBtn) {
+            editStaffBtn.addEventListener('click', function() {
+                const staffId = this.getAttribute('data-id');
+                currentStaffId = staffId;
+                
+                // Fetch staff details and populate the form
+                fetch(`/staff_details/${staffId}?format=json`)
+                .then(response => response.json())
+                .then(staff => {
+                    // Populate the form with staff data
+                    document.getElementById('name').value = staff.usersrealname || '';
+                    document.getElementById('email').value = staff.usersemail || '';
+                    document.getElementById('username').value = staff.usersusername || '';
+                    document.getElementById('contact').value = staff.userscontact || '';
+                    document.getElementById('address').value = staff.usershomeaddress || '';
+                    document.getElementById('cityzipcode').value = staff.userscityzipcode || '';
+                    document.getElementById('religion').value = staff.usersreligion || '';
+                    document.getElementById('gender').value = staff.usersgender || 'Male';
+                    document.getElementById('access').value = staff.usersaccess || 'user';
+                    document.getElementById('occupation').value = staff.usersoccupation || '';
                     
-                    // Fetch staff details and populate the form
-                    fetch(`/staff_details/${staffId}?format=json`)
-                    .then(response => response.json())
-                    .then(staff => {
-                        // Populate the form with staff data
-                        document.getElementById('name').value = staff.usersrealname || '';
-                        document.getElementById('email').value = staff.usersemail || '';
-                        document.getElementById('username').value = staff.usersusername || '';
-                        document.getElementById('contact').value = staff.userscontact || '';
-                        document.getElementById('address').value = staff.usershomeaddress || '';
-                        document.getElementById('cityzipcode').value = staff.userscityzipcode || '';
-                        document.getElementById('religion').value = staff.usersreligion || '';
-                        document.getElementById('gender').value = staff.usersgender || 'Male';
-                        document.getElementById('access').value = staff.usersaccess || 'user';
-                        document.getElementById('occupation').value = staff.usersoccupation || '';
-                        
-                        // Handle date fields
-                        if (staff.usersdob_formatted) {
-                            document.getElementById('dob').value = staff.usersdob_formatted;
-                        }
-                        
-                        if (staff.usersage) {
-                            document.getElementById('age').value = staff.usersage;
-                        }
-                        
-                        // Don't populate password field for security reasons
-                        document.getElementById('password').value = '';
-                        document.getElementById('password').placeholder = 'Leave blank to keep current password';
-                        
-                        // Open the modal
-                        openEditModal();
-                    })
-                    .catch(error => {
-                        console.error('Error fetching staff details:', error);
-                        alert('Could not load staff details');
-                    });
-                });
-            }
-            
-            // Modal Close Events
-            if (closeModalBtn) {
-                closeModalBtn.addEventListener('click', closeEditModal);
-            }
-            
-            if (cancelEditStaffBtn) {
-                cancelEditStaffBtn.addEventListener('click', closeEditModal);
-            }
-            
-            // Close modal when clicking outside
-            window.addEventListener('click', function(event) {
-                if (event.target === editStaffModal) {
-                    closeEditModal();
-                }
-                if (event.target === deactivateConfirmModal) {
-                    closeDeactivateModal();
-                }
-                if (event.target === reactivateConfirmModal) {
-                    closeReactivateModal();
-                }
-            });
-            
-            // Form Submission
-            if (staffForm) {
-                staffForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    // Collect form data
-                    const formData = new FormData(staffForm);
-                    
-                    // Submit the form via AJAX to update staff
-                    fetch(`/update_staff/${currentStaffId}`, {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Staff updated successfully');
-                            // Reload the page to show updated information
-                            window.location.reload();
-                        } else {
-                            alert(`Error: ${data.error || 'Unknown error occurred'}`);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while processing your request');
-                    });
-                });
-            }
-            
-            // Calculate age from DOB automatically
-            const dobInput = document.getElementById('dob');
-            const ageInput = document.getElementById('age');
-            
-            if (dobInput && ageInput) {
-                dobInput.addEventListener('change', function() {
-                    if (this.value) {
-                        const dob = new Date(this.value);
-                        const today = new Date();
-                        let age = today.getFullYear() - dob.getFullYear();
-                        const monthDiff = today.getMonth() - dob.getMonth();
-                        
-                        // Adjust age if birthday hasn't occurred yet this year
-                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-                            age--;
-                        }
-                        
-                        ageInput.value = age;
+                    // Handle date fields
+                    if (staff.usersdob_formatted) {
+                        document.getElementById('dob').value = staff.usersdob_formatted;
                     }
-                });
-            }
-            
-            // Deactivate/Reactivate Modal Functions
-            function openDeactivateModal() {
-                if (deactivateConfirmModal) {
-                    deactivateConfirmModal.style.display = 'block';
-                }
-            }
-            
-            function closeDeactivateModal() {
-                if (deactivateConfirmModal) {
-                    deactivateConfirmModal.style.display = 'none';
-                }
-            }
-            
-            function openReactivateModal() {
-                if (reactivateConfirmModal) {
-                    reactivateConfirmModal.style.display = 'block';
-                }
-            }
-            
-            function closeReactivateModal() {
-                if (reactivateConfirmModal) {
-                    reactivateConfirmModal.style.display = 'none';
-                }
-            }
-            
-            // Event Listeners for Deactivate/Reactivate
-            if (deactivateStaffBtn) {
-                deactivateStaffBtn.addEventListener('click', openDeactivateModal);
-            }
-            
-            if (reactivateStaffBtn) {
-                reactivateStaffBtn.addEventListener('click', openReactivateModal);
-            }
-            
-            if (closeDeactivateModalBtn) {
-                closeDeactivateModalBtn.addEventListener('click', closeDeactivateModal);
-            }
-            
-            if (closeReactivateModalBtn) {
-                closeReactivateModalBtn.addEventListener('click', closeReactivateModal);
-            }
-            
-            if (cancelDeactivateBtn) {
-                cancelDeactivateBtn.addEventListener('click', closeDeactivateModal);
-            }
-            
-            if (cancelReactivateBtn) {
-                cancelReactivateBtn.addEventListener('click', closeReactivateModal);
-            }
-            
-            // Handle Deactivate Staff Action
-            if (confirmDeactivateBtn) {
-                confirmDeactivateBtn.addEventListener('click', function() {
-                    const staffId = deactivateStaffBtn.getAttribute('data-id');
                     
-                    // Send deactivate request to server
-                    fetch(`/deactivate_staff/${staffId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Redirect to staff list after successful deactivation
-                            alert('Staff member successfully deactivated');
-                            window.location.href = '/staff';
-                        } else {
-                            // Show error message
-                            alert('Error deactivating staff member: ' + (data.error || 'Unknown error'));
-                            closeDeactivateModal();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while trying to deactivate the staff member');
-                        closeDeactivateModal();
-                    });
-                });
-            }
-            
-            // Handle Reactivate Staff Action
-            if (confirmReactivateBtn) {
-                confirmReactivateBtn.addEventListener('click', function() {
-                    const staffId = reactivateStaffBtn.getAttribute('data-id');
+                    if (staff.usersage) {
+                        document.getElementById('age').value = staff.usersage;
+                    }
                     
-                    // Send reactivate request to server
-                    fetch(`/reactivate_staff/${staffId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Redirect to staff list after successful reactivation
-                            alert('Staff member successfully reactivated');
-                            window.location.href = '/staff';
-                        } else {
-                            // Show error message
-                            alert('Error reactivating staff member: ' + (data.error || 'Unknown error'));
-                            closeReactivateModal();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while trying to reactivate the staff member');
-                        closeReactivateModal();
-                    });
+                    // Don't populate password field for security reasons
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').placeholder = 'Leave blank to keep current password';
+                    
+                    // Open the modal
+                    openEditModal();
+                })
+                .catch(error => {
+                    console.error('Error fetching staff details:', error);
+                    alert('Could not load staff details');
                 });
+            });
+        }
+        
+        // Modal Close Events
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', closeEditModal);
+        }
+        
+        if (cancelEditStaffBtn) {
+            cancelEditStaffBtn.addEventListener('click', closeEditModal);
+        }
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target === editStaffModal) {
+                closeEditModal();
+            }
+            if (event.target === deactivateConfirmModal) {
+                closeDeactivateModal();
+            }
+            if (event.target === reactivateConfirmModal) {
+                closeReactivateModal();
             }
         });
-    </script>
+        
+        // Form Submission
+        if (staffForm) {
+            staffForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Show loading state
+                if (saveStaffBtn) {
+                    saveStaffBtn.disabled = true;
+                    saveStaffBtn.textContent = 'Updating...';
+                }
+                
+                // Collect form data
+                const formData = new FormData(staffForm);
+                
+                // Submit the form via AJAX to update staff
+                fetch(`/update_staff/${currentStaffId}`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Staff updated successfully');
+                        closeEditModal();
+                        // Reload the page to show updated information
+                        window.location.reload();
+                    } else {
+                        alert(`Error: ${data.error || 'Unknown error occurred'}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while processing your request');
+                })
+                .finally(() => {
+                    // Reset button state
+                    if (saveStaffBtn) {
+                        saveStaffBtn.disabled = false;
+                        saveStaffBtn.textContent = 'Update Staff Member';
+                    }
+                });
+            });
+        }
+        
+        // Calculate age from DOB automatically
+        const dobInput = document.getElementById('dob');
+        const ageInput = document.getElementById('age');
+        
+        if (dobInput && ageInput) {
+            dobInput.addEventListener('change', function() {
+                if (this.value) {
+                    const dob = new Date(this.value);
+                    const today = new Date();
+                    let age = today.getFullYear() - dob.getFullYear();
+                    const monthDiff = today.getMonth() - dob.getMonth();
+                    
+                    // Adjust age if birthday hasn't occurred yet this year
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                        age--;
+                    }
+                    
+                    ageInput.value = age;
+                }
+            });
+        }
+        
+        // Deactivate/Reactivate Modal Functions
+        function openDeactivateModal() {
+            if (deactivateConfirmModal) {
+                deactivateConfirmModal.style.display = 'block';
+            }
+        }
+        
+        function closeDeactivateModal() {
+            if (deactivateConfirmModal) {
+                deactivateConfirmModal.style.display = 'none';
+            }
+        }
+        
+        function openReactivateModal() {
+            if (reactivateConfirmModal) {
+                reactivateConfirmModal.style.display = 'block';
+            }
+        }
+        
+        function closeReactivateModal() {
+            if (reactivateConfirmModal) {
+                reactivateConfirmModal.style.display = 'none';
+            }
+        }
+        
+        // Event Listeners for Deactivate/Reactivate
+        if (deactivateStaffBtn) {
+            deactivateStaffBtn.addEventListener('click', openDeactivateModal);
+        }
+        
+        if (reactivateStaffBtn) {
+            reactivateStaffBtn.addEventListener('click', openReactivateModal);
+        }
+        
+        if (closeDeactivateModalBtn) {
+            closeDeactivateModalBtn.addEventListener('click', closeDeactivateModal);
+        }
+        
+        if (closeReactivateModalBtn) {
+            closeReactivateModalBtn.addEventListener('click', closeReactivateModal);
+        }
+        
+        if (cancelDeactivateBtn) {
+            cancelDeactivateBtn.addEventListener('click', closeDeactivateModal);
+        }
+        
+        if (cancelReactivateBtn) {
+            cancelReactivateBtn.addEventListener('click', closeReactivateModal);
+        }
+        
+        // Handle Deactivate Staff Action
+        if (confirmDeactivateBtn) {
+            confirmDeactivateBtn.addEventListener('click', function() {
+                const staffId = deactivateStaffBtn.getAttribute('data-id');
+                
+                // Send deactivate request to server
+                fetch(`/deactivate_staff/${staffId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect to staff list after successful deactivation
+                        alert('Staff member successfully deactivated');
+                        window.location.href = '/staff';
+                    } else {
+                        // Show error message
+                        alert('Error deactivating staff member: ' + (data.error || 'Unknown error'));
+                        closeDeactivateModal();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while trying to deactivate the staff member');
+                    closeDeactivateModal();
+                });
+            });
+        }
+        
+        // Handle Reactivate Staff Action
+        if (confirmReactivateBtn) {
+            confirmReactivateBtn.addEventListener('click', function() {
+                const staffId = reactivateStaffBtn.getAttribute('data-id');
+                
+                // Send reactivate request to server
+                fetch(`/reactivate_staff/${staffId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect to staff list after successful reactivation
+                        alert('Staff member successfully reactivated');
+                        window.location.href = '/staff';
+                    } else {
+                        // Show error message
+                        alert('Error reactivating staff member: ' + (data.error || 'Unknown error'));
+                        closeReactivateModal();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while trying to reactivate the staff member');
+                    closeReactivateModal();
+                });
+            });
+        }
+    } else {
+        // Non-admin users: show message if they try to access admin functionality
+        console.log('Admin functionality disabled for non-admin user');
+    }
+});
+</script>
 </body>
 </html>

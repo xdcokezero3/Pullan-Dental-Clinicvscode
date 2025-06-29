@@ -9,6 +9,7 @@ import subprocess
 import json
 import pymysql
 import re
+import hashlib
 import socket
 import csv
 from io import StringIO
@@ -24,6 +25,26 @@ app.secret_key = 'pullandentalclinic2025'  # Change this to a secure random valu
 # Set template folder
 app.template_folder = 'templates'
 app.static_folder = 'static'
+
+# Add this constant near the top of app.py, after the Flask app is created
+BACKUP_DIRECTORY = os.path.join(os.getcwd(), 'backups')
+
+# Ensure backup directory exists
+if not os.path.exists(BACKUP_DIRECTORY):
+    os.makedirs(BACKUP_DIRECTORY)
+    print(f"Created backup directory: {BACKUP_DIRECTORY}")
+
+def hash_password(password):
+    """
+    Hash a password using SHA-256
+    """
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+def verify_password(password, hashed_password):
+    """
+    Verify a password against its SHA-256 hash
+    """
+    return hash_password(password) == hashed_password
 
 # Decorator to check admin access
 def admin_required(f):
@@ -71,8 +92,8 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Check for hardcoded admin account FIRST
-        if username == 'admin' and password == 'admin':
+        # Check for hardcoded admin account FIRST - Updated password to "login"
+        if username == 'admin' and password == 'login':
             # Set up session for hardcoded admin
             session['user_id'] = 0  # Special ID for hardcoded admin
             session['username'] = 'admin'
@@ -84,13 +105,10 @@ def login():
             
             return redirect(url_for('dashboard'))
 
-        # Check credentials against database (existing code)
+        # Check credentials against database with SHA-256 verification
         user = User.query.filter_by(usersusername=username).first()
         
-        if user and user.userspassword == password:
-            # In a real application, you should use a secure password hashing method
-            # instead of storing/comparing plain text passwords
-            
+        if user and verify_password(password, user.userspassword):
             # Set up a session to keep the user logged in
             session['user_id'] = user.usersid
             session['username'] = user.usersusername
@@ -109,8 +127,6 @@ def login():
     
     return render_template('login.html', 
                           registration_success=registration_success)
-
-# Replace the existing dashboard route in your app.py with this updated version
 
 @app.route('/dashboard')
 def dashboard():
@@ -1847,74 +1863,145 @@ def edit_staff(staff_id):
 
 @app.route('/staff')
 def staff():
-    """Staff management page with status filtering"""
+    """Staff management page with status filtering - FIXED VERSION"""
     try:
         # Get status filter from query parameter (default to 'active')
         status_filter = request.args.get('status', 'active')
         
-        # Build query based on status filter - check if User model has is_deleted field
+        print(f"DEBUG: Status filter requested: {status_filter}")
+        
+        # Build query based on status filter
         base_query = User.query.filter(User.usersaccess.in_(['admin', 'user']))
         
         if status_filter == 'active':
-            # Check if User model has is_deleted field
-            if hasattr(User, 'is_deleted'):
-                staff_users = base_query.filter_by(is_deleted=False).all()
-            else:
-                # Fallback: assume all users are active if no is_deleted field
-                staff_users = base_query.all()
+            # Active staff: where is_deleted is False or NULL
+            try:
+                # Try using the model field first
+                if hasattr(User, 'is_deleted'):
+                    staff_users = base_query.filter(
+                        db.or_(User.is_deleted == False, User.is_deleted.is_(None))
+                    ).all()
+                else:
+                    # Fallback to raw SQL
+                    staff_users = db.session.execute(text("""
+                        SELECT * FROM users 
+                        WHERE usersaccess IN ('admin', 'user') 
+                        AND (is_deleted = FALSE OR is_deleted IS NULL)
+                    """)).fetchall()
+            except Exception as e:
+                print(f"Error with model query, using raw SQL: {e}")
+                staff_users = db.session.execute(text("""
+                    SELECT * FROM users 
+                    WHERE usersaccess IN ('admin', 'user') 
+                    AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """)).fetchall()
+                
         elif status_filter == 'inactive':
-            if hasattr(User, 'is_deleted'):
-                staff_users = base_query.filter_by(is_deleted=True).all()
-            else:
-                staff_users = []  # No inactive users if no is_deleted field
+            # Inactive staff: where is_deleted is True
+            try:
+                if hasattr(User, 'is_deleted'):
+                    staff_users = base_query.filter(User.is_deleted == True).all()
+                else:
+                    staff_users = db.session.execute(text("""
+                        SELECT * FROM users 
+                        WHERE usersaccess IN ('admin', 'user') 
+                        AND is_deleted = TRUE
+                    """)).fetchall()
+            except Exception as e:
+                print(f"Error with model query, using raw SQL: {e}")
+                staff_users = db.session.execute(text("""
+                    SELECT * FROM users 
+                    WHERE usersaccess IN ('admin', 'user') 
+                    AND is_deleted = TRUE
+                """)).fetchall()
+                
         else:  # 'all'
-            staff_users = base_query.all()
+            try:
+                staff_users = base_query.all()
+            except Exception as e:
+                print(f"Error with model query, using raw SQL: {e}")
+                staff_users = db.session.execute(text("""
+                    SELECT * FROM users 
+                    WHERE usersaccess IN ('admin', 'user')
+                """)).fetchall()
+        
+        print(f"DEBUG: Found {len(staff_users)} staff members for filter '{status_filter}'")
         
         # Format staff data for the template
         staff_members = []
         for user in staff_users:
-            # Determine role based on some attribute or default to "Staff"
-            role = "Staff"  # Default
-            if hasattr(user, 'usersrole') and user.usersrole:
-                role = user.usersrole
+            # Determine if user is active
+            is_active = True  # Default assumption
             
-            # Check if user is active
-            is_active = True
+            # Check is_deleted status
             if hasattr(user, 'is_deleted'):
-                is_active = not user.is_deleted
+                is_active = not user.is_deleted if user.is_deleted is not None else True
+            else:
+                # For raw SQL results, access by column name
+                try:
+                    is_active = not user.is_deleted if hasattr(user, 'is_deleted') and user.is_deleted is not None else True
+                except:
+                    is_active = True
             
-            staff_members.append({
-                'id': f"STF-{user.usersid:03d}",
-                'raw_id': user.usersid,
-                'name': user.usersrealname,
-                'email': user.usersemail,
-                'contact': user.userscontact,
-                'role': role,  # Keep this for filtering functionality
-                'occupation': user.usersoccupation if hasattr(user, 'usersoccupation') and user.usersoccupation else "Staff",
-                'access_level': user.usersaccess.capitalize(),
-                'join_date': user.userscreatedat if hasattr(user, 'userscreatedat') else datetime.now(),
-                'is_active': is_active,  # Add this for template filtering
+            # Get user attributes (handle both SQLAlchemy objects and raw results)
+            def get_attr(obj, attr_name, default=""):
+                try:
+                    return getattr(obj, attr_name, default) or default
+                except:
+                    return default
+            
+            staff_member = {
+                'id': f"STF-{get_attr(user, 'usersid', 0):03d}",
+                'raw_id': get_attr(user, 'usersid', 0),
+                'name': get_attr(user, 'usersrealname', 'Unknown'),
+                'email': get_attr(user, 'usersemail', 'No email'),
+                'contact': get_attr(user, 'userscontact', 'No contact'),
+                'role': "Staff",  # Default role
+                'occupation': get_attr(user, 'usersoccupation', 'Staff'),
+                'access_level': get_attr(user, 'usersaccess', 'user').capitalize(),
+                'join_date': datetime.now(),  # You can add a join_date field later
+                'is_active': is_active,
                 'appointment_count': 0,
                 'patient_count': 0,
-            })
+            }
+            
+            staff_members.append(staff_member)
+            print(f"DEBUG: Added staff member: {staff_member['name']} - Active: {staff_member['is_active']}")
         
         # Get counts for status badges
-        if hasattr(User, 'is_deleted'):
-            active_count = User.query.filter(
-                User.usersaccess.in_(['admin', 'user']),
-                User.is_deleted == False
-            ).count()
-            inactive_count = User.query.filter(
-                User.usersaccess.in_(['admin', 'user']),
-                User.is_deleted == True
-            ).count()
-        else:
-            # Fallback counts if no is_deleted field
-            total_count = User.query.filter(User.usersaccess.in_(['admin', 'user'])).count()
-            active_count = total_count
-            inactive_count = 0
+        try:
+            if hasattr(User, 'is_deleted'):
+                active_count = User.query.filter(
+                    User.usersaccess.in_(['admin', 'user']),
+                    db.or_(User.is_deleted == False, User.is_deleted.is_(None))
+                ).count()
+                inactive_count = User.query.filter(
+                    User.usersaccess.in_(['admin', 'user']),
+                    User.is_deleted == True
+                ).count()
+            else:
+                # Use raw SQL for counts
+                active_result = db.session.execute(text("""
+                    SELECT COUNT(*) as count FROM users 
+                    WHERE usersaccess IN ('admin', 'user') 
+                    AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """)).fetchone()
+                active_count = active_result[0] if active_result else 0
+                
+                inactive_result = db.session.execute(text("""
+                    SELECT COUNT(*) as count FROM users 
+                    WHERE usersaccess IN ('admin', 'user') 
+                    AND is_deleted = TRUE
+                """)).fetchone()
+                inactive_count = inactive_result[0] if inactive_result else 0
+        except Exception as e:
+            print(f"Error getting counts: {e}")
+            active_count = len([s for s in staff_members if s['is_active']])
+            inactive_count = len([s for s in staff_members if not s['is_active']])
         
         total_count = active_count + inactive_count
+        
+        print(f"DEBUG: Counts - Active: {active_count}, Inactive: {inactive_count}, Total: {total_count}")
         
         return render_template('staff.html', 
                               staff_members=staff_members,
@@ -1926,73 +2013,11 @@ def staff():
     
     except Exception as e:
         print(f"Error loading staff page: {e}")
+        import traceback
+        print(traceback.format_exc())
         return f"Error loading staff page: {e}", 500
 
-@app.route('/deactivate_staff/<int:staff_id>', methods=['POST'])
-def deactivate_staff(staff_id):
-    """Deactivate a staff member (soft delete)"""
-    try:
-        staff = User.query.get_or_404(staff_id)
-        
-        # Don't allow deactivating self
-        if session.get('user_id') == staff_id:
-            return jsonify({"success": False, "error": "Cannot deactivate your own account"})
-        
-        # Check if User model has is_deleted field
-        if hasattr(staff, 'is_deleted'):
-            staff.is_deleted = True
-        else:
-            # If no is_deleted field exists, we need to add it to the model first
-            return jsonify({
-                "success": False, 
-                "error": "User model does not have is_deleted field. Please add it to the database schema first."
-            })
-        
-        db.session.commit()
-        
-        # Log the action
-        log_user_action(
-            session.get('user_id'),
-            'Deactivate Staff',
-            f'Deactivated staff member: {staff.usersrealname} ({staff.usersusername})'
-        )
-        
-        return jsonify({"success": True, "message": "Staff member deactivated successfully"})
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error in deactivate_staff route: {e}")
-        return jsonify({"success": False, "error": str(e)})
 
-@app.route('/reactivate_staff/<int:staff_id>', methods=['POST'])  
-def reactivate_staff(staff_id):
-    """Reactivate a staff member (restore from soft delete)"""
-    try:
-        staff = User.query.get_or_404(staff_id)
-        
-        # Check if User model has is_deleted field
-        if hasattr(staff, 'is_deleted'):
-            staff.is_deleted = False
-        else:
-            # If no is_deleted field exists, we need to add it to the model first
-            return jsonify({
-                "success": False, 
-                "error": "User model does not have is_deleted field. Please add it to the database schema first."
-            })
-        
-        db.session.commit()
-        
-        # Log the action
-        log_user_action(
-            session.get('user_id'),
-            'Reactivate Staff',
-            f'Reactivated staff member: {staff.usersrealname} ({staff.usersusername})'
-        )
-        
-        return jsonify({"success": True, "message": "Staff member reactivated successfully"})
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error in reactivate_staff route: {e}")
-        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/staff_details/<int:staff_id>')
 def staff_details(staff_id):
@@ -2107,14 +2132,18 @@ def staff_details(staff_id):
         print(f"Error in staff_details route: {e}")
         return f"Error loading staff details: {e}", 500
     
+
+# Add @admin_required decorator to staff management routes in app.py
+
 @app.route('/add_staff', methods=['POST'])
+@admin_required  # ADD THIS LINE
 def add_staff():
-    """Add a new staff member"""
+    """Add a new staff member with SHA-256 password hashing - Admin only"""
     try:
         # Create new user with staff details
         new_staff = User(
             usersusername=request.form.get('username'),
-            userspassword=request.form.get('password'),  # In production, use password hashing
+            userspassword=hash_password(request.form.get('password')),  # Hash the password
             usersrealname=request.form.get('name'),
             usersemail=request.form.get('email'),
             usershomeaddress=request.form.get('address'),
@@ -2163,39 +2192,11 @@ def add_staff():
         db.session.rollback()
         print(f"Error in add_staff route: {e}")
         return jsonify({"success": False, "error": str(e)})
-    
-@app.route('/delete_staff/<int:staff_id>', methods=['POST'])
-def delete_staff(staff_id):
-    """Delete a staff member"""
-    try:
-        staff = User.query.get_or_404(staff_id)
-        
-        # Don't allow deleting self
-        if session.get('user_id') == staff_id:
-            return jsonify({"success": False, "error": "Cannot delete your own account"})
-        
-        # Log the action before deleting
-        log_user_action(
-            session.get('user_id'),
-            'Delete Staff',
-            f'Deleted staff member: {staff.usersrealname} ({staff.usersusername})'
-        )
-        
-        # Delete the user
-        db.session.delete(staff)
-        db.session.commit()
-        
-        return jsonify({"success": True})
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error in delete_staff route: {e}")
-        return jsonify({"success": False, "error": str(e)})
-
-
 
 @app.route('/update_staff/<int:staff_id>', methods=['POST'])
+@admin_required  # ADD THIS LINE
 def update_staff(staff_id):
-    """Update staff information"""
+    """Update staff information with SHA-256 password hashing - Admin only"""
     try:
         staff = User.query.get_or_404(staff_id)
         
@@ -2211,7 +2212,6 @@ def update_staff(staff_id):
         staff.usersreligion = request.form.get('religion')
         staff.usersgender = request.form.get('gender')
         staff.usersaccess = request.form.get('access')
-
         
         # Update occupation field
         staff.usersoccupation = request.form.get('occupation')
@@ -2226,10 +2226,10 @@ def update_staff(staff_id):
         if age_str and age_str.isdigit():
             staff.usersage = int(age_str)
         
-        # Update password if provided
+        # Update password if provided (hash the new password)
         new_password = request.form.get('password')
         if new_password:
-            staff.userspassword = new_password  # In production, use password hashing
+            staff.userspassword = hash_password(new_password)  # Hash the new password
         
         # Save changes to database
         db.session.commit()
@@ -2249,7 +2249,75 @@ def update_staff(staff_id):
         db.session.rollback()
         print(f"Error in update_staff route: {e}")
         return jsonify({'success': False, 'error': str(e)})
-            
+
+@app.route('/deactivate_staff/<int:staff_id>', methods=['POST'])
+@admin_required  # ADD THIS LINE
+def deactivate_staff(staff_id):
+    """Deactivate a staff member (soft delete) - Admin only"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Don't allow deactivating self
+        if session.get('user_id') == staff_id:
+            return jsonify({"success": False, "error": "Cannot deactivate your own account"})
+        
+        # Check if User model has is_deleted field
+        if hasattr(staff, 'is_deleted'):
+            staff.is_deleted = True
+        else:
+            # If no is_deleted field exists, we need to add it to the model first
+            return jsonify({
+                "success": False, 
+                "error": "User model does not have is_deleted field. Please add it to the database schema first."
+            })
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Deactivate Staff',
+            f'Deactivated staff member: {staff.usersrealname} ({staff.usersusername})'
+        )
+        
+        return jsonify({"success": True, "message": "Staff member deactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in deactivate_staff route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/reactivate_staff/<int:staff_id>', methods=['POST'])  
+@admin_required  # ADD THIS LINE
+def reactivate_staff(staff_id):
+    """Reactivate a staff member (restore from soft delete) - Admin only"""
+    try:
+        staff = User.query.get_or_404(staff_id)
+        
+        # Check if User model has is_deleted field
+        if hasattr(staff, 'is_deleted'):
+            staff.is_deleted = False
+        else:
+            # If no is_deleted field exists, we need to add it to the model first
+            return jsonify({
+                "success": False, 
+                "error": "User model does not have is_deleted field. Please add it to the database schema first."
+            })
+        
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Reactivate Staff',
+            f'Reactivated staff member: {staff.usersrealname} ({staff.usersusername})'
+        )
+        
+        return jsonify({"success": True, "message": "Staff member reactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in reactivate_staff route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+        
 # Add these inventory routes to app.py, after the existing routes
 @app.route('/print_inventory_report')
 def print_inventory_report():
@@ -2310,7 +2378,6 @@ def print_inventory_report():
                 'remarks': item.invremarks or "None",
                 'formatted_expiry': item.invdoe.strftime('%B %d, %Y') if item.invdoe else "No Expiry Date"
             })
-        
         # Prepare filter information for display
         filter_labels = {
             'all': 'All Items',
@@ -2322,7 +2389,6 @@ def print_inventory_report():
             'low-stock': 'Low Stock Items Only',
             'expired': 'Expired Items Only'
         }
-        
         filter_info = {
             'filter_type': filter_labels.get(filter_type, filter_type.title()),
             'search': search_filter if search_filter else 'No search filter',
@@ -2330,7 +2396,6 @@ def print_inventory_report():
             'filter_raw': filter_type,
             'has_type_filter': filter_type != 'all'
         }
-        
         # Get statistics based on current filter
         total_items = len(formatted_items)
         low_stock_count = len([item for item in formatted_items if item['status'] == 'Low Stock'])
@@ -2677,7 +2742,7 @@ def register():
 
 @app.route('/register_process', methods=['POST'])
 def register_process():
-    """Process new user registration"""
+    """Process new user registration with SHA-256 password hashing"""
     try:
         # Get form data
         username = request.form.get('usersusername')
@@ -2701,10 +2766,10 @@ def register_process():
         if existing_user:
             return render_template('register.html', error="Username already exists")
         
-        # Create new user with default access level
+        # Create new user with hashed password
         new_user = User(
             usersusername=username,
-            userspassword=password,  # In production, you should hash this password
+            userspassword=hash_password(password),  # Hash the password
             usersrealname=realname,
             usersemail=email,
             usershomeaddress=home_address,
@@ -2746,48 +2811,50 @@ def register_process():
         print(f"Error in register_process route: {e}")
         return render_template('register.html', error=f"Registration failed: {str(e)}")
 
-# Add this to app.py - Configuration for backup directory
-BACKUP_DIRECTORY = 'database_backups'
-# Create the backup directory if it doesn't exist
-if not os.path.exists(BACKUP_DIRECTORY):
-    os.makedirs(BACKUP_DIRECTORY)
 
 @app.route('/backup_restore')
+@admin_required  # Add admin protection
 def backup_restore():
-    """Render the backup and restore page"""
-    # Get list of existing backups
-    backups = []
+    """Render the backup and restore page - Admin only"""
     try:
+        # Get list of existing backups
+        backups = []
         if os.path.exists(BACKUP_DIRECTORY):
             backup_files = [f for f in os.listdir(BACKUP_DIRECTORY) if f.endswith('.sql')]
             for backup_file in backup_files:
-                # Extract the timestamp from the filename
-                timestamp_str = backup_file.split('_')[1].split('.')[0]
-                backup_time = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S')
-                
-                # Get file size in MB
-                file_path = os.path.join(BACKUP_DIRECTORY, backup_file)
-                file_size = os.path.getsize(file_path) / (1024 * 1024)  # Convert bytes to MB
-                
-                backups.append({
-                    'filename': backup_file,
-                    'timestamp': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'size': f"{file_size:.2f} MB"
-                })
-                
+                try:
+                    # Extract the timestamp from the filename
+                    timestamp_str = backup_file.split('_')[1].split('.')[0]
+                    backup_time = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S')
+                    
+                    # Get file size in MB
+                    file_path = os.path.join(BACKUP_DIRECTORY, backup_file)
+                    file_size = os.path.getsize(file_path) / (1024 * 1024)  # Convert bytes to MB
+                    
+                    backups.append({
+                        'filename': backup_file,
+                        'timestamp': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'size': f"{file_size:.2f} MB"
+                    })
+                except Exception as e:
+                    print(f"Error processing backup file {backup_file}: {e}")
+                    continue
+                    
             # Sort backups by timestamp (newest first)
             backups.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Get current date for the page
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        return render_template('backup_restore.html', 
+                              backups=backups,
+                              current_date=current_date)
     except Exception as e:
-        print(f"Error listing backups: {e}")
+        print(f"Error in backup_restore route: {e}")
+        return f"Error loading backup page: {e}", 500
     
-    # Get current date for the page
-    current_date = datetime.now().strftime("%A, %B %d, %Y")
-    
-    return render_template('backup_restore.html', 
-                          backups=backups,
-                          current_date=current_date)
-
 @app.route('/create_backup', methods=['POST'])
+@admin_required
 def create_backup():
     """Create a backup of the database with DNS resolution fix"""
     try:
@@ -2878,7 +2945,7 @@ def create_backup():
         })
 
 def create_direct_backup(username, password, host, database_name, backup_path, port=3306):
-    """Create a database backup directly using PyMySQL without external tools - with DNS fix"""
+    """Create a database backup directly using PyMySQL without external tools - Enhanced version"""
     connection = None
     try:
         # Connect to the database with improved error handling and resolved host
@@ -2903,12 +2970,18 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
                 raise Exception(f"Database connection failed: {e}")
         
         with open(backup_path, 'w', encoding='utf8') as f:
-            # Write backup header
+            # Write backup header with metadata
             f.write(f"-- Database Backup for: {database_name}\n")
             f.write(f"-- Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("-- By: Pullan Dental Clinic Management System\n\n")
+            f.write("-- By: Pullan Dental Clinic Management System\n")
+            f.write(f"-- MySQL Version: {connection.server_version}\n")
+            f.write(f"-- Host: {host}:{port}\n\n")
             
-            f.write("SET FOREIGN_KEY_CHECKS=0;\n\n")
+            f.write("SET FOREIGN_KEY_CHECKS=0;\n")
+            f.write("SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n")
+            f.write("SET AUTOCOMMIT = 0;\n")
+            f.write("START TRANSACTION;\n")
+            f.write("SET time_zone = '+00:00';\n\n")
             
             # Add DROP DATABASE and CREATE DATABASE statements
             f.write(f"DROP DATABASE IF EXISTS `{database_name}`;\n")
@@ -2917,7 +2990,7 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
             
             # Get all tables
             with connection.cursor() as cursor:
-                cursor.execute(text("SHOW TABLES"))
+                cursor.execute("SHOW TABLES")
                 tables = cursor.fetchall()
                 
                 if not tables:
@@ -2927,56 +3000,75 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
                 for table in tables:
                     table_name = list(table.values())[0]
                     
-                    # Get the CREATE TABLE statement
-                    cursor.execute(text(f"SHOW CREATE TABLE `{table_name}`"))
-                    create_table = cursor.fetchone()
-                    create_table_sql = list(create_table.values())[1]
-                    
-                    # Write the DROP TABLE and CREATE TABLE statements
-                    f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
-                    f.write(f"{create_table_sql};\n\n")
-                    
-                    # Get table data
-                    cursor.execute(text(f"SELECT * FROM `{table_name}`"))
-                    rows = cursor.fetchall()
-                    
-                    if rows:
-                        # Get column names
-                        columns = list(rows[0].keys())
+                    try:
+                        # Get the CREATE TABLE statement
+                        cursor.execute(f"SHOW CREATE TABLE `{table_name}`")
+                        create_table = cursor.fetchone()
+                        create_table_sql = list(create_table.values())[1]
                         
-                        # Write INSERT statements in batches
-                        batch_size = 100
-                        for i in range(0, len(rows), batch_size):
-                            batch = rows[i:i+batch_size]
+                        # Write the DROP TABLE and CREATE TABLE statements
+                        f.write(f"-- Table structure for table `{table_name}`\n")
+                        f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
+                        f.write(f"{create_table_sql};\n\n")
+                        
+                        # Get table data
+                        cursor.execute(f"SELECT COUNT(*) as count FROM `{table_name}`")
+                        row_count = cursor.fetchone()['count']
+                        
+                        if row_count > 0:
+                            f.write(f"-- Dumping data for table `{table_name}` ({row_count} rows)\n")
                             
-                            # Generate INSERT statement header
-                            insert_header = f"INSERT INTO `{table_name}` (`{'`, `'.join(columns)}`) VALUES\n"
-                            f.write(insert_header)
+                            cursor.execute(f"SELECT * FROM `{table_name}`")
+                            rows = cursor.fetchall()
                             
-                            # Generate values for each row
-                            values_list = []
-                            for row in batch:
-                                values = []
-                                for column in columns:
-                                    value = row[column]
-                                    if value is None:
-                                        values.append("NULL")
-                                    elif isinstance(value, (int, float)):
-                                        values.append(str(value))
-                                    elif isinstance(value, (datetime, date)):
-                                        values.append(f"'{value.strftime('%Y-%m-%d %H:%M:%S')}'")
-                                    else:
-                                        # Escape string values
-                                        escaped_value = str(value).replace("'", "''")
-                                        values.append(f"'{escaped_value}'")
-                                            
-                                values_list.append(f"({', '.join(values)})")
+                            if rows:
+                                # Get column names
+                                columns = list(rows[0].keys())
+                                
+                                # Write INSERT statements in batches
+                                batch_size = 100
+                                for i in range(0, len(rows), batch_size):
+                                    batch = rows[i:i+batch_size]
+                                    
+                                    # Generate INSERT statement header
+                                    insert_header = f"INSERT INTO `{table_name}` (`{'`, `'.join(columns)}`) VALUES\n"
+                                    f.write(insert_header)
+                                    
+                                    # Generate values for each row
+                                    values_list = []
+                                    for row in batch:
+                                        values = []
+                                        for column in columns:
+                                            value = row[column]
+                                            if value is None:
+                                                values.append("NULL")
+                                            elif isinstance(value, (int, float)):
+                                                values.append(str(value))
+                                            elif isinstance(value, (datetime, date)):
+                                                values.append(f"'{value.strftime('%Y-%m-%d %H:%M:%S')}'")
+                                            else:
+                                                # Escape string values
+                                                escaped_value = str(value).replace("'", "''").replace("\\", "\\\\")
+                                                values.append(f"'{escaped_value}'")
+                                                    
+                                        values_list.append(f"({', '.join(values)})")
+                                    
+                                    # Write values with commas and semicolon
+                                    f.write(',\n'.join(values_list))
+                                    f.write(';\n\n')
+                        else:
+                            f.write(f"-- No data for table `{table_name}`\n\n")
                             
-                            # Write values with commas and semicolon
-                            f.write(',\n'.join(values_list))
-                            f.write(';\n\n')
+                    except Exception as table_error:
+                        f.write(f"-- Error backing up table `{table_name}`: {str(table_error)}\n\n")
+                        print(f"Error backing up table {table_name}: {table_error}")
+                        continue
             
+            f.write("COMMIT;\n")
             f.write("SET FOREIGN_KEY_CHECKS=1;\n")
+            f.write("SET SQL_MODE = '';\n")
+            f.write("SET AUTOCOMMIT = 1;\n")
+            f.write(f"-- Backup completed on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             
         print(f"Database backup completed successfully: {backup_path}")
         
@@ -2988,6 +3080,7 @@ def create_direct_backup(username, password, host, database_name, backup_path, p
             connection.close()
 
 @app.route('/restore_backup/<filename>', methods=['POST'])
+@admin_required
 def restore_backup(filename):
     """Restore the database from a backup file with DNS resolution fix"""
     try:
@@ -3086,7 +3179,7 @@ def restore_backup(filename):
         return jsonify({"success": False, "error": str(e)})
 
 def restore_direct_backup(username, password, host, backup_path, port=3306):
-    """Restore a database backup directly using PyMySQL without external tools - with DNS fix"""
+    """Restore a database backup directly using PyMySQL without external tools - Enhanced version"""
     try:
         # Read the backup file
         with open(backup_path, 'r', encoding='utf8') as f:
@@ -3111,17 +3204,19 @@ def restore_direct_backup(username, password, host, backup_path, port=3306):
         
         # Split the backup file into individual SQL statements
         statements = re.split(r';\s*\n', backup_content)
+        statements = [stmt.strip() for stmt in statements if stmt.strip()]
         
         with connection.cursor() as cursor:
-            for statement in statements:
-                statement = statement.strip()
-                if statement:
+            for i, statement in enumerate(statements):
+                if statement and not statement.startswith('--'):
                     try:
                         cursor.execute(statement)
+                        if i % 100 == 0:  # Progress indicator
+                            print(f"Processed {i}/{len(statements)} statements")
                     except Exception as e:
-                        print(f"Warning: Error executing statement: {e}")
+                        # Log the error but continue with restoration
+                        print(f"Warning: Error executing statement {i}: {e}")
                         print(f"Statement: {statement[:100]}...")
-                        # Continue with next statement instead of failing completely
                         continue
             
             connection.commit()
@@ -3133,6 +3228,7 @@ def restore_direct_backup(username, password, host, backup_path, port=3306):
         raise Exception(f"Direct database restore failed: {str(e)}")
 
 @app.route('/download_backup/<filename>')
+@admin_required
 def download_backup(filename):
     """Download a backup file"""
     try:
@@ -3158,6 +3254,7 @@ def download_backup(filename):
         return f"Error downloading backup: {e}", 500
 
 @app.route('/delete_backup/<filename>', methods=['POST'])
+@admin_required
 def delete_backup(filename):
     """Delete a backup file"""
     try:
@@ -3745,6 +3842,7 @@ def update_dental_chart():
         print(f"Error in update_dental_chart route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
+
 @app.route('/procedure_history/<int:patient_id>')
 def procedure_history(patient_id):
     """View complete procedure history for a patient"""
@@ -3837,42 +3935,180 @@ def dental_charts():
 
 @app.route('/print_dental_chart/<int:patient_id>')
 def print_dental_chart(patient_id):
-    """Generate printable dental chart"""
+    """Generate a printable dental chart - FIXED VERSION"""
     try:
-        patient = Patient.query.get_or_404(patient_id)
-        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
-        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        print(f"=== PRINT DENTAL CHART DEBUG START for Patient ID: {patient_id} ===")
         
-        # Format teeth data for printing
+        # Get patient information
+        patient = Patient.query.get_or_404(patient_id)
+        print(f"Found patient: {patient.patname}")
+        
+        # Get dental chart
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        if not dental_chart:
+            print(f"WARNING: No dental chart found for patient {patient.patname}")
+            # Create a minimal dental chart for printing
+            dental_chart = type('obj', (object,), {
+                'dcdoctor': '',
+                'dcdentist': '',
+                'dcdcontact': '',
+                'dcpcontact': patient.patcontact or '',
+                'dcq1': '', 'dcq2': '', 'dcq3': '', 'dcq4': '', 'dcq5': '', 'dcq6': '',
+                'dcqe2': '', 'dcqe3': '', 'dcqe4': '', 'dcqe5': ''
+            })
+        
+        # Get teeth chart
+        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        print(f"Teeth chart found: {teeth_chart is not None}")
+        
+        # Format teeth data by quadrants
         teeth_data = []
         if teeth_chart:
+            print("Processing teeth data...")
             for i in range(1, 33):
                 tooth_condition = getattr(teeth_chart, f'l{i}', 'healthy')
-                # Determine quadrant: 1-8=Q1, 9-16=Q2, 17-24=Q3, 25-32=Q4
-                if i <= 8:
+                
+                # Determine quadrant based on tooth number (FDI notation)
+                if 1 <= i <= 8:
+                    quadrant = 1  # Upper Right
+                elif 9 <= i <= 16:
+                    quadrant = 2  # Upper Left
+                elif 17 <= i <= 24:
+                    quadrant = 3  # Lower Left
+                else:  # 25-32
+                    quadrant = 4  # Lower Right
+                
+                tooth_data = {
+                    'number': i,
+                    'condition': tooth_condition or 'healthy',
+                    'quadrant': quadrant
+                }
+                teeth_data.append(tooth_data)
+                
+            print(f"Created teeth data for {len(teeth_data)} teeth")
+            # Print first few teeth for debugging
+            for tooth in teeth_data[:5]:
+                print(f"  Tooth {tooth['number']}: {tooth['condition']} (Q{tooth['quadrant']})")
+        else:
+            print("No teeth chart found - creating default healthy teeth")
+            # Create default teeth data (all healthy) for printing
+            for i in range(1, 33):
+                if 1 <= i <= 8:
                     quadrant = 1
-                elif i <= 16:
+                elif 9 <= i <= 16:
                     quadrant = 2
-                elif i <= 24:
+                elif 17 <= i <= 24:
                     quadrant = 3
                 else:
                     quadrant = 4
                     
                 teeth_data.append({
                     'number': i,
-                    'condition': tooth_condition or 'healthy',
+                    'condition': 'healthy',
                     'quadrant': quadrant
                 })
         
-        return render_template('procedures/print_dental_chart.html',
-                              patient=patient,
-                              dental_chart=dental_chart,
-                              teeth_data=teeth_data,
-                              print_date=datetime.now().strftime("%B %d, %Y"))
+        # Get procedure history
+        procedure_history = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).all()
+        print(f"Found {len(procedure_history)} procedures")
+        
+        # Format procedure history
+        formatted_history = []
+        for proc in procedure_history:
+            procedures_done = []
+            if proc.repcleaning: procedures_done.append("Cleaning")
+            if proc.repextraction: procedures_done.append("Extraction")
+            if proc.reprootcanal: procedures_done.append("Root Canal")
+            if proc.repbraces: procedures_done.append("Braces")
+            if proc.repdentures: procedures_done.append("Dentures")
+            if proc.repothers: procedures_done.append(proc.repothers)
+            
+            formatted_history.append({
+                'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
+                'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
+                'dentist': proc.repdentist or "N/A",
+                'prescription': proc.repprescription or "None"
+            })
+        
+        # Get current user information for the print
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        user_id = session.get('user_id')
+        
+        # Generate print timestamp
+        print_date = datetime.now().strftime('%B %d, %Y')
+        print_time = datetime.now().strftime('%I:%M %p')
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Log the print action
+        log_user_action(
+            user_id,
+            'Print Dental Chart',
+            f'Printed dental chart for {patient.patname} (ID: PAT-{patient.patId:03d})'
+        )
+        
+        print(f"=== PRINT DENTAL CHART DEBUG SUCCESS ===")
+        print(f"Teeth data length: {len(teeth_data)}")
+        print(f"Dental chart exists: {dental_chart is not None}")
+        print(f"Procedure history length: {len(formatted_history)}")
+        
+        # Render the template with debug info
+        template_data = {
+            'patient': patient,
+            'dental_chart': dental_chart,
+            'teeth_data': teeth_data,
+            'procedure_history': formatted_history,
+            'current_user': current_user,
+            'print_date': print_date,
+            'print_time': print_time,
+            'print_datetime': print_datetime
+        }
+        
+        # Debug: Print what we're sending to template
+        print("Template data keys:", list(template_data.keys()))
+        print("Teeth data sample:", teeth_data[:3] if teeth_data else "Empty")
+        
+        return render_template('print_dental_chart.html', **template_data)
     
     except Exception as e:
-        print(f"Error in print_dental_chart route: {e}")
-        return f"Error generating printable chart: {e}", 500
+        print(f"=== PRINT DENTAL CHART ERROR ===")
+        print(f"Error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return f"Error generating printable dental chart: {e}", 500
+
+# Alternative debugging route to test data
+@app.route('/debug_print_data/<int:patient_id>')
+def debug_print_data(patient_id):
+    """Debug route to check what data is available for printing"""
+    try:
+        patient = Patient.query.get_or_404(patient_id)
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+        
+        debug_info = {
+            'patient_exists': patient is not None,
+            'patient_name': patient.patname if patient else None,
+            'dental_chart_exists': dental_chart is not None,
+            'teeth_chart_exists': teeth_chart is not None,
+            'teeth_data_sample': {}
+        }
+        
+        if teeth_chart:
+            # Get sample of teeth data
+            for i in range(1, 6):  # First 5 teeth
+                debug_info['teeth_data_sample'][f'tooth_{i}'] = getattr(teeth_chart, f'l{i}', 'not_found')
+        
+        return f"""
+        <h2>Debug Print Data for Patient {patient_id}</h2>
+        <pre>{json.dumps(debug_info, indent=2)}</pre>
+        <hr>
+        <p><a href="/print_dental_chart/{patient_id}">→ Try Print Chart</a></p>
+        <p><a href="/patient_dental_chart/{patient_id}">→ View Chart</a></p>
+        """
+        
+    except Exception as e:
+        return f"Debug error: {str(e)}"
+    
+
 
 # =============================================================================
 # END OF ENHANCED DENTAL CHART ROUTES

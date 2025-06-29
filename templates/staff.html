@@ -1,4 +1,4 @@
-<!-- Staff.html -->
+<!-- Staff.html - Admin Protected Version -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,34 +9,34 @@
     <link rel="stylesheet" href="../static/css/staff.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
+        .header-buttons {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+        }
 
-            .header-buttons {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-    }
-    
-    .btn-secondary {
-        background: #6c757d;
-        color: white;
-        border: none;
-        padding: 12px 20px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: 600;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        text-decoration: none;
-        font-size: 14px;
-    }
-    
-    .btn-secondary:hover {
-        background: #5a6268;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
-    }
         /* Single Row Status Summary Styles */
         .status-summary-single-row {
             display: flex;
@@ -90,7 +90,7 @@
             gap: 8px;
             align-items: center;
             position: absolute;
-            top: 60px;  /* Move buttons down to avoid overlapping role badge */
+            top: 60px;
             right: 15px;
         }
         
@@ -173,7 +173,7 @@
             margin-right: 0;
         }
 
-        /* IMPROVED MODAL STYLES - Matching staff_details.html */
+        /* IMPROVED MODAL STYLES */
         .modal {
             display: none;
             position: fixed;
@@ -323,6 +323,23 @@
             transform: translateY(-1px);
         }
 
+        /* No access message styles */
+        .no-access-message {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            margin: 20px 0;
+        }
+
+        .no-access-message i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #dc3545;
+        }
+
         /* Override any existing modal styles that might conflict */
         #addStaffModal .modal-content,
         #editStaffModal .modal-content {
@@ -339,7 +356,7 @@
 </head>
 <body>
     <div class="wrapper">
-        <!-- Sidebar from dashboard.html -->
+        <!-- Sidebar -->
         <div class="sidebar">
             <div class="brand">
                 <h2>Pullan Dental</h2>
@@ -355,7 +372,6 @@
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
-                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
@@ -388,7 +404,7 @@
                     <div class="user-dropdown">
                         <span>{{ session.get('username', 'User') }}</span>
                         <div class="dropdown-content">
-                            <span>User</span>
+                            <span>{{ session.get('access_level', 'User').title() }}</span>
                             <i class="fas fa-chevron-down"></i>
                         </div>
                     </div>
@@ -405,185 +421,223 @@
                     <button class="btn-secondary" id="printStaffBtn" title="Print Staff Report">
                         <i class="fas fa-print"></i> Print Report
                     </button>
+                    <!-- ADMIN ONLY: Add Staff Button -->
+                    {% if session.get('access_level') == 'admin' %}
                     <button class="btn-primary" id="addStaffBtn">
                         <i class="fas fa-plus"></i> Add Staff Member
                     </button>
+                    {% else %}
+                    <!-- Show info for regular users -->
+                    <div style="color: #6c757d; font-style: italic; font-size: 14px;">
+                        <i class="fas fa-info-circle"></i> Contact admin to manage staff
+                    </div>
+                    {% endif %}
                 </div>
             </div>
                 
-                <!-- Filter Bar -->
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <span class="filter-label">Status:</span>
-                        <select id="statusFilter" class="filter-select">
-                            <option value="active">Active Staff</option>
-                            <option value="inactive">Inactive Staff</option>
-                            <option value="all">All Staff</option>
-                        </select>
-                    </div>
-                    <div class="filter-item">
-                        <span class="filter-label">Access Level:</span>
-                        <select id="accessFilter" class="filter-select">
-                            <option value="all">All Access Levels</option>
-                            <option value="admin">Admin</option>
-                            <option value="user">User</option>
-                        </select>
-                    </div>
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <div class="filter-item">
+                    <span class="filter-label">Status:</span>
+                    <select id="statusFilter" class="filter-select">
+                        <option value="active">Active Staff</option>
+                        <option value="inactive">Inactive Staff</option>
+                        <option value="all">All Staff</option>
+                    </select>
                 </div>
-
-                <!-- Status Summary - Single Row -->
-                <div class="status-summary-single-row">
-                    <div class="status-item">
-                        <i class="fas fa-user-check status-icon active"></i>
-                        <span class="status-count">{{ active_count or 0 }}</span>
-                        <span class="status-label">Active Staff</span>
-                    </div>
-                    <div class="status-divider">|</div>
-                    <div class="status-item">
-                        <i class="fas fa-user-times status-icon inactive"></i>
-                        <span class="status-count">{{ inactive_count or 0 }}</span>
-                        <span class="status-label">Inactive Staff</span>
-                    </div>
-                    <div class="status-divider">|</div>
-                    <div class="status-item">
-                        <i class="fas fa-users status-icon total"></i>
-                        <span class="status-count">{{ total_count or 0 }}</span>
-                        <span class="status-label">Total Staff</span>
-                    </div>
+                <div class="filter-item">
+                    <span class="filter-label">Access Level:</span>
+                    <select id="accessFilter" class="filter-select">
+                        <option value="all">All Access Levels</option>
+                        <option value="admin">Admin</option>
+                        <option value="user">User</option>
+                    </select>
                 </div>
+            </div>
 
-                <!-- Tabs -->
-                <div class="tab-container">
-                    <div class="tabs">
-                        <div class="tab active" data-tab="grid-view">Grid View</div>
-                        <div class="tab" data-tab="list-view">List View</div>
-                    </div>
-                    
-                    <!-- Grid View Tab -->
-                    <div class="tab-content active" id="grid-view">
-                        <!-- Staff Cards -->
-                        <div class="staff-grid">
-                            {% for staff in staff_members %}
-                            <div class="staff-card" data-access="{{ staff.access_level.lower() }}" data-status="{{ 'active' if staff.is_active else 'inactive' }}">
-                                <div class="staff-card-header">
-                                    <div class="staff-avatar">
-                                        {% if staff.role == 'Dentist' %}
-                                            <i class="fas fa-user-md"></i>
-                                        {% elif staff.role == 'Assistant' %}
-                                            <i class="fas fa-user-nurse"></i>
-                                        {% else %}
-                                            <i class="fas fa-user-tie"></i>
-                                        {% endif %}
-                                    </div>
-                                    <div class="staff-details">
-                                        <h3>{{ staff.name }}</h3>
-                                        <p>{{ staff.occupation }}</p>
-                                        {% if not staff.is_active %}
-                                            <span class="inactive-badge">Inactive</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="staff-access-badge role-{{ staff.access_level.lower() }}">
-                                        {{ staff.access_level }}
-                                    </div>
-                                    <div class="staff-actions">
-                                        <button class="btn-icon btn-edit edit-staff" data-id="{{ staff.raw_id }}" title="Edit Staff">
-                                            <i class="fas fa-edit"></i>
+            <!-- Status Summary - Single Row -->
+            <div class="status-summary-single-row">
+                <div class="status-item">
+                    <i class="fas fa-user-check status-icon active"></i>
+                    <span class="status-count">{{ active_count or 0 }}</span>
+                    <span class="status-label">Active Staff</span>
+                </div>
+                <div class="status-divider">|</div>
+                <div class="status-item">
+                    <i class="fas fa-user-times status-icon inactive"></i>
+                    <span class="status-count">{{ inactive_count or 0 }}</span>
+                    <span class="status-label">Inactive Staff</span>
+                </div>
+                <div class="status-divider">|</div>
+                <div class="status-item">
+                    <i class="fas fa-users status-icon total"></i>
+                    <span class="status-count">{{ total_count or 0 }}</span>
+                    <span class="status-label">Total Staff</span>
+                </div>
+            </div>
+
+            <!-- Admin Access Check for Staff Management -->
+            {% if session.get('access_level') != 'admin' %}
+            <div class="no-access-message">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Limited Access</h3>
+                <p>You have read-only access to the staff directory. Contact an administrator to add, edit, or manage staff members.</p>
+            </div>
+            {% endif %}
+
+            <!-- Tabs -->
+            <div class="tab-container">
+                <div class="tabs">
+                    <div class="tab active" data-tab="grid-view">Grid View</div>
+                    <div class="tab" data-tab="list-view">List View</div>
+                </div>
+                
+                <!-- Grid View Tab -->
+                <div class="tab-content active" id="grid-view">
+                    <!-- Staff Cards -->
+                    <div class="staff-grid">
+                        {% for staff in staff_members %}
+                        <div class="staff-card" data-access="{{ staff.access_level.lower() }}" data-status="{{ 'active' if staff.is_active else 'inactive' }}">
+                            <div class="staff-card-header">
+                                <div class="staff-avatar">
+                                    {% if staff.role == 'Dentist' %}
+                                        <i class="fas fa-user-md"></i>
+                                    {% elif staff.role == 'Assistant' %}
+                                        <i class="fas fa-user-nurse"></i>
+                                    {% else %}
+                                        <i class="fas fa-user-tie"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="staff-details">
+                                    <h3>{{ staff.name }}</h3>
+                                    <p>{{ staff.occupation }}</p>
+                                    {% if not staff.is_active %}
+                                        <span class="inactive-badge">Inactive</span>
+                                    {% endif %}
+                                </div>
+                                <div class="staff-access-badge role-{{ staff.access_level.lower() }}">
+                                    {{ staff.access_level }}
+                                </div>
+                                
+                                <!-- ADMIN ONLY: Action Buttons -->
+                                {% if session.get('access_level') == 'admin' %}
+                                <div class="staff-actions">
+                                    <button class="btn-icon btn-edit edit-staff" data-id="{{ staff.raw_id }}" title="Edit Staff">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% if staff.is_active %}
+                                        <button class="btn-icon btn-deactivate deactivate-staff" data-id="{{ staff.raw_id }}" title="Deactivate Staff">
+                                            <i class="fas fa-user-times"></i>
                                         </button>
-                                        {% if staff.is_active %}
-                                            <button class="btn-icon btn-deactivate deactivate-staff" data-id="{{ staff.raw_id }}" title="Deactivate Staff">
-                                                <i class="fas fa-user-times"></i>
-                                            </button>
-                                        {% else %}
-                                            <button class="btn-icon btn-reactivate reactivate-staff" data-id="{{ staff.raw_id }}" title="Reactivate Staff">
-                                                <i class="fas fa-user-check"></i>
-                                            </button>
-                                        {% endif %}
-                                    </div>
+                                    {% else %}
+                                        <button class="btn-icon btn-reactivate reactivate-staff" data-id="{{ staff.raw_id }}" title="Reactivate Staff">
+                                            <i class="fas fa-user-check"></i>
+                                        </button>
+                                    {% endif %}
                                 </div>
-                                <div class="staff-card-body">
-                                    <div class="staff-info">
-                                        <p><i class="fas fa-envelope"></i> {{ staff.email }}</p>
-                                        <p><i class="fas fa-phone"></i> {{ staff.contact }}</p>
-                                        <p><i class="fas fa-id-badge"></i> ID: {{ staff.id }}</p>
-                                        <p><i class="fas fa-calendar-alt"></i> Joined: {{ staff.join_date.strftime('%b %d, %Y') if staff.join_date else 'N/A' }}</p>
-                                    </div>
-                                </div>
-                                <div class="staff-card-footer">
-                                    <button class="btn-secondary view-staff" data-id="{{ staff.raw_id }}">View Profile</button>
+                                {% endif %}
+                            </div>
+                            <div class="staff-card-body">
+                                <div class="staff-info">
+                                    <p><i class="fas fa-envelope"></i> {{ staff.email }}</p>
+                                    <p><i class="fas fa-phone"></i> {{ staff.contact }}</p>
+                                    <p><i class="fas fa-id-badge"></i> ID: {{ staff.id }}</p>
+                                    <p><i class="fas fa-calendar-alt"></i> Joined: {{ staff.join_date.strftime('%b %d, %Y') if staff.join_date else 'N/A' }}</p>
                                 </div>
                             </div>
-                            {% endfor %}
+                            <div class="staff-card-footer">
+                                <button class="btn-secondary view-staff" data-id="{{ staff.raw_id }}">View Profile</button>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <!-- List View Tab -->
-                    <div class="tab-content" id="list-view">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Occupation</th>
-                                    <th>Email</th>
-                                    <th>Contact</th>
-                                    <th>Access Level</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for staff in staff_members %}
-                                <tr data-access="{{ staff.access_level.lower() }}" data-status="{{ 'active' if staff.is_active else 'inactive' }}">
-                                    <td>{{ staff.id }}</td>
-                                    <td>{{ staff.name }}</td>
-                                    <td>{{ staff.occupation }}</td>
-                                    <td>{{ staff.email }}</td>
-                                    <td>{{ staff.contact }}</td>
-                                    <td><span class="badge role-{{ staff.access_level.lower() }}">{{ staff.access_level }}</span></td>
-                                    <td>
-                                        {% if staff.is_active %}
-                                            <span class="badge status-active">Active</span>
-                                        {% else %}
-                                            <span class="badge status-inactive">Inactive</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button class="btn-icon btn-view view-staff" data-id="{{ staff.raw_id }}" title="View Profile">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                        <button class="btn-icon btn-edit edit-staff" data-id="{{ staff.raw_id }}" title="Edit Staff">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        {% if staff.is_active %}
-                                            <button class="btn-icon btn-deactivate deactivate-staff" data-id="{{ staff.raw_id }}" title="Deactivate Staff">
-                                                <i class="fas fa-user-times"></i>
-                                            </button>
-                                        {% else %}
-                                            <button class="btn-icon btn-reactivate reactivate-staff" data-id="{{ staff.raw_id }}" title="Reactivate Staff">
-                                                <i class="fas fa-user-check"></i>
-                                            </button>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                        {% endfor %}
                     </div>
                 </div>
+                
+                <!-- List View Tab -->
+                <div class="tab-content" id="list-view">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Occupation</th>
+                                <th>Email</th>
+                                <th>Contact</th>
+                                <th>Access Level</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for staff in staff_members %}
+                            <tr data-access="{{ staff.access_level.lower() }}" data-status="{{ 'active' if staff.is_active else 'inactive' }}">
+                                <td>{{ staff.id }}</td>
+                                <td>{{ staff.name }}</td>
+                                <td>{{ staff.occupation }}</td>
+                                <td>{{ staff.email }}</td>
+                                <td>{{ staff.contact }}</td>
+                                <td><span class="badge role-{{ staff.access_level.lower() }}">{{ staff.access_level }}</span></td>
+                                <td>
+                                    {% if staff.is_active %}
+                                        <span class="badge status-active">Active</span>
+                                    {% else %}
+                                        <span class="badge status-inactive">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <!-- Everyone can view profiles -->
+                                    <button class="btn-icon btn-view view-staff" data-id="{{ staff.raw_id }}" title="View Profile">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    <!-- ADMIN ONLY: Edit and Deactivate/Reactivate buttons -->
+                                    {% if session.get('access_level') == 'admin' %}
+                                    <button class="btn-icon btn-edit edit-staff" data-id="{{ staff.raw_id }}" title="Edit Staff">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% if staff.is_active %}
+                                        <button class="btn-icon btn-deactivate deactivate-staff" data-id="{{ staff.raw_id }}" title="Deactivate Staff">
+                                            <i class="fas fa-user-times"></i>
+                                        </button>
+                                    {% else %}
+                                        <button class="btn-icon btn-reactivate reactivate-staff" data-id="{{ staff.raw_id }}" title="Reactivate Staff">
+                                            <i class="fas fa-user-check"></i>
+                                        </button>
+                                    {% endif %}
+                                    {% else %}
+                                    <!-- Show disabled buttons for regular users with tooltip -->
+                                    <button class="btn-icon" style="background: #e9ecef; color: #6c757d; cursor: not-allowed;" title="Admin access required" disabled>
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-icon" style="background: #e9ecef; color: #6c757d; cursor: not-allowed;" title="Admin access required" disabled>
+                                        <i class="fas fa-user-times"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                <!-- If no staff members -->
-                {% if not staff_members %}
-                <div class="no-data">
-                    <i class="fas fa-user-md"></i>
-                    <h3>No Staff Members</h3>
-                    <p>Add staff members to your clinic to get started</p>
-                </div>
+            <!-- If no staff members -->
+            {% if not staff_members %}
+            <div class="no-data">
+                <i class="fas fa-user-md"></i>
+                <h3>No Staff Members</h3>
+                {% if session.get('access_level') == 'admin' %}
+                <p>Add staff members to your clinic to get started</p>
+                {% else %}
+                <p>Contact an administrator to add staff members</p>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Add Staff Modal with Improved Styling -->
+    <!-- ADMIN ONLY: Add Staff Modal -->
+    {% if session.get('access_level') == 'admin' %}
     <div id="addStaffModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -673,341 +727,367 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <script>
+        document.getElementById('printStaffBtn').addEventListener('click', function() {
+            // Get current filter values
+            const statusFilter = document.getElementById('statusFilter').value;
+            const accessFilter = document.getElementById('accessFilter').value;
+            const searchFilter = document.getElementById('staffSearch').value;
+            
+            // Build URL with current filters
+            let printUrl = '/print_staff_report?';
+            const params = new URLSearchParams();
+            
+            if (statusFilter && statusFilter !== 'all') {
+                params.append('status', statusFilter);
+            }
+            
+            if (accessFilter && accessFilter !== 'all') {
+                params.append('access', accessFilter);
+            }
+            
+            if (searchFilter) {
+                params.append('search', searchFilter);
+            }
+            
+            printUrl += params.toString();
+            
+            // Open print page in new window/tab
+            window.open(printUrl, '_blank');
+        });
 
-document.getElementById('printStaffBtn').addEventListener('click', function() {
-        // Get current filter values
-        const statusFilter = document.getElementById('statusFilter').value;
-        const accessFilter = document.getElementById('accessFilter').value;
-        const searchFilter = document.getElementById('staffSearch').value;
-        
-        // Build URL with current filters
-        let printUrl = '/print_staff_report?';
-        const params = new URLSearchParams();
-        
-        if (statusFilter && statusFilter !== 'all') {
-            params.append('status', statusFilter);
-        }
-        
-        if (accessFilter && accessFilter !== 'all') {
-            params.append('access', accessFilter);
-        }
-        
-        if (searchFilter) {
-            params.append('search', searchFilter);
-        }
-        
-        printUrl += params.toString();
-        
-        // Open print page in new window/tab
-        window.open(printUrl, '_blank');
-    });
         /**
- * Pullan Dental - Staff Management JavaScript
- * Handles staff directory functionality including filtering, search, modals, and tab switching
- */
+         * Pullan Dental - Staff Management JavaScript (Admin Protected)
+         * Handles staff directory functionality with admin-only protections
+         */
 
-document.addEventListener('DOMContentLoaded', function() {
-    // DOM Elements
-    const staffSearch = document.getElementById('staffSearch');
-    const statusFilter = document.getElementById('statusFilter');
-    const accessFilter = document.getElementById('accessFilter');
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
-    const addStaffBtn = document.getElementById('addStaffBtn');
-    const addStaffModal = document.getElementById('addStaffModal');
-    const closeModalBtn = document.querySelector('.close');
-    const cancelAddStaffBtn = document.getElementById('cancelAddStaff');
-    const staffForm = document.getElementById('staffForm');
-    const editStaffBtns = document.querySelectorAll('.edit-staff');
-    const deactivateStaffBtns = document.querySelectorAll('.deactivate-staff');
-    const reactivateStaffBtns = document.querySelectorAll('.reactivate-staff');
-    const viewStaffBtns = document.querySelectorAll('.view-staff');
-    
-    let currentStaffId = null; // Track which staff member is being edited
-
-    // Search Functionality
-    staffSearch.addEventListener('input', function() {
-        filterStaff();
-    });
-
-    // Filter Functionality
-    statusFilter.addEventListener('change', filterStaff);
-    accessFilter.addEventListener('change', filterStaff);
-
-    function filterStaff() {
-        const searchTerm = staffSearch.value.toLowerCase();
-        const selectedStatus = statusFilter.value;
-        const selectedAccess = accessFilter.value;
-        
-        // Grid view filtering
-        const staffCards = document.querySelectorAll('.staff-card');
-        staffCards.forEach(card => {
-            const name = card.querySelector('h3').textContent.toLowerCase();
-            const email = card.querySelector('.staff-info p:nth-child(1)').textContent.toLowerCase();
-            const status = card.getAttribute('data-status');
-            const access = card.getAttribute('data-access');
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const staffSearch = document.getElementById('staffSearch');
+            const statusFilter = document.getElementById('statusFilter');
+            const accessFilter = document.getElementById('accessFilter');
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
             
-            const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
-            const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
-            const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
+            // Admin-only elements (check if they exist)
+            const addStaffBtn = document.getElementById('addStaffBtn');
+            const addStaffModal = document.getElementById('addStaffModal');
+            const closeModalBtn = document.querySelector('.close');
+            const cancelAddStaffBtn = document.getElementById('cancelAddStaff');
+            const staffForm = document.getElementById('staffForm');
             
-            if (matchesSearch && matchesStatus && matchesAccess) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
+            let currentStaffId = null; // Track which staff member is being edited
+
+            // Check if user is admin (from session)
+            const isAdmin = '{{ session.get("access_level") }}' === 'admin';
+            console.log('User is admin:', isAdmin);
+
+            // Set the current status filter value from URL on page load
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentStatus = urlParams.get('status') || 'active';
+            statusFilter.value = currentStatus;
+
+            // STATUS FILTER: Server-side filtering (reload page with new URL parameter)
+            statusFilter.addEventListener('change', function() {
+                console.log('Status filter changed to:', this.value);
+                
+                // Reload the page with the new status filter
+                const currentUrl = new URL(window.location);
+                currentUrl.searchParams.set('status', this.value);
+                window.location.href = currentUrl.toString();
+            });
+
+            // CLIENT-SIDE FILTERING: Only for search and access level (not status)
+            staffSearch.addEventListener('input', function() {
+                filterStaffClientSide();
+            });
+
+            accessFilter.addEventListener('change', function() {
+                filterStaffClientSide();
+            });
+
+            function filterStaffClientSide() {
+                const searchTerm = staffSearch.value.toLowerCase();
+                const selectedAccess = accessFilter.value;
+                
+                console.log('Client-side filtering with:', { searchTerm, selectedAccess });
+                
+                // Grid view filtering
+                const staffCards = document.querySelectorAll('.staff-card');
+                let visibleCards = 0;
+                
+                staffCards.forEach(card => {
+                    const name = card.querySelector('h3').textContent.toLowerCase();
+                    const emailElement = card.querySelector('.staff-info p:nth-child(1)');
+                    const email = emailElement ? emailElement.textContent.toLowerCase() : '';
+                    const access = card.getAttribute('data-access');
+                    
+                    const matchesSearch = !searchTerm || name.includes(searchTerm) || email.includes(searchTerm);
+                    const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
+                    
+                    if (matchesSearch && matchesAccess) {
+                        card.style.display = 'block';
+                        visibleCards++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+                
+                // List view filtering
+                const tableRows = document.querySelectorAll('.data-table tbody tr');
+                let visibleRows = 0;
+                
+                tableRows.forEach(row => {
+                    const name = row.cells[1].textContent.toLowerCase();
+                    const email = row.cells[3].textContent.toLowerCase();
+                    const access = row.getAttribute('data-access');
+                    
+                    const matchesSearch = !searchTerm || name.includes(searchTerm) || email.includes(searchTerm);
+                    const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
+                    
+                    if (matchesSearch && matchesAccess) {
+                        row.style.display = '';
+                        visibleRows++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                
+                console.log('Visible cards:', visibleCards, 'Visible rows:', visibleRows);
             }
-        });
-        
-        // List view filtering
-        const tableRows = document.querySelectorAll('.data-table tbody tr');
-        tableRows.forEach(row => {
-            const name = row.cells[1].textContent.toLowerCase();
-            const email = row.cells[3].textContent.toLowerCase();
-            const status = row.getAttribute('data-status');
-            const access = row.getAttribute('data-access');
-            
-            const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
-            const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
-            const matchesAccess = selectedAccess === 'all' || access === selectedAccess;
-            
-            if (matchesSearch && matchesStatus && matchesAccess) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-    }
 
-    // Tab Switching
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-            tabs.forEach(t => t.classList.remove('active'));
-            this.classList.add('active');
-            
-            const tabId = this.getAttribute('data-tab');
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-                if (content.id === tabId) {
-                    content.classList.add('active');
+            // Tab Switching
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const tabId = this.getAttribute('data-tab');
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                        if (content.id === tabId) {
+                            content.classList.add('active');
+                        }
+                    });
+                });
+            });
+
+            // ADMIN ONLY: Modal Functionality
+            if (isAdmin && addStaffModal) {
+                function openModal(isEdit = false) {
+                    addStaffModal.style.display = 'block';
+                    if (!isEdit) {
+                        staffForm.reset();
+                        document.querySelector('.modal-header h2').textContent = 'Add New Staff Member';
+                        currentStaffId = null;
+                    } else {
+                        document.querySelector('.modal-header h2').textContent = 'Edit Staff Member';
+                    }
+                }
+
+                function closeModal() {
+                    addStaffModal.style.display = 'none';
+                    currentStaffId = null;
+                }
+
+                if (addStaffBtn) {
+                    addStaffBtn.addEventListener('click', () => openModal(false));
+                }
+                
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', closeModal);
+                }
+                
+                if (cancelAddStaffBtn) {
+                    cancelAddStaffBtn.addEventListener('click', closeModal);
+                }
+
+                // Close modal when clicking outside
+                window.addEventListener('click', function(event) {
+                    if (event.target === addStaffModal) {
+                        closeModal();
+                    }
+                });
+
+                // ADMIN ONLY: Form Submission
+                if (staffForm) {
+                    staffForm.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        
+                        const formData = new FormData(staffForm);
+                        const url = currentStaffId ? `/update_staff/${currentStaffId}` : '/add_staff';
+                        
+                        fetch(url, {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert(currentStaffId ? 'Staff updated successfully' : 'Staff added successfully');
+                                window.location.reload();
+                            } else {
+                                alert(`Error: ${data.error || 'Unknown error occurred'}`);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while processing your request');
+                        });
+                    });
+                }
+
+                // Calculate age from DOB automatically
+                const dobInput = document.getElementById('dob');
+                const ageInput = document.getElementById('age');
+                
+                if (dobInput && ageInput) {
+                    dobInput.addEventListener('change', function() {
+                        if (this.value) {
+                            const dob = new Date(this.value);
+                            const today = new Date();
+                            let age = today.getFullYear() - dob.getFullYear();
+                            const monthDiff = today.getMonth() - dob.getMonth();
+                            
+                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                                age--;
+                            }
+                            
+                            ageInput.value = age;
+                        }
+                    });
+                }
+            }
+
+            // Staff Action Buttons - Event delegation (with admin checks)
+            document.addEventListener('click', function(e) {
+                // View staff button (available to all users)
+                if (e.target.closest('.view-staff')) {
+                    const btn = e.target.closest('.view-staff');
+                    const staffId = btn.getAttribute('data-id');
+                    window.location.href = `/staff_details/${staffId}`;
+                }
+                
+                // ADMIN ONLY: Edit staff button
+                if (e.target.closest('.edit-staff') && isAdmin) {
+                    const btn = e.target.closest('.edit-staff');
+                    const staffId = btn.getAttribute('data-id');
+                    currentStaffId = staffId;
+                    
+                    fetch(`/staff_details/${staffId}?format=json`)
+                    .then(response => response.json())
+                    .then(staff => {
+                        // Populate form fields
+                        document.getElementById('name').value = staff.usersrealname || '';
+                        document.getElementById('email').value = staff.usersemail || '';
+                        document.getElementById('username').value = staff.usersusername || '';
+                        document.getElementById('contact').value = staff.userscontact || '';
+                        document.getElementById('address').value = staff.usershomeaddress || '';
+                        document.getElementById('cityzipcode').value = staff.userscityzipcode || '';
+                        document.getElementById('religion').value = staff.usersreligion || '';
+                        document.getElementById('gender').value = staff.usersgender || 'Male';
+                        document.getElementById('access').value = staff.usersaccess || 'user';
+                        document.getElementById('occupation').value = staff.usersoccupation || '';
+                        
+                        if (staff.usersdob_formatted) {
+                            document.getElementById('dob').value = staff.usersdob_formatted;
+                        }
+                        if (staff.usersage) {
+                            document.getElementById('age').value = staff.usersage;
+                        }
+                        
+                        // Password field for edit mode
+                        const passwordField = document.getElementById('password');
+                        passwordField.value = '';
+                        passwordField.placeholder = 'Leave blank to keep current password';
+                        passwordField.removeAttribute('required');
+                        
+                        openModal(true);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching staff details:', error);
+                        alert('Could not load staff details');
+                    });
+                } else if (e.target.closest('.edit-staff') && !isAdmin) {
+                    alert('You need administrator privileges to edit staff members.');
+                }
+                
+                // ADMIN ONLY: Deactivate staff button
+                if (e.target.closest('.deactivate-staff') && isAdmin) {
+                    const btn = e.target.closest('.deactivate-staff');
+                    const staffId = btn.getAttribute('data-id');
+                    const staffCard = btn.closest('.staff-card');
+                    const staffRow = btn.closest('tr');
+                    const staffName = staffCard ? 
+                                      staffCard.querySelector('.staff-details h3').textContent : 
+                                      (staffRow ? staffRow.cells[1].textContent : 'this staff member');
+                    
+                    if (confirm(`Are you sure you want to deactivate ${staffName}?`)) {
+                        fetch(`/deactivate_staff/${staffId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Staff member successfully deactivated');
+                                window.location.reload();
+                            } else {
+                                alert('Error deactivating staff member: ' + (data.error || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while trying to deactivate the staff member');
+                        });
+                    }
+                } else if (e.target.closest('.deactivate-staff') && !isAdmin) {
+                    alert('You need administrator privileges to deactivate staff members.');
+                }
+                
+                // ADMIN ONLY: Reactivate staff button
+                if (e.target.closest('.reactivate-staff') && isAdmin) {
+                    const btn = e.target.closest('.reactivate-staff');
+                    const staffId = btn.getAttribute('data-id');
+                    const staffCard = btn.closest('.staff-card');
+                    const staffRow = btn.closest('tr');
+                    const staffName = staffCard ? 
+                                      staffCard.querySelector('.staff-details h3').textContent : 
+                                      (staffRow ? staffRow.cells[1].textContent : 'this staff member');
+                    
+                    if (confirm(`Are you sure you want to reactivate ${staffName}?`)) {
+                        fetch(`/reactivate_staff/${staffId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Staff member successfully reactivated');
+                                window.location.reload();
+                            } else {
+                                alert('Error reactivating staff member: ' + (data.error || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while trying to reactivate the staff member');
+                        });
+                    }
+                } else if (e.target.closest('.reactivate-staff') && !isAdmin) {
+                    alert('You need administrator privileges to reactivate staff members.');
                 }
             });
+
+            // Initial client-side filtering (for access level and search)
+            filterStaffClientSide();
         });
-    });
-
-    // Modal Functionality
-    function openModal(isEdit = false) {
-        addStaffModal.style.display = 'block';
-        // Reset form when opening for new staff
-        if (!isEdit) {
-            staffForm.reset();
-            document.querySelector('.modal-header h2').textContent = 'Add New Staff Member';
-            currentStaffId = null;
-        } else {
-            document.querySelector('.modal-header h2').textContent = 'Edit Staff Member';
-        }
-    }
-
-    function closeModal() {
-        addStaffModal.style.display = 'none';
-        currentStaffId = null;
-    }
-
-    addStaffBtn.addEventListener('click', () => openModal(false));
-    closeModalBtn.addEventListener('click', closeModal);
-    cancelAddStaffBtn.addEventListener('click', closeModal);
-
-    // Close modal when clicking outside
-    window.addEventListener('click', function(event) {
-        if (event.target === addStaffModal) {
-            closeModal();
-        }
-    });
-
-    // Form Submission
-    staffForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Collect form data
-        const formData = new FormData(staffForm);
-        
-        // Determine if we're adding or updating a staff member
-        const url = currentStaffId ? `/update_staff/${currentStaffId}` : '/add_staff';
-        const method = currentStaffId ? 'POST' : 'POST';
-        
-        // Submit the form via AJAX
-        fetch(url, {
-            method: method,
-            body: formData,
-            headers: {
-                // No CSRF token needed
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(currentStaffId ? 'Staff updated successfully' : 'Staff added successfully');
-                // Reload the page to show the updated staff list
-                window.location.reload();
-            } else {
-                alert(`Error: ${data.error || 'Unknown error occurred'}`);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while processing your request');
-        });
-    });
-
-    // Staff Action Buttons - Event delegation for dynamically added buttons
-    document.addEventListener('click', function(e) {
-        // View staff button
-        if (e.target.closest('.view-staff')) {
-            const btn = e.target.closest('.view-staff');
-            const staffId = btn.getAttribute('data-id');
-            window.location.href = `/staff_details/${staffId}`;
-        }
-        
-        // Edit staff button
-        if (e.target.closest('.edit-staff')) {
-            const btn = e.target.closest('.edit-staff');
-            const staffId = btn.getAttribute('data-id');
-            currentStaffId = staffId;
-            
-            // Fetch staff details and populate the form
-            fetch(`/staff_details/${staffId}?format=json`)
-            .then(response => response.json())
-            .then(staff => {
-                // Populate the form with staff data
-                document.getElementById('name').value = staff.usersrealname || '';
-                document.getElementById('email').value = staff.usersemail || '';
-                document.getElementById('username').value = staff.usersusername || '';
-                document.getElementById('contact').value = staff.userscontact || '';
-                document.getElementById('address').value = staff.usershomeaddress || '';
-                document.getElementById('cityzipcode').value = staff.userscityzipcode || '';
-                document.getElementById('religion').value = staff.usersreligion || '';
-                document.getElementById('gender').value = staff.usersgender || 'Male';
-                document.getElementById('access').value = staff.usersaccess || 'user';
-                
-                // Set the occupation field
-                document.getElementById('occupation').value = staff.usersoccupation || '';
-                
-                // Handle date fields
-                if (staff.usersdob) {
-                    document.getElementById('dob').value = staff.usersdob_formatted || '';
-                }
-                
-                if (staff.usersage) {
-                    document.getElementById('age').value = staff.usersage || '';
-                }
-                
-                // Don't populate password field for security reasons
-                document.getElementById('password').value = '';
-                document.getElementById('password').placeholder = 'Leave blank to keep current password';
-                document.getElementById('password').removeAttribute('required');
-                
-                // Open the modal in edit mode
-                openModal(true);
-            })
-            .catch(error => {
-                console.error('Error fetching staff details:', error);
-                alert('Could not load staff details');
-            });
-        }
-        
-        // Deactivate staff button
-        if (e.target.closest('.deactivate-staff')) {
-            const btn = e.target.closest('.deactivate-staff');
-            const staffId = btn.getAttribute('data-id');
-            const staffCard = btn.closest('.staff-card');
-            const staffRow = btn.closest('tr');
-            const staffName = staffCard ? 
-                              staffCard.querySelector('.staff-details h3').textContent : 
-                              (staffRow ? staffRow.cells[1].textContent : 'this staff member');
-            
-            if (confirm(`Are you sure you want to deactivate ${staffName}?`)) {
-                // Send deactivate request to server
-                fetch(`/deactivate_staff/${staffId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Staff member successfully deactivated');
-                        window.location.reload();
-                    } else {
-                        alert('Error deactivating staff member: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while trying to deactivate the staff member');
-                });
-            }
-        }
-        
-        // Reactivate staff button
-        if (e.target.closest('.reactivate-staff')) {
-            const btn = e.target.closest('.reactivate-staff');
-            const staffId = btn.getAttribute('data-id');
-            const staffCard = btn.closest('.staff-card');
-            const staffRow = btn.closest('tr');
-            const staffName = staffCard ? 
-                              staffCard.querySelector('.staff-details h3').textContent : 
-                              (staffRow ? staffRow.cells[1].textContent : 'this staff member');
-            
-            if (confirm(`Are you sure you want to reactivate ${staffName}?`)) {
-                // Send reactivate request to server
-                fetch(`/reactivate_staff/${staffId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Staff member successfully reactivated');
-                        window.location.reload();
-                    } else {
-                        alert('Error reactivating staff member: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while trying to reactivate the staff member');
-                });
-            }
-        }
-    });
-
-    // Calculate age from DOB automatically
-    const dobInput = document.getElementById('dob');
-    const ageInput = document.getElementById('age');
-    
-    dobInput.addEventListener('change', function() {
-        if (this.value) {
-            const dob = new Date(this.value);
-            const today = new Date();
-            let age = today.getFullYear() - dob.getFullYear();
-            const monthDiff = today.getMonth() - dob.getMonth();
-            
-            // Adjust age if birthday hasn't occurred yet this year
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-                age--;
-            }
-            
-            ageInput.value = age;
-        }
-    });
-
-    // Initial filtering (in case there are default values)
-    filterStaff();
-});
     </script>
 </body>
 </html>

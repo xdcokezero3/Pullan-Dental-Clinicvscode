@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pullan Dental Clinic - Backup & Restore</title>
-    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <style>
         /* Additional styles for backup and restore page */
@@ -20,53 +20,69 @@
             display: flex;
             justify-content: space-between;
             margin-bottom: 20px;
+            gap: 20px;
         }
         
         .action-card {
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 15px;
+            padding: 25px;
             width: 48%;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.05);
-            transition: transform 0.2s;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            border: 1px solid #dee2e6;
         }
         
         .action-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }
         
         .action-card h3 {
             margin-top: 0;
+            margin-bottom: 15px;
             color: #2c3e50;
             display: flex;
             align-items: center;
+            font-size: 1.2em;
+            font-weight: 600;
         }
         
         .action-card h3 i {
-            margin-right: 10px;
+            margin-right: 12px;
             color: #3498db;
+            font-size: 1.3em;
         }
         
         .action-card p {
-            color: #7f8c8d;
+            color: #6c757d;
             margin-bottom: 15px;
+            line-height: 1.5;
         }
         
         .action-card button {
-            background-color: #3498db;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
             color: white;
             border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
+            padding: 12px 20px;
+            border-radius: 8px;
             cursor: pointer;
             display: flex;
             align-items: center;
-            transition: background-color 0.3s;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 0.9em;
         }
         
         .action-card button:hover {
-            background-color: #2980b9;
+            background: linear-gradient(135deg, #2980b9 0%, #21618c 100%);
+            transform: translateY(-2px);
+        }
+        
+        .action-card button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
         }
         
         .action-card button i {
@@ -77,29 +93,37 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
         }
         
         .backups-table th {
-            background-color: #f8f9fa;
-            color: #34495e;
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            color: white;
             text-align: left;
-            padding: 12px 15px;
-            border-bottom: 2px solid #ddd;
+            padding: 15px;
+            border: none;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
         }
         
         .backups-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #ddd;
+            padding: 15px;
+            border-bottom: 1px solid #ecf0f1;
             color: #2c3e50;
+            background: white;
         }
         
-        .backups-table tr:hover {
-            background-color: #f5f5f5;
+        .backups-table tr:hover td {
+            background-color: #f8f9fa;
         }
         
         .backups-table .actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
         
         .backups-table .actions button {
@@ -107,34 +131,60 @@
             border: none;
             cursor: pointer;
             font-size: 16px;
-            padding: 5px;
-            border-radius: 4px;
-            transition: background-color 0.2s;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .backups-table .actions button:hover {
-            background-color: #f0f0f0;
+            transform: scale(1.1);
         }
         
         .restore-btn {
-            color: #2ecc71;
+            color: #27ae60;
+        }
+        
+        .restore-btn:hover {
+            background-color: rgba(39, 174, 96, 0.1);
+            color: #229954;
         }
         
         .download-btn {
             color: #3498db;
         }
         
+        .download-btn:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            color: #2980b9;
+        }
+        
         .delete-btn {
             color: #e74c3c;
+        }
+        
+        .delete-btn:hover {
+            background-color: rgba(231, 76, 60, 0.1);
+            color: #c0392b;
         }
         
         .no-backups {
             text-align: center;
             color: #7f8c8d;
-            padding: 20px;
-            background-color: #f8f9fa;
-            border-radius: 10px;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%);
+            border-radius: 15px;
             margin-top: 20px;
+        }
+        
+        .no-backups i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #95a5a6;
         }
         
         .modal {
@@ -144,87 +194,211 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.6);
             z-index: 1000;
+            backdrop-filter: blur(3px);
         }
         
         .modal-content {
             background-color: #fff;
-            width: 400px;
+            width: 450px;
             max-width: 90%;
-            margin: 100px auto;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-            padding: 20px;
+            margin: 10% auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            animation: modalSlideIn 0.3s ease;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         .modal-content h3 {
             margin-top: 0;
+            margin-bottom: 15px;
             color: #2c3e50;
+            display: flex;
+            align-items: center;
+            font-size: 1.3em;
+        }
+        
+        .modal-content h3 i {
+            margin-right: 10px;
+            font-size: 1.2em;
         }
         
         .modal-content p {
             color: #7f8c8d;
+            line-height: 1.5;
+            margin-bottom: 10px;
         }
         
         .modal-actions {
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
+            gap: 12px;
+            margin-top: 25px;
         }
         
         .modal-actions button {
-            padding: 8px 15px;
-            border-radius: 5px;
+            padding: 10px 20px;
+            border-radius: 8px;
             cursor: pointer;
             border: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
         }
         
         .confirm-btn {
-            background-color: #e74c3c;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
             color: white;
         }
         
+        .confirm-btn:hover {
+            background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+        }
+        
         .cancel-btn {
-            background-color: #ecf0f1;
+            background: #ecf0f1;
             color: #7f8c8d;
+        }
+        
+        .cancel-btn:hover {
+            background: #d5dbdb;
+            color: #5d6d7e;
         }
         
         .status-message {
             display: none;
-            padding: 15px;
-            border-radius: 5px;
+            padding: 15px 20px;
+            border-radius: 10px;
             margin-bottom: 20px;
+            font-weight: 500;
+            animation: statusSlideIn 0.3s ease;
+        }
+        
+        @keyframes statusSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
         
         .status-success {
-            background-color: #d4edda;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             color: #155724;
             border: 1px solid #c3e6cb;
+            border-left: 4px solid #28a745;
         }
         
         .status-error {
-            background-color: #f8d7da;
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
             color: #721c24;
             border: 1px solid #f5c6cb;
+            border-left: 4px solid #dc3545;
         }
         
         .loading-indicator {
             display: none;
             text-align: center;
-            padding: 20px;
+            padding: 30px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 2px dashed #dee2e6;
         }
         
         .loading-indicator i {
-            font-size: 30px;
+            font-size: 36px;
             color: #3498db;
             animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        .loading-indicator p {
+            color: #6c757d;
+            font-weight: 500;
+            margin: 0;
         }
         
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        /* Enhanced responsive design */
+        @media (max-width: 768px) {
+            .backup-restore-actions {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .action-card {
+                width: 100%;
+            }
+            
+            .backups-table {
+                font-size: 0.9em;
+            }
+            
+            .backups-table th,
+            .backups-table td {
+                padding: 10px;
+            }
+            
+            .modal-content {
+                margin: 5% auto;
+                padding: 20px;
+            }
+        }
+        
+        /* Admin access indicator */
+        .admin-indicator {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Progress indicator for operations */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #ecf0f1;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2980b9);
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: progressPulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes progressPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
     </style>
 </head>
@@ -246,7 +420,6 @@
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
-                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
@@ -277,8 +450,9 @@
                         <span class="badge">5</span>
                     </div>
                     <div class="user">
-                        <span>{{ session.get('username', 'User') }}</span>
-                        <img src="../img/user-placeholder.jpg" alt="User">
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
+                        <span class="admin-indicator">Admin</span>
+                        <img src="{{ url_for('static', filename='img/user-placeholder.jpg') }}" alt="User">
                         <i class="fas fa-chevron-down"></i>
                     </div>
                 </div>
@@ -286,7 +460,7 @@
             
             <!-- Backup & Restore Content -->
             <div class="dashboard-overview">
-                <h1>Backup & Restore Database</h1>
+                <h1><i class="fas fa-database"></i> Backup & Restore Database</h1>
                 <p class="date">{{ current_date }}</p>
                 
                 <!-- Status Message -->
@@ -296,6 +470,9 @@
                 <div id="loadingIndicator" class="loading-indicator">
                     <i class="fas fa-spinner"></i>
                     <p>Processing... Please wait.</p>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill"></div>
+                    </div>
                 </div>
                 
                 <!-- Backup & Restore Actions -->
@@ -303,45 +480,46 @@
                     <div class="backup-restore-actions">
                         <div class="action-card">
                             <h3><i class="fas fa-download"></i> Backup Database</h3>
-                            <p>Create a complete backup of your database including all patient records, appointments, and system data.</p>
+                            <p>Create a complete backup of your database including all patient records, appointments, dental charts, and system data. The backup will be saved as an SQL file.</p>
+                            <p><strong>Recommended:</strong> Create regular backups to ensure data safety.</p>
                             <button id="createBackupBtn" onclick="createBackup()">
-                                <i class="fas fa-save"></i> Create Backup
+                                <i class="fas fa-save"></i> Create Backup Now
                             </button>
                         </div>
                         <div class="action-card">
                             <h3><i class="fas fa-upload"></i> Restore Database</h3>
-                            <p>Restore your database from a previous backup. Select a backup from the list below to restore.</p>
-                            <p><strong>Note:</strong> Restoring will overwrite your current database.</p>
+                            <p>Restore your database from a previous backup. Select a backup from the list below to restore your system to that point in time.</p>
+                            <p><strong>⚠️ Warning:</strong> Restoring will completely overwrite your current database. All data added or modified since the backup was created will be permanently lost.</p>
                         </div>
                     </div>
                     
                     <!-- Backups List -->
                     <div class="backups-list">
-                        <h3>Available Backups</h3>
+                        <h3><i class="fas fa-history"></i> Available Backups ({{ backups|length }})</h3>
                         {% if backups %}
                             <table class="backups-table">
                                 <thead>
                                     <tr>
-                                        <th>Backup Date</th>
-                                        <th>Filename</th>
-                                        <th>Size</th>
-                                        <th>Actions</th>
+                                        <th><i class="fas fa-calendar"></i> Backup Date</th>
+                                        <th><i class="fas fa-file"></i> Filename</th>
+                                        <th><i class="fas fa-weight"></i> Size</th>
+                                        <th><i class="fas fa-cogs"></i> Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for backup in backups %}
                                     <tr>
                                         <td>{{ backup.timestamp }}</td>
-                                        <td>{{ backup.filename }}</td>
-                                        <td>{{ backup.size }}</td>
+                                        <td><code>{{ backup.filename }}</code></td>
+                                        <td><strong>{{ backup.size }}</strong></td>
                                         <td class="actions">
-                                            <button class="restore-btn" title="Restore" onclick="showRestoreConfirmation('{{ backup.filename }}')">
+                                            <button class="restore-btn" title="Restore Database" onclick="showRestoreConfirmation('{{ backup.filename }}')">
                                                 <i class="fas fa-undo-alt"></i>
                                             </button>
-                                            <button class="download-btn" title="Download" onclick="downloadBackup('{{ backup.filename }}')">
+                                            <button class="download-btn" title="Download Backup" onclick="downloadBackup('{{ backup.filename }}')">
                                                 <i class="fas fa-download"></i>
                                             </button>
-                                            <button class="delete-btn" title="Delete" onclick="showDeleteConfirmation('{{ backup.filename }}')">
+                                            <button class="delete-btn" title="Delete Backup" onclick="showDeleteConfirmation('{{ backup.filename }}')">
                                                 <i class="fas fa-trash-alt"></i>
                                             </button>
                                         </td>
@@ -352,7 +530,8 @@
                         {% else %}
                             <div class="no-backups">
                                 <i class="fas fa-database"></i>
-                                <p>No backups available. Create your first backup to see it here.</p>
+                                <h4>No Backups Available</h4>
+                                <p>No database backups have been created yet. Create your first backup to see it here and ensure your data is protected.</p>
                             </div>
                         {% endif %}
                     </div>
@@ -366,10 +545,13 @@
         <div class="modal-content">
             <h3><i class="fas fa-exclamation-triangle" style="color: #f39c12;"></i> Confirm Database Restore</h3>
             <p>Are you sure you want to restore the database from this backup?</p>
-            <p><strong>Warning:</strong> This will overwrite your current database. All data added or modified since this backup was created will be lost.</p>
+            <p><strong>⚠️ Critical Warning:</strong> This will completely overwrite your current database. All patient records, appointments, and system data added or modified since this backup was created will be <strong>permanently lost</strong>.</p>
+            <p><strong>Backup file:</strong> <code id="restoreFilename"></code></p>
             <div class="modal-actions">
                 <button class="cancel-btn" onclick="hideModal('restoreModal')">Cancel</button>
-                <button id="confirmRestoreBtn" class="confirm-btn">Restore</button>
+                <button id="confirmRestoreBtn" class="confirm-btn">
+                    <i class="fas fa-undo-alt"></i> Restore Database
+                </button>
             </div>
         </div>
     </div>
@@ -377,43 +559,91 @@
     <!-- Delete Confirmation Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
-            <h3><i class="fas fa-exclamation-triangle" style="color: #e74c3c;"></i> Confirm Delete</h3>
-            <p>Are you sure you want to delete this backup?</p>
-            <p>This action cannot be undone.</p>
+            <h3><i class="fas fa-exclamation-triangle" style="color: #e74c3c;"></i> Confirm Backup Deletion</h3>
+            <p>Are you sure you want to delete this backup file?</p>
+            <p><strong>Backup file:</strong> <code id="deleteFilename"></code></p>
+            <p><strong>Note:</strong> This action cannot be undone. The backup file will be permanently removed from the server.</p>
             <div class="modal-actions">
                 <button class="cancel-btn" onclick="hideModal('deleteModal')">Cancel</button>
-                <button id="confirmDeleteBtn" class="confirm-btn">Delete</button>
+                <button id="confirmDeleteBtn" class="confirm-btn">
+                    <i class="fas fa-trash-alt"></i> Delete Backup
+                </button>
             </div>
         </div>
     </div>
     
     <script>
-        // Show status message
+        // Enhanced status message system
         function showStatus(message, isError = false) {
             const statusElement = document.getElementById('statusMessage');
-            statusElement.textContent = message;
+            statusElement.innerHTML = `<i class="fas fa-${isError ? 'exclamation-circle' : 'check-circle'}"></i> ${message}`;
             statusElement.className = isError ? 
                 'status-message status-error' : 
                 'status-message status-success';
             statusElement.style.display = 'block';
             
-            // Hide after 5 seconds
+            // Auto-hide after 8 seconds for success, 12 seconds for errors
             setTimeout(() => {
                 statusElement.style.display = 'none';
-            }, 5000);
+            }, isError ? 12000 : 8000);
         }
         
-        // Show loading indicator
+        // Enhanced loading indicator
         function showLoading() {
-            document.getElementById('loadingIndicator').style.display = 'block';
+            const loadingElement = document.getElementById('loadingIndicator');
+            const createBtn = document.getElementById('createBackupBtn');
+            
+            loadingElement.style.display = 'block';
+            if (createBtn) {
+                createBtn.disabled = true;
+                createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Backup...';
+            }
+            
+            // Simulate progress bar animation
+            const progressBar = document.querySelector('.progress-bar-fill');
+            if (progressBar) {
+                document.querySelector('.progress-bar').style.display = 'block';
+                let width = 0;
+                const interval = setInterval(() => {
+                    width += Math.random() * 10;
+                    if (width > 90) {
+                        clearInterval(interval);
+                        width = 90;
+                    }
+                    progressBar.style.width = width + '%';
+                }, 200);
+                
+                // Store interval for cleanup
+                window.progressInterval = interval;
+            }
         }
         
-        // Hide loading indicator
+        // Enhanced loading hide
         function hideLoading() {
-            document.getElementById('loadingIndicator').style.display = 'none';
+            const loadingElement = document.getElementById('loadingIndicator');
+            const createBtn = document.getElementById('createBackupBtn');
+            
+            loadingElement.style.display = 'none';
+            if (createBtn) {
+                createBtn.disabled = false;
+                createBtn.innerHTML = '<i class="fas fa-save"></i> Create Backup Now';
+            }
+            
+            // Complete progress bar and hide
+            if (window.progressInterval) {
+                clearInterval(window.progressInterval);
+            }
+            const progressBar = document.querySelector('.progress-bar-fill');
+            if (progressBar) {
+                progressBar.style.width = '100%';
+                setTimeout(() => {
+                    document.querySelector('.progress-bar').style.display = 'none';
+                    progressBar.style.width = '0%';
+                }, 500);
+            }
         }
         
-        // Create a new backup
+        // Enhanced backup creation
         function createBackup() {
             showLoading();
             
@@ -428,90 +658,118 @@
                 hideLoading();
                 
                 if (data.success) {
-                    showStatus(data.message);
+                    showStatus(`✅ ${data.message}`, false);
                     
-                    // Add the new backup to the table
+                    // Add the new backup to the table with animation
                     const backupsTable = document.querySelector('.backups-table tbody');
                     const noBackupsDiv = document.querySelector('.no-backups');
                     
                     if (noBackupsDiv) {
-                        // If there are no backups, remove the message and create a table
+                        // Create table if it doesn't exist
                         noBackupsDiv.remove();
-                        
-                        const tableHTML = `
-                            <table class="backups-table">
-                                <thead>
-                                    <tr>
-                                        <th>Backup Date</th>
-                                        <th>Filename</th>
-                                        <th>Size</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>${data.backup.timestamp}</td>
-                                        <td>${data.backup.filename}</td>
-                                        <td>${data.backup.size}</td>
-                                        <td class="actions">
-                                            <button class="restore-btn" title="Restore" onclick="showRestoreConfirmation('${data.backup.filename}')">
-                                                <i class="fas fa-undo-alt"></i>
-                                            </button>
-                                            <button class="download-btn" title="Download" onclick="downloadBackup('${data.backup.filename}')">
-                                                <i class="fas fa-download"></i>
-                                            </button>
-                                            <button class="delete-btn" title="Delete" onclick="showDeleteConfirmation('${data.backup.filename}')">
-                                                <i class="fas fa-trash-alt"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        `;
-                        
-                        document.querySelector('.backups-list').insertAdjacentHTML('beforeend', tableHTML);
+                        createBackupsTable(data.backup);
                     } else if (backupsTable) {
-                        // If the table already exists, add a new row
-                        const newRow = `
-                            <tr>
-                                <td>${data.backup.timestamp}</td>
-                                <td>${data.backup.filename}</td>
-                                <td>${data.backup.size}</td>
-                                <td class="actions">
-                                    <button class="restore-btn" title="Restore" onclick="showRestoreConfirmation('${data.backup.filename}')">
-                                        <i class="fas fa-undo-alt"></i>
-                                    </button>
-                                    <button class="download-btn" title="Download" onclick="downloadBackup('${data.backup.filename}')">
-                                        <i class="fas fa-download"></i>
-                                    </button>
-                                    <button class="delete-btn" title="Delete" onclick="showDeleteConfirmation('${data.backup.filename}')">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                        
-                        backupsTable.insertAdjacentHTML('afterbegin', newRow);
+                        // Add to existing table
+                        addBackupRow(data.backup);
                     }
+                    
+                    // Update header count
+                    updateBackupCount();
                 } else {
-                    showStatus(data.error, true);
+                    showStatus(`❌ ${data.error}`, true);
                 }
             })
             .catch(error => {
                 hideLoading();
-                showStatus('Error creating backup: ' + error, true);
+                showStatus('❌ Network error creating backup: ' + error, true);
             });
         }
         
-        // Download a backup file
-        function downloadBackup(filename) {
-            window.location.href = `/download_backup/${filename}`;
+        function createBackupsTable(backup) {
+            const tableHTML = `
+                <table class="backups-table">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-calendar"></i> Backup Date</th>
+                            <th><i class="fas fa-file"></i> Filename</th>
+                            <th><i class="fas fa-weight"></i> Size</th>
+                            <th><i class="fas fa-cogs"></i> Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="animation: slideInFromLeft 0.5s ease;">
+                            <td>${backup.timestamp}</td>
+                            <td><code>${backup.filename}</code></td>
+                            <td><strong>${backup.size}</strong></td>
+                            <td class="actions">
+                                <button class="restore-btn" title="Restore Database" onclick="showRestoreConfirmation('${backup.filename}')">
+                                    <i class="fas fa-undo-alt"></i>
+                                </button>
+                                <button class="download-btn" title="Download Backup" onclick="downloadBackup('${backup.filename}')">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                <button class="delete-btn" title="Delete Backup" onclick="showDeleteConfirmation('${backup.filename}')">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+            
+            document.querySelector('.backups-list').insertAdjacentHTML('beforeend', tableHTML);
         }
         
-        // Show restore confirmation modal
+        function addBackupRow(backup) {
+            const backupsTable = document.querySelector('.backups-table tbody');
+            const newRow = `
+                <tr style="animation: slideInFromLeft 0.5s ease;">
+                    <td>${backup.timestamp}</td>
+                    <td><code>${backup.filename}</code></td>
+                    <td><strong>${backup.size}</strong></td>
+                    <td class="actions">
+                        <button class="restore-btn" title="Restore Database" onclick="showRestoreConfirmation('${backup.filename}')">
+                            <i class="fas fa-undo-alt"></i>
+                        </button>
+                        <button class="download-btn" title="Download Backup" onclick="downloadBackup('${backup.filename}')">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="delete-btn" title="Delete Backup" onclick="showDeleteConfirmation('${backup.filename}')">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            
+            backupsTable.insertAdjacentHTML('afterbegin', newRow);
+        }
+        
+        function updateBackupCount() {
+            const rows = document.querySelectorAll('.backups-table tbody tr');
+            const header = document.querySelector('.backups-list h3');
+            if (header) {
+                header.innerHTML = `<i class="fas fa-history"></i> Available Backups (${rows.length})`;
+            }
+        }
+        
+        // Download backup with loading indication
+        function downloadBackup(filename) {
+            showStatus('📥 Starting download...', false);
+            window.location.href = `/download_backup/${filename}`;
+            
+            // Clear message after download starts
+            setTimeout(() => {
+                document.getElementById('statusMessage').style.display = 'none';
+            }, 3000);
+        }
+        
+        // Enhanced modal functions
         function showRestoreConfirmation(filename) {
             const modal = document.getElementById('restoreModal');
             const confirmBtn = document.getElementById('confirmRestoreBtn');
+            const filenameSpan = document.getElementById('restoreFilename');
+            
+            filenameSpan.textContent = filename;
             
             confirmBtn.onclick = function() {
                 restoreBackup(filename);
@@ -521,7 +779,6 @@
             modal.style.display = 'block';
         }
         
-        // Restore database from backup
         function restoreBackup(filename) {
             showLoading();
             
@@ -533,21 +790,23 @@
                 hideLoading();
                 
                 if (data.success) {
-                    showStatus(data.message);
+                    showStatus(`✅ ${data.message}`, false);
                 } else {
-                    showStatus(data.error, true);
+                    showStatus(`❌ ${data.error}`, true);
                 }
             })
             .catch(error => {
                 hideLoading();
-                showStatus('Error restoring backup: ' + error, true);
+                showStatus('❌ Network error restoring backup: ' + error, true);
             });
         }
         
-        // Show delete confirmation modal
         function showDeleteConfirmation(filename) {
             const modal = document.getElementById('deleteModal');
             const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const filenameSpan = document.getElementById('deleteFilename');
+            
+            filenameSpan.textContent = filename;
             
             confirmBtn.onclick = function() {
                 deleteBackup(filename);
@@ -557,7 +816,6 @@
             modal.style.display = 'block';
         }
         
-        // Delete a backup file
         function deleteBackup(filename) {
             showLoading();
             
@@ -569,50 +827,59 @@
                 hideLoading();
                 
                 if (data.success) {
-                    showStatus(data.message);
+                    showStatus(`🗑️ ${data.message}`, false);
                     
-                    // Remove the row from the table
+                    // Remove the row with animation
                     const rows = document.querySelectorAll('.backups-table tbody tr');
                     for (let row of rows) {
-                        if (row.querySelector('td:nth-child(2)').textContent === filename) {
-                            row.remove();
+                        if (row.querySelector('td:nth-child(2) code').textContent === filename) {
+                            row.style.animation = 'slideOutToRight 0.5s ease';
+                            setTimeout(() => {
+                                row.remove();
+                                updateBackupCount();
+                                
+                                // Check if no more backups
+                                const remainingRows = document.querySelectorAll('.backups-table tbody tr');
+                                if (remainingRows.length === 0) {
+                                    replaceWithNoBackupsMessage();
+                                }
+                            }, 500);
                             break;
                         }
                     }
-                    
-                    // If no more backups, show the "no backups" message
-                    const remainingRows = document.querySelectorAll('.backups-table tbody tr');
-                    if (remainingRows.length === 0) {
-                        const table = document.querySelector('.backups-table');
-                        if (table) {
-                            table.remove();
-                            
-                            const noBackupsHTML = `
-                                <div class="no-backups">
-                                    <i class="fas fa-database"></i>
-                                    <p>No backups available. Create your first backup to see it here.</p>
-                                </div>
-                            `;
-                            
-                            document.querySelector('.backups-list').insertAdjacentHTML('beforeend', noBackupsHTML);
-                        }
-                    }
                 } else {
-                    showStatus(data.error, true);
+                    showStatus(`❌ ${data.error}`, true);
                 }
             })
             .catch(error => {
                 hideLoading();
-                showStatus('Error deleting backup: ' + error, true);
+                showStatus('❌ Network error deleting backup: ' + error, true);
             });
         }
         
-        // Hide modal
+        function replaceWithNoBackupsMessage() {
+            const table = document.querySelector('.backups-table');
+            if (table) {
+                table.remove();
+                
+                const noBackupsHTML = `
+                    <div class="no-backups">
+                        <i class="fas fa-database"></i>
+                        <h4>No Backups Available</h4>
+                        <p>No database backups have been created yet. Create your first backup to see it here and ensure your data is protected.</p>
+                    </div>
+                `;
+                
+                document.querySelector('.backups-list').insertAdjacentHTML('beforeend', noBackupsHTML);
+            }
+        }
+        
+        // Modal controls
         function hideModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
         }
         
-        // Close modal when clicking outside
+        // Enhanced modal event handling
         window.onclick = function(event) {
             const restoreModal = document.getElementById('restoreModal');
             const deleteModal = document.getElementById('deleteModal');
@@ -623,6 +890,69 @@
                 deleteModal.style.display = 'none';
             }
         }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            // Escape key closes modals
+            if (event.key === 'Escape') {
+                hideModal('restoreModal');
+                hideModal('deleteModal');
+            }
+            
+            // Ctrl+B creates backup (Admin shortcut)
+            if (event.ctrlKey && event.key === 'b') {
+                event.preventDefault();
+                createBackup();
+            }
+        });
+        
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInFromLeft {
+                from {
+                    opacity: 0;
+                    transform: translateX(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            @keyframes slideOutToRight {
+                from {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateX(20px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Initialize tooltips and UI enhancements on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effects to action buttons
+            const actionButtons = document.querySelectorAll('.backups-table .actions button');
+            actionButtons.forEach(button => {
+                button.addEventListener('mouseenter', function() {
+                    const icon = this.querySelector('i');
+                    if (icon) {
+                        icon.style.transform = 'scale(1.2)';
+                    }
+                });
+                
+                button.addEventListener('mouseleave', function() {
+                    const icon = this.querySelector('i');
+                    if (icon) {
+                        icon.style.transform = 'scale(1)';
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>

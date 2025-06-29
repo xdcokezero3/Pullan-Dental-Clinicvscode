@@ -10,7 +10,7 @@
         /* Dental Chart Specific Styles */
         .chart-container {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 1fr;
             gap: 20px;
             margin-top: 20px;
         }
@@ -324,31 +324,6 @@
             gap: 20px;
         }
         
-        /* Procedure History */
-        .procedure-item {
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: var(--border-radius);
-            margin-bottom: 10px;
-        }
-        
-        .procedure-date {
-            font-weight: 600;
-            color: var(--primary-color);
-            font-size: 14px;
-        }
-        
-        .procedure-details {
-            font-size: 12px;
-            color: var(--text-light);
-            margin: 5px 0;
-        }
-        
-        .procedure-type {
-            font-weight: 500;
-            color: var(--text-color);
-        }
-        
         /* Action Buttons */
         .action-buttons {
             display: flex;
@@ -400,37 +375,8 @@
             color: white;
         }
         
-        /* Add Procedure Form */
-        .procedure-form {
-            background-color: #f9f9f9;
-            padding: 20px;
-            border-radius: var(--border-radius);
-            margin-top: 20px;
-        }
-        
-        .checkbox-group {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin: 15px 0;
-        }
-        
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .checkbox-item input[type="checkbox"] {
-            accent-color: var(--primary-color);
-        }
-        
         /* Responsive */
         @media (max-width: 1200px) {
-            .chart-container {
-                grid-template-columns: 1fr;
-            }
-            
             .teeth-legend {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -470,7 +416,6 @@
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
-                <li><a href="{{ url_for('treatments') }}"><i class="fas fa-procedures"></i> Procedures</a></li>
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
@@ -576,10 +521,6 @@
                                     <div class="form-group">
                                         <label class="form-label">Dentist Contact</label>
                                         <input type="text" class="form-input" id="dentist_contact" value="{{ dental_chart.dcdcontact if dental_chart else '' }}" placeholder="Dentist contact">
-                                    </div>
-                                    <div class="form-group full-width">
-                                        <label class="form-label">Reason for Visit</label>
-                                        <textarea class="form-input form-textarea" id="visit_reason" placeholder="Describe the reason for this visit">{{ dental_chart.dcvisit if dental_chart else '' }}</textarea>
                                     </div>
                                 </div>
                                 
@@ -804,119 +745,15 @@
                             <button class="btn btn-primary" onclick="saveDentalChart()">
                                 <i class="fas fa-save"></i> Save Dental Chart
                             </button>
-                            <button class="btn btn-secondary" onclick="showAddProcedureForm()">
-                                <i class="fas fa-plus"></i> Add Procedure
-                            </button>
                             <a href="/print_dental_chart/{{ patient.patId }}" class="btn btn-success" target="_blank">
                                 <i class="fas fa-print"></i> Print Chart
-                            </a>
-                            <a href="/procedures" class="btn btn-secondary">
-                                <i class="fas fa-arrow-left"></i> Back to Procedures
                             </a>
                         </div>
                     </div>
                     
                     <!-- Sidebar -->
-                    <!-- Sidebar -->
     <div class="sidebar-section">
-        <!-- Dental Chart History -->
-        <div class="chart-card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-tooth"></i> Dental Chart History</h3>
-            </div>
-            <div class="chart-history-list">
-                {% if chart_history %}
-                    {% for chart in chart_history %}
-                    <div class="chart-item">
-                        <div class="chart-date">{{ chart.date_created.strftime('%B %d, %Y') if chart.date_created else 'N/A' }}</div>
-                        <div class="chart-details">
-                            <i class="fas fa-user-md"></i> Dr. {{ chart.dcdentist or 'Not specified' }}
-                        </div>
-                        <div class="chart-type">
-                            <i class="fas fa-file-medical"></i> Chart Update
-                        </div>
-                        {% if chart.dcvisit %}
-                        <div class="chart-details">
-                            <i class="fas fa-clipboard"></i> {{ chart.dcvisit[:50] }}{% if chart.dcvisit|length > 50 %}...{% endif %}
-                        </div>
-                        {% endif %}
-                        {% if chart.dcdoctor %}
-                        <div class="chart-details">
-                            <i class="fas fa-user-plus"></i> Referred by: {{ chart.dcdoctor }}
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div style="text-align: center; color: var(--text-light); padding: 20px;">
-                        <i class="fas fa-info-circle"></i>
-                        <p>No dental chart history found.</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-        
-        <!-- Add Procedure Form (Initially Hidden) -->
-        <div class="chart-card" id="addProcedureCard" style="display: none;">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-plus"></i> Add New Procedure</h3>
-                <button onclick="hideAddProcedureForm()" style="background: none; border: none; cursor: pointer;">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <form id="addProcedureForm" class="procedure-form">
-                <div class="form-group">
-                    <label class="form-label">Procedure Date</label>
-                    <input type="date" class="form-input" id="procedureDate" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Dentist</label>
-                    <input type="text" class="form-input" id="procedureDentist" placeholder="Enter dentist name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Procedures Performed</label>
-                    <div class="checkbox-group">
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="cleaning" name="procedures">
-                            <label for="cleaning">Cleaning</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="extraction" name="procedures">
-                            <label for="extraction">Extraction</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="rootCanal" name="procedures">
-                            <label for="rootCanal">Root Canal</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="braces" name="procedures">
-                            <label for="braces">Braces</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="dentures" name="procedures">
-                            <label for="dentures">Dentures</label>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Prescription</label>
-                    <textarea class="form-input form-textarea" id="prescription" placeholder="Enter prescription details"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Additional Notes</label>
-                    <textarea class="form-input form-textarea" id="procedureNotes" placeholder="Enter additional notes"></textarea>
-                </div>
-                
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    <i class="fas fa-save"></i> Add Procedure
-                </button>
-            </form>
-        </div>
+        <!-- Sidebar content removed -->
     </div>
     
     <!-- Tooth Condition Modal -->
@@ -1035,7 +872,6 @@
             formData.append('doctor', document.getElementById('doctor').value);
             formData.append('dentist', document.getElementById('dentist').value);
             formData.append('dentist_contact', document.getElementById('dentist_contact').value);
-            formData.append('visit_reason', document.getElementById('visit_reason').value);
             
             // Add questionnaire responses
             const radioInputs = document.querySelectorAll('input[type="radio"]:checked');
@@ -1066,54 +902,6 @@
                 alert('Error saving dental chart');
             });
         }
-        
-        // Show add procedure form
-        function showAddProcedureForm() {
-            document.getElementById('addProcedureCard').style.display = 'block';
-            document.getElementById('procedureDate').value = new Date().toISOString().split('T')[0];
-        }
-        
-        // Hide add procedure form
-        function hideAddProcedureForm() {
-            document.getElementById('addProcedureCard').style.display = 'none';
-        }
-        
-        // Handle add procedure form submission
-        document.getElementById('addProcedureForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData();
-            formData.append('patient_id', document.getElementById('patientId').value);
-            formData.append('procedure_date', document.getElementById('procedureDate').value);
-            formData.append('dentist', document.getElementById('procedureDentist').value);
-            formData.append('prescription', document.getElementById('prescription').value);
-            formData.append('notes', document.getElementById('procedureNotes').value);
-            
-            // Add procedure checkboxes
-            formData.append('cleaning', document.getElementById('cleaning').checked ? '1' : '0');
-            formData.append('extraction', document.getElementById('extraction').checked ? '1' : '0');
-            formData.append('root_canal', document.getElementById('rootCanal').checked ? '1' : '0');
-            formData.append('braces', document.getElementById('braces').checked ? '1' : '0');
-            formData.append('dentures', document.getElementById('dentures').checked ? '1' : '0');
-            
-            fetch('/add_procedure', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Procedure added successfully!');
-                    location.reload(); // Reload to show new procedure
-                } else {
-                    alert('Error adding procedure: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error adding procedure');
-            });
-        });
         
         // Close modal when clicking outside
         window.onclick = function(event) {

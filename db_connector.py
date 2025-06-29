@@ -253,6 +253,7 @@ class User(db.Model):
     usersoccupation = db.Column(db.String(255))
     usersaccess = db.Column(db.String(255))
     key = db.Column(db.LargeBinary)
+    is_deleted = db.Column(db.Boolean, default=False)
     
     def __repr__(self):
         return f"<User {self.usersid}: {self.usersusername}>"
