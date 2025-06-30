@@ -313,21 +313,9 @@
                     <span class="separator">/</span>
                     <span class="current">Staff Details</span>
                 </div>
-                <div class="top-nav-right">
-                    <div class="notification">
-                        <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
-                    </div>
-                    <div class="messages">
-                        <i class="fas fa-envelope"></i>
-                        <span class="badge">5</span>
-                    </div>
-                    <div class="user-dropdown">
-                        <span>{{ session.get('username', 'User') }}</span>
-                        <div class="dropdown-content">
-                            <span>User</span>
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
+                <div class="user-info">
+                    <div class="user">
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
                     </div>
                 </div>
             </div>

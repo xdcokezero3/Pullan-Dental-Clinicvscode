@@ -237,18 +237,8 @@
                     <i class="fas fa-search"></i>
                 </div>
                 <div class="user-info">
-                    <div class="notifications">
-                        <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
-                    </div>
-                    <div class="messages">
-                        <i class="fas fa-envelope"></i>
-                        <span class="badge">5</span>
-                    </div>
                     <div class="user">
-                        <span>{{ session.get('username', 'User') }}</span>
-                        <img src="../img/user-placeholder.jpg" alt="User">
-                        <i class="fas fa-chevron-down"></i>
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
                     </div>
                 </div>
             </div>
