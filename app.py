@@ -86,21 +86,63 @@ def index():
     """Redirect to the patients page"""
     return redirect(url_for('login'))
 
+# Updated login route in app.py - Add this to replace the existing login route
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Check for hardcoded admin account FIRST - Updated password to "login"
+        # Initialize failed attempts counter if it doesn't exist
+        if 'failed_attempts' not in session:
+            session['failed_attempts'] = 0
+            session['first_failed_attempt_time'] = None
+
+        # Check if auto-reset time has passed (if configured)
+        if (FAILED_ATTEMPTS_RESET_MINUTES > 0 and 
+            session.get('first_failed_attempt_time') and 
+            session['failed_attempts'] > 0):
+            
+            time_since_first_attempt = (datetime.now() - 
+                datetime.strptime(session['first_failed_attempt_time'], '%Y-%m-%d %H:%M:%S')).total_seconds() / 60
+            
+            if time_since_first_attempt >= FAILED_ATTEMPTS_RESET_MINUTES:
+                session['failed_attempts'] = 0
+                session['first_failed_attempt_time'] = None
+                log_user_action(
+                    0,
+                    'Failed Attempts Auto-Reset',
+                    f'Failed login attempts auto-reset after {FAILED_ATTEMPTS_RESET_MINUTES} minutes'
+                )
+        
+        # Check if user has exceeded maximum attempts
+        if session['failed_attempts'] >= MAX_FAILED_ATTEMPTS:
+            # Log the blocked login attempt
+            log_user_action(
+                0,
+                'Login Blocked',
+                f'Login blocked for username: {username} - Too many failed attempts ({session["failed_attempts"]}/{MAX_FAILED_ATTEMPTS})'
+            )
+            
+            # Clear the failed attempts counter and redirect to forgot password
+            session['failed_attempts'] = 0
+            session['first_failed_attempt_time'] = None
+            return redirect(url_for('forgot_password', reason='too_many_attempts', username=username))
+
+        # Check for hardcoded admin account FIRST
         if username == 'admin' and password == 'login':
+            # Reset failed attempts on successful login
+            session['failed_attempts'] = 0
+            session['first_failed_attempt_time'] = None
+            
             # Set up session for hardcoded admin
-            session['user_id'] = 0  # Special ID for hardcoded admin
+            session['user_id'] = 0
             session['username'] = 'admin'
             session['access_level'] = 'admin'
             session['real_name'] = 'System Administrator'
             
-            # Log the login action (use user_id = 0 for hardcoded admin)
+            # Log the login action
             log_user_action(0, 'Login', 'Hardcoded admin logged in successfully')
             
             return redirect(url_for('dashboard'))
@@ -109,6 +151,10 @@ def login():
         user = User.query.filter_by(usersusername=username).first()
         
         if user and verify_password(password, user.userspassword):
+            # Reset failed attempts on successful login
+            session['failed_attempts'] = 0
+            session['first_failed_attempt_time'] = None
+            
             # Set up a session to keep the user logged in
             session['user_id'] = user.usersid
             session['username'] = user.usersusername
@@ -120,13 +166,55 @@ def login():
             
             return redirect(url_for('dashboard'))
         
-        return render_template('login.html', error="Invalid username or password")
+        # Increment failed attempts counter
+        session['failed_attempts'] += 1
+        
+        # Set timestamp of first failed attempt
+        if session['failed_attempts'] == 1:
+            session['first_failed_attempt_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        attempts_remaining = MAX_FAILED_ATTEMPTS - session['failed_attempts']
+        
+        # Log the failed login attempt
+        log_user_action(
+            0,
+            'Failed Login',
+            f'Failed login attempt for username: {username} (Attempt {session["failed_attempts"]}/{MAX_FAILED_ATTEMPTS})'
+        )
+        
+        # Prepare error message based on attempts remaining
+        if attempts_remaining > 0:
+            error_message = f"Invalid username or password. {attempts_remaining} attempt(s) remaining."
+        else:
+            error_message = "Too many failed attempts. Redirecting to password reset..."
+        
+        return render_template('login.html', 
+                              error=error_message,
+                              failed_attempts=session['failed_attempts'],
+                              attempts_remaining=attempts_remaining,
+                              max_attempts=MAX_FAILED_ATTEMPTS,
+                              redirect_countdown=REDIRECT_COUNTDOWN_SECONDS)
 
     # Check for success message from registration
     registration_success = request.args.get('registration_success')
     
+    # Check for redirect reason from forgot password
+    reason = request.args.get('reason')
+    redirect_message = None
+    if reason == 'too_many_attempts':
+        redirect_message = f"You have been redirected here due to {MAX_FAILED_ATTEMPTS} failed login attempts. Please reset your password."
+    
+    # Reset failed attempts when accessing login page via GET (new session)
+    if 'failed_attempts' not in session:
+        session['failed_attempts'] = 0
+        session['first_failed_attempt_time'] = None
+    
     return render_template('login.html', 
-                          registration_success=registration_success)
+                          registration_success=registration_success,
+                          redirect_message=redirect_message,
+                          failed_attempts=session.get('failed_attempts', 0),
+                          max_attempts=MAX_FAILED_ATTEMPTS,
+                          redirect_countdown=REDIRECT_COUNTDOWN_SECONDS)
 
 @app.route('/dashboard')
 def dashboard():
@@ -2318,21 +2406,29 @@ def reactivate_staff(staff_id):
         print(f"Error in reactivate_staff route: {e}")
         return jsonify({"success": False, "error": str(e)})
         
-# Add these inventory routes to app.py, after the existing routes
+# Updated print_inventory_report route for app.py
+# Replace the existing print_inventory_report route with this updated version
+
 @app.route('/print_inventory_report')
 def print_inventory_report():
-    """Generate a printable inventory report with filters"""
+    """Generate a printable inventory report with status filters (active/inactive)"""
     try:
         # Get filter parameters
-        filter_type = request.args.get('filter', 'all')
+        status_filter = request.args.get('status', 'active')  # active, inactive, or all
+        filter_type = request.args.get('filter', 'all')  # category filter
         search_filter = request.args.get('search', '')
         
-        print(f"Print request - Filter: {filter_type}, Search: {search_filter}")
+        print(f"Print request - Status: {status_filter}, Filter: {filter_type}, Search: {search_filter}")
         
-        # Get all inventory items
-        query = Inventory.query
+        # Build query based on status filter first
+        if status_filter == 'active':
+            query = Inventory.query.filter_by(is_deleted=False)
+        elif status_filter == 'inactive':
+            query = Inventory.query.filter_by(is_deleted=True)
+        else:  # 'all'
+            query = Inventory.query
         
-        # Apply filter based on type
+        # Apply category filter
         if filter_type == 'low-stock':
             inventory_items = query.filter(Inventory.invquantity < 5).all()
         elif filter_type == 'expired':
@@ -2344,7 +2440,7 @@ def print_inventory_report():
             # If filter is not 'all', assume it's a category filter
             inventory_items = query.filter_by(invtype=filter_type.title()).all()
         else:
-            # Get all items
+            # Get all items matching status filter
             inventory_items = query.all()
         
         # Apply search filter if provided
@@ -2361,11 +2457,14 @@ def print_inventory_report():
         formatted_items = []
         for item in inventory_items:
             # Determine status
-            status = "OK"
-            if item.invquantity < 5:
-                status = "Low Stock"
-            if item.invdoe and item.invdoe < datetime.now().date():
+            if item.is_deleted:
+                status = "Inactive"
+            elif item.invdoe and item.invdoe < datetime.now().date():
                 status = "Expired"
+            elif item.invquantity < 5:
+                status = "Low Stock"
+            else:
+                status = "OK"
             
             formatted_items.append({
                 'id': f"INV-{item.invid:03d}",
@@ -2376,39 +2475,65 @@ def print_inventory_report():
                 'min_quantity': 5,  # Default minimum
                 'status': status,
                 'remarks': item.invremarks or "None",
-                'formatted_expiry': item.invdoe.strftime('%B %d, %Y') if item.invdoe else "No Expiry Date"
+                'formatted_expiry': item.invdoe.strftime('%B %d, %Y') if item.invdoe else "No Expiry Date",
+                'is_active': not item.is_deleted
             })
+        
         # Prepare filter information for display
+        status_labels = {
+            'active': 'Active Items Only',
+            'inactive': 'Inactive Items Only',
+            'all': 'All Items (Active & Inactive)'
+        }
+        
         filter_labels = {
-            'all': 'All Items',
+            'all': 'All Categories',
             'consumables': 'Consumables Only',
             'equipment': 'Equipment Only', 
             'medicines': 'Medicines Only',
             'instruments': 'Instruments Only',
-            'office supplies': 'Office Supplies Only',
+            'office_supplies': 'Office Supplies Only',
             'low-stock': 'Low Stock Items Only',
             'expired': 'Expired Items Only'
         }
+        
         filter_info = {
+            'status': status_labels.get(status_filter, status_filter.title()),
             'filter_type': filter_labels.get(filter_type, filter_type.title()),
             'search': search_filter if search_filter else 'No search filter',
-            'has_filters': filter_type != 'all' or search_filter,
-            'filter_raw': filter_type,
-            'has_type_filter': filter_type != 'all'
+            'has_filters': status_filter != 'active' or filter_type != 'all' or search_filter,
+            'status_filter': status_filter,
+            'category_filter': filter_type,
+            'has_status_filter': status_filter != 'active',
+            'has_category_filter': filter_type != 'all'
         }
+        
         # Get statistics based on current filter
         total_items = len(formatted_items)
-        low_stock_count = len([item for item in formatted_items if item['status'] == 'Low Stock'])
-        expired_count = len([item for item in formatted_items if item['status'] == 'Expired'])
-        ok_count = len([item for item in formatted_items if item['status'] == 'OK'])
+        
+        # Separate items by status for better organization
+        active_items = [item for item in formatted_items if item['is_active']]
+        inactive_items = [item for item in formatted_items if not item['is_active']]
+        
+        active_count = len(active_items)
+        inactive_count = len(inactive_items)
+        
+        # Get status counts for active items only
+        low_stock_count = len([item for item in active_items if item['status'] == 'Low Stock'])
+        expired_count = len([item for item in active_items if item['status'] == 'Expired'])
+        ok_count = len([item for item in active_items if item['status'] == 'OK'])
         
         # Categorize items by type for organized display
         categorized_items = {}
         for item in formatted_items:
             category = item['type']
             if category not in categorized_items:
-                categorized_items[category] = []
-            categorized_items[category].append(item)
+                categorized_items[category] = {'active': [], 'inactive': []}
+            
+            if item['is_active']:
+                categorized_items[category]['active'].append(item)
+            else:
+                categorized_items[category]['inactive'].append(item)
         
         # Get current user information
         current_user = session.get('real_name', session.get('username', 'Unknown User'))
@@ -2421,7 +2546,9 @@ def print_inventory_report():
         
         # Log the print action
         filter_description = []
-        filter_description.append(f"Filter: {filter_labels.get(filter_type, filter_type)}")
+        filter_description.append(f"Status: {status_labels.get(status_filter, status_filter)}")
+        if filter_type != 'all':
+            filter_description.append(f"Category: {filter_labels.get(filter_type, filter_type)}")
         if search_filter:
             filter_description.append(f"Search: {search_filter}")
         
@@ -2435,9 +2562,13 @@ def print_inventory_report():
         
         return render_template('print_inventory_report.html',
                               inventory_items=formatted_items,
+                              active_items=active_items,
+                              inactive_items=inactive_items,
                               categorized_items=categorized_items,
                               filter_info=filter_info,
                               total_items=total_items,
+                              active_count=active_count,
+                              inactive_count=inactive_count,
                               low_stock_count=low_stock_count,
                               expired_count=expired_count,
                               ok_count=ok_count,
@@ -2449,39 +2580,60 @@ def print_inventory_report():
     except Exception as e:
         print(f"Error generating inventory report: {e}")
         return f"Error generating inventory report: {e}", 500
+    
 #Inventory Management Routes
 @app.route('/inventory')
 def inventory():
-    """Render the inventory management page with data from database"""
+    """Render the inventory management page with status filtering (active/inactive)"""
     try:
-        # Get inventory items from the database
-        inventory_items = Inventory.query.all()
+        # Get status filter from query parameter (default to 'active')
+        status_filter = request.args.get('status', 'active')
+        
+        # Build query based on status filter
+        if status_filter == 'active':
+            inventory_items = Inventory.query.filter_by(is_deleted=False).all()
+        elif status_filter == 'inactive':
+            inventory_items = Inventory.query.filter_by(is_deleted=True).all()
+        else:  # 'all'
+            inventory_items = Inventory.query.all()
+        
+        print(f"Found {len(inventory_items)} inventory items with status: {status_filter}")
         
         # Format the data for display
         formatted_items = []
         for item in inventory_items:
+            # Determine if item is expired
+            is_expired = item.invdoe and item.invdoe < datetime.now().date()
+            
             formatted_items.append({
-                'id': f"INV-{item.invid:03d}",  # Changed from itemId to invid
-                'name': item.invname,           # Changed from name to invname
-                'type': item.invtype,           # Changed from type to invtype
-                'quantity': item.invquantity,   # Changed from quantity to invquantity
-                'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",  # Changed from expiry_date to invdoe
-                'min_quantity': 5,              # This field doesn't exist in your model, so using a default value
-                'status': "Low" if item.invquantity < 5 else "OK",  # Using default minimum quantity of 5
-                'remarks': item.invremarks or "",  # Changed from remarks to invremarks
-                'raw_id': item.invid           # Changed from itemId to invid
+                'id': f"INV-{item.invid:03d}",
+                'name': item.invname,
+                'type': item.invtype,
+                'quantity': item.invquantity,
+                'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
+                'min_quantity': 5,
+                'status': "Expired" if is_expired else ("Low" if item.invquantity < 5 else "OK"),
+                'remarks': item.invremarks or "",
+                'is_active': not item.is_deleted,
+                'raw_id': item.invid
             })
         
         # Get current date for the page
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
-        # Get stats for dashboard
-        total_items = len(inventory_items)
-        low_stock = sum(1 for item in inventory_items if item.invquantity < 5)  # Using default min of 5
-        expired = sum(1 for item in inventory_items if item.invdoe and item.invdoe < datetime.now().date())
+        # Get stats for dashboard (only active items for main stats)
+        active_items = Inventory.query.filter_by(is_deleted=False).all()
+        total_items = len(active_items)
+        low_stock = sum(1 for item in active_items if item.invquantity < 5)
+        expired = sum(1 for item in active_items if item.invdoe and item.invdoe < datetime.now().date())
         
         # Calculate rough total value (just for display purposes)
-        total_value = sum(item.invquantity * 10 for item in inventory_items)  # Rough estimate of $10 per item
+        total_value = sum(item.invquantity * 10 for item in active_items)
+        
+        # Get counts for status badges
+        active_count = Inventory.query.filter_by(is_deleted=False).count()
+        inactive_count = Inventory.query.filter_by(is_deleted=True).count()
+        total_count = active_count + inactive_count
         
         # Render the template with the data
         return render_template('inventory.html', 
@@ -2490,7 +2642,11 @@ def inventory():
                               low_stock_count=low_stock,
                               expired_count=expired,
                               total_value=total_value,
-                              current_date=current_date)
+                              current_date=current_date,
+                              status_filter=status_filter,
+                              active_count=active_count,
+                              inactive_count=inactive_count,
+                              total_count=total_count)
     except Exception as e:
         print(f"Error in inventory route: {e}")
         return f"Error loading inventory: {e}", 500
@@ -2510,6 +2666,7 @@ def get_inventory_item(item_id):
             'expiry_date': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "",
             'min_quantity': 5,  # Default value
             'remarks': item.invremarks or "",
+            'is_active': not item.is_deleted,
             'raw_id': item.invid
         }
         
@@ -2522,12 +2679,13 @@ def get_inventory_item(item_id):
 def add_inventory():
     """Add a new inventory item"""
     try:
-        # Create new inventory item
+        # Create new inventory item (active by default)
         new_item = Inventory(
             invname=request.form.get('name'),
             invtype=request.form.get('type'),
             invquantity=int(request.form.get('quantity', 0)),
-            invremarks=request.form.get('remarks', '')
+            invremarks=request.form.get('remarks', ''),
+            is_deleted=False  # Always create as active
         )
         
         # Process expiry date if provided
@@ -2545,24 +2703,24 @@ def add_inventory():
             f'Added new inventory item: {new_item.invname} (Quantity: {new_item.invquantity})'
         )
         
-        # Get updated stats
-        total_items = Inventory.query.count()
-        low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
-        expired = Inventory.query.filter(
-            Inventory.invdoe.isnot(None), 
-            Inventory.invdoe < datetime.now().date()
-        ).count()
+        # Get updated stats (only active items)
+        active_items = Inventory.query.filter_by(is_deleted=False).all()
+        total_items = len(active_items)
+        low_stock = sum(1 for item in active_items if item.invquantity < 5)
+        expired = sum(1 for item in active_items if item.invdoe and item.invdoe < datetime.now().date())
         
         # Format the item for JSON response
+        is_expired = new_item.invdoe and new_item.invdoe < datetime.now().date()
         formatted_item = {
             'id': f"INV-{new_item.invid:03d}",
             'name': new_item.invname,
             'type': new_item.invtype,
             'quantity': new_item.invquantity,
             'expiry': new_item.invdoe.strftime('%Y-%m-%d') if new_item.invdoe else "N/A",
-            'min_quantity': 5,  # Default value
-            'status': "Low" if new_item.invquantity < 5 else "OK",
+            'min_quantity': 5,
+            'status': "Expired" if is_expired else ("Low" if new_item.invquantity < 5 else "OK"),
             'remarks': new_item.invremarks or "",
+            'is_active': True,
             'raw_id': new_item.invid
         }
         
@@ -2616,24 +2774,24 @@ def update_inventory(item_id):
             f'Updated inventory item: {old_name} -> {item.invname} (Quantity: {old_quantity} -> {item.invquantity})'
         )
         
-        # Get updated stats
-        total_items = Inventory.query.count()
-        low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
-        expired = Inventory.query.filter(
-            Inventory.invdoe.isnot(None), 
-            Inventory.invdoe < datetime.now().date()
-        ).count()
+        # Get updated stats (only active items)
+        active_items = Inventory.query.filter_by(is_deleted=False).all()
+        total_items = len(active_items)
+        low_stock = sum(1 for item_stat in active_items if item_stat.invquantity < 5)
+        expired = sum(1 for item_stat in active_items if item_stat.invdoe and item_stat.invdoe < datetime.now().date())
         
         # Format the item for JSON response
+        is_expired = item.invdoe and item.invdoe < datetime.now().date()
         formatted_item = {
             'id': f"INV-{item.invid:03d}",
             'name': item.invname,
             'type': item.invtype,
             'quantity': item.invquantity,
             'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
-            'min_quantity': 5,  # Default value
-            'status': "Low" if item.invquantity < 5 else "OK",
+            'min_quantity': 5,
+            'status': "Expired" if is_expired else ("Low" if item.invquantity < 5 else "OK"),
             'remarks': item.invremarks or "",
+            'is_active': not item.is_deleted,
             'raw_id': item.invid
         }
         
@@ -2642,7 +2800,7 @@ def update_inventory(item_id):
             'total_items': total_items,
             'low_stock': low_stock,
             'expired': expired,
-            'total_value': total_items * 10  # Rough estimate
+            'total_value': total_items * 10
         }
         
         return jsonify({
@@ -2654,52 +2812,98 @@ def update_inventory(item_id):
         db.session.rollback()
         print(f"Error in update_inventory route: {e}")
         return jsonify({"success": False, "error": str(e)})
-
-@app.route('/delete_inventory/<int:item_id>', methods=['POST'])
-def delete_inventory(item_id):
-    """Delete an inventory item"""
+    
+@app.route('/deactivate_inventory/<int:item_id>', methods=['POST'])
+def deactivate_inventory(item_id):
+    """Deactivate an inventory item (soft delete)"""
     try:
         item = Inventory.query.get_or_404(item_id)
         
-        # Log the action before deleting
-        log_user_action(
-            session.get('user_id'),
-            'Delete Inventory',
-            f'Deleted inventory item: {item.invname} (Quantity: {item.invquantity})'
-        )
-        
-        db.session.delete(item)
+        # Set the item as deleted (deactivated)
+        item.is_deleted = True
         db.session.commit()
         
-        # Get updated stats
-        total_items = Inventory.query.count()
-        low_stock = Inventory.query.filter(Inventory.invquantity < 5).count()
-        expired = Inventory.query.filter(
-            Inventory.invdoe.isnot(None), 
-            Inventory.invdoe < datetime.now().date()
-        ).count()
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Deactivate Inventory',
+            f'Deactivated inventory item: {item.invname} (Quantity: {item.invquantity})'
+        )
+        
+        # Get updated stats (only active items)
+        active_items = Inventory.query.filter_by(is_deleted=False).all()
+        total_items = len(active_items)
+        low_stock = sum(1 for item_stat in active_items if item_stat.invquantity < 5)
+        expired = sum(1 for item_stat in active_items if item_stat.invdoe and item_stat.invdoe < datetime.now().date())
         
         # Stats for the dashboard
         inventory_stats = {
             'total_items': total_items,
             'low_stock': low_stock,
             'expired': expired,
-            'total_value': total_items * 10  # Rough estimate
+            'total_value': total_items * 10
         }
         
-        return jsonify({"success": True, "stats": inventory_stats})
+        return jsonify({"success": True, "stats": inventory_stats, "message": "Item deactivated successfully"})
     except Exception as e:
         db.session.rollback()
-        print(f"Error in delete_inventory route: {e}")
+        print(f"Error in deactivate_inventory route: {e}")
         return jsonify({"success": False, "error": str(e)})
+
+@app.route('/reactivate_inventory/<int:item_id>', methods=['POST'])
+def reactivate_inventory(item_id):
+    """Reactivate an inventory item (restore from soft delete)"""
+    try:
+        item = Inventory.query.get_or_404(item_id)
+        
+        # Set the item as active (not deleted)
+        item.is_deleted = False
+        db.session.commit()
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Reactivate Inventory',
+            f'Reactivated inventory item: {item.invname} (Quantity: {item.invquantity})'
+        )
+        
+        # Get updated stats (only active items)
+        active_items = Inventory.query.filter_by(is_deleted=False).all()
+        total_items = len(active_items)
+        low_stock = sum(1 for item_stat in active_items if item_stat.invquantity < 5)
+        expired = sum(1 for item_stat in active_items if item_stat.invdoe and item_stat.invdoe < datetime.now().date())
+        
+        # Stats for the dashboard
+        inventory_stats = {
+            'total_items': total_items,
+            'low_stock': low_stock,
+            'expired': expired,
+            'total_value': total_items * 10
+        }
+        
+        return jsonify({"success": True, "stats": inventory_stats, "message": "Item reactivated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in reactivate_inventory route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/delete_inventory/<int:item_id>', methods=['POST'])
+def delete_inventory(item_id):
+    """Delete an inventory item (redirects to deactivate for backward compatibility)"""
+    return deactivate_inventory(item_id)
+
 
 @app.route('/filter_inventory/<filter_type>')
 def filter_inventory(filter_type):
     """Filter inventory items by type"""
     try:
-        query = Inventory.query
+        # Only show active items unless specifically filtering for inactive
+        if filter_type == 'inactive':
+            query = Inventory.query.filter_by(is_deleted=True)
+        else:
+            query = Inventory.query.filter_by(is_deleted=False)
         
-        # Apply filter
+        # Apply additional filters
         if filter_type == 'low_stock':
             query = query.filter(Inventory.invquantity < 5)
         elif filter_type == 'expired':
@@ -2707,8 +2911,8 @@ def filter_inventory(filter_type):
                 Inventory.invdoe.isnot(None), 
                 Inventory.invdoe < datetime.now().date()
             )
-        elif filter_type != 'all':
-            # If filter is not 'all', assume it's a type filter
+        elif filter_type not in ['all', 'inactive']:
+            # If filter is not 'all' or 'inactive', assume it's a type filter
             query = query.filter_by(invtype=filter_type)
         
         # Get filtered items
@@ -2717,15 +2921,18 @@ def filter_inventory(filter_type):
         # Format the data for response
         formatted_items = []
         for item in inventory_items:
+            is_expired = item.invdoe and item.invdoe < datetime.now().date()
+            
             formatted_items.append({
                 'id': f"INV-{item.invid:03d}",
                 'name': item.invname,
                 'type': item.invtype,
                 'quantity': item.invquantity,
                 'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
-                'min_quantity': 5,  # Default value
-                'status': "Low" if item.invquantity < 5 else "OK",
+                'min_quantity': 5,
+                'status': "Expired" if is_expired else ("Low" if item.invquantity < 5 else "OK"),
                 'remarks': item.invremarks or "",
+                'is_active': not item.is_deleted,
                 'raw_id': item.invid
             })
         
@@ -2943,6 +3150,200 @@ def create_backup():
             "success": False, 
             "error": f"Error processing backup request: {str(e)}"
         })
+    
+# Add these routes to your app.py file
+
+# Updated forgot password route in app.py - Replace the existing route
+
+@app.route('/forgot_password')
+def forgot_password():
+    """Render the forgot password page with optional pre-filled data"""
+    # Get parameters from redirect
+    reason = request.args.get('reason')
+    username = request.args.get('username', '')
+    
+    # Prepare context for template
+    context = {
+        'prefill_username': username,
+        'redirect_reason': reason
+    }
+    
+    return render_template('forget_password.html', **context)
+
+@app.route('/verify_identity', methods=['POST'])
+def verify_identity():
+    """Verify user identity with real name and username/email"""
+    try:
+        real_name = request.form.get('real_name', '').strip()
+        username_email = request.form.get('username_email', '').strip()
+        
+        if not real_name or not username_email:
+            return jsonify({"success": False, "error": "Please fill in all fields"})
+        
+        # Search for user by username or email, and verify real name
+        user = None
+        
+        # First try to find by username
+        user_by_username = User.query.filter_by(usersusername=username_email).first()
+        if user_by_username and user_by_username.usersrealname.lower() == real_name.lower():
+            user = user_by_username
+        
+        # If not found by username, try by email
+        if not user:
+            user_by_email = User.query.filter_by(usersemail=username_email).first()
+            if user_by_email and user_by_email.usersrealname.lower() == real_name.lower():
+                user = user_by_email
+        
+        if user:
+            # Log the verification attempt
+            log_user_action(
+                user.usersid,
+                'Password Reset Verification',
+                f'Identity verified for password reset: {user.usersrealname} ({user.usersusername})'
+            )
+            
+            return jsonify({
+                "success": True, 
+                "user_name": user.usersrealname,
+                "message": "Identity verified successfully"
+            })
+        else:
+            # Log failed verification attempt
+            log_user_action(
+                0,  # No specific user ID for failed attempts
+                'Failed Password Reset Verification',
+                f'Failed identity verification attempt: Real Name: {real_name}, Username/Email: {username_email}'
+            )
+            
+            return jsonify({
+                "success": False, 
+                "error": "The name and username/email combination does not match our records"
+            })
+            
+    except Exception as e:
+        print(f"Error in verify_identity route: {e}")
+        return jsonify({"success": False, "error": "An error occurred during verification"})
+
+# Updated reset_password route in app.py - Replace the existing route
+
+@app.route('/reset_password', methods=['POST'])
+def reset_password():
+    """Reset user password after identity verification and clear failed attempts"""
+    try:
+        real_name = request.form.get('real_name', '').strip()
+        username_email = request.form.get('username_email', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        
+        # Validate input
+        if not all([real_name, username_email, new_password, confirm_password]):
+            return render_template('forget_password.html', 
+                                 error="Please fill in all fields")
+        
+        if new_password != confirm_password:
+            return render_template('forget_password.html', 
+                                 error="Passwords do not match")
+        
+        if len(new_password) < 6:
+            return render_template('forget_password.html', 
+                                 error="Password must be at least 6 characters long")
+        
+        # Re-verify identity (security measure)
+        user = None
+        
+        # Try to find by username
+        user_by_username = User.query.filter_by(usersusername=username_email).first()
+        if user_by_username and user_by_username.usersrealname.lower() == real_name.lower():
+            user = user_by_username
+        
+        # If not found by username, try by email
+        if not user:
+            user_by_email = User.query.filter_by(usersemail=username_email).first()
+            if user_by_email and user_by_email.usersrealname.lower() == real_name.lower():
+                user = user_by_email
+        
+        if not user:
+            return render_template('forget_password.html', 
+                                 error="Identity verification failed. Please try again.")
+        
+        # Update password with SHA-256 hash
+        user.userspassword = hash_password(new_password)
+        db.session.commit()
+        
+        # Clear failed login attempts for this session
+        session['failed_attempts'] = 0
+        
+        # Log the password reset
+        log_user_action(
+            user.usersid,
+            'Password Reset Completed',
+            f'Password successfully reset for: {user.usersrealname} ({user.usersusername})'
+        )
+        
+        return render_template('forget_password.html', 
+                             success_message="Password updated successfully! You can now login with your new password. Failed login attempts have been reset.")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in reset_password route: {e}")
+        return render_template('forget_password.html', 
+                             error="An error occurred while updating your password. Please try again.")
+
+# Add this route to manually clear failed attempts (optional, for admin use)
+@app.route('/clear_failed_attempts', methods=['POST'])
+@admin_required
+def clear_failed_attempts():
+    """Clear failed login attempts for current session - Admin only"""
+    try:
+        session['failed_attempts'] = 0
+        
+        # Log the action
+        log_user_action(
+            session.get('user_id'),
+            'Clear Failed Attempts',
+            'Admin cleared failed login attempts for current session'
+        )
+        
+        return jsonify({"success": True, "message": "Failed login attempts cleared"})
+    except Exception as e:
+        print(f"Error clearing failed attempts: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+# Add these security configuration constants at the top of app.py after imports
+
+# =============================================================================
+# LOGIN SECURITY CONFIGURATION
+# =============================================================================
+
+# Maximum failed login attempts before redirecting to forgot password
+MAX_FAILED_ATTEMPTS = 3
+
+# Countdown time (in seconds) before automatic redirect to forgot password
+REDIRECT_COUNTDOWN_SECONDS = 5
+
+# Time (in minutes) after which failed attempts counter resets automatically
+# Set to 0 to disable auto-reset (counter only resets on successful login or password reset)
+FAILED_ATTEMPTS_RESET_MINUTES = 30
+
+def get_failed_attempts_info():
+    """Get current failed attempts information"""
+    return {
+        'failed_attempts': session.get('failed_attempts', 0),
+        'max_attempts': MAX_FAILED_ATTEMPTS,
+        'attempts_remaining': MAX_FAILED_ATTEMPTS - session.get('failed_attempts', 0),
+        'first_attempt_time': session.get('first_failed_attempt_time'),
+        'auto_reset_enabled': FAILED_ATTEMPTS_RESET_MINUTES > 0,
+        'auto_reset_minutes': FAILED_ATTEMPTS_RESET_MINUTES
+    }
+
+def reset_failed_attempts(user_id=None, reason="Manual Reset"):
+    """Reset failed attempts counter"""
+    session['failed_attempts'] = 0
+    session['first_failed_attempt_time'] = None
+    
+    if user_id:
+        log_user_action(user_id, 'Reset Failed Attempts', reason)
 
 def create_direct_backup(username, password, host, database_name, backup_path, port=3306):
     """Create a database backup directly using PyMySQL without external tools - Enhanced version"""

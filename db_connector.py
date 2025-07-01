@@ -224,16 +224,46 @@ class RescheduleAppointment(db.Model):
 class Inventory(db.Model):
     __tablename__ = 'inventory'
     
-    invid = db.Column(db.Integer, primary_key=True)
-    invname = db.Column(db.String(255))
-    invquantity = db.Column(db.Integer)
-    invdoe = db.Column(db.Date)
-    invtype = db.Column(db.String(255))
-    invremarks = db.Column(db.String(255))
-    is_deleted = db.Column(db.Boolean, default=False)
+    invid = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    invname = db.Column(db.String(100), nullable=False)
+    invtype = db.Column(db.String(50))
+    invquantity = db.Column(db.Integer, default=0)
+    invdoe = db.Column(db.Date)  # Date of Expiry
+    invremarks = db.Column(db.Text)
+    
+    # Add this new field for soft delete functionality
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     
     def __repr__(self):
-        return f"<Inventory {self.invid}: {self.invname} ({self.invquantity})>"
+        return f'<Inventory {self.invname}>'
+    
+    def to_dict(self):
+        return {
+            'invid': self.invid,
+            'invname': self.invname,
+            'invtype': self.invtype,
+            'invquantity': self.invquantity,
+            'invdoe': self.invdoe.isoformat() if self.invdoe else None,
+            'invremarks': self.invremarks,
+            'is_deleted': self.is_deleted
+        }
+    
+    @property
+    def is_active(self):
+        """Helper property to check if item is active"""
+        return not self.is_deleted
+    
+    @property
+    def status(self):
+        """Helper property to get item status"""
+        if self.is_deleted:
+            return 'Inactive'
+        elif self.invdoe and self.invdoe < datetime.now().date():
+            return 'Expired'
+        elif self.invquantity < 5:  # Assuming 5 is the minimum threshold
+            return 'Low Stock'
+        else:
+            return 'OK'
 
 class User(db.Model):
     __tablename__ = 'users'
