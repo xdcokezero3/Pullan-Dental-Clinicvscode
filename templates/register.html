@@ -6,6 +6,77 @@
     <title>Register - Pullan Dental Clinic</title>
     <link rel="stylesheet" href="../static/css/register.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .input-error {
+            border-color: #dc3545 !important;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+        }
+        
+        .input-success {
+            border-color: #28a745 !important;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+        }
+        
+        .field-feedback {
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+        
+        .field-feedback.error {
+            color: #dc3545;
+            display: block;
+        }
+        
+        .field-feedback.success {
+            color: #28a745;
+            display: block;
+        }
+        
+        .char-counter {
+            font-size: 0.75rem;
+            color: #6c757d;
+            text-align: right;
+            margin-top: 0.25rem;
+        }
+        
+        .char-counter.warning {
+            color: #ffc107;
+        }
+        
+        .char-counter.error {
+            color: #dc3545;
+        }
+        
+        /* NEW: Password requirements styles */
+        .password-requirements {
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .password-requirement {
+            display: flex;
+            align-items: center;
+            margin: 2px 0;
+        }
+        
+        .password-requirement.valid {
+            color: #28a745;
+        }
+        
+        .password-requirement.invalid {
+            color: #dc3545;
+        }
+        
+        .password-requirement i {
+            margin-right: 5px;
+            width: 12px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -17,7 +88,15 @@
             
             <h2>Create Your Account</h2>
             
-            <form action="/register_process" method="POST">
+            <!-- Display error message if any -->
+            {% if error %}
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            <form action="/register_process" method="POST" id="registrationForm">
                 <div class="input-group">
                     <label for="username">Username <span class="required">*</span></label>
                     <input type="text" id="username" name="usersusername" required>
@@ -31,6 +110,26 @@
                             <i class="fas fa-eye"></i>
                         </span>
                     </div>
+                    <!-- NEW: Password requirements display -->
+                    <div class="password-requirements" id="password-requirements">
+                        <div class="password-requirement" id="req-length">
+                            <i class="fas fa-times"></i>
+                            <span>At least 7 characters</span>
+                        </div>
+                        <div class="password-requirement" id="req-lowercase">
+                            <i class="fas fa-times"></i>
+                            <span>One lowercase letter (a-z)</span>
+                        </div>
+                        <div class="password-requirement" id="req-uppercase">
+                            <i class="fas fa-times"></i>
+                            <span>One uppercase letter (A-Z)</span>
+                        </div>
+                        <div class="password-requirement" id="req-number">
+                            <i class="fas fa-times"></i>
+                            <span>One number (0-9)</span>
+                        </div>
+                    </div>
+                    <div class="field-feedback" id="password-feedback"></div>
                 </div>
                 
                 <div class="input-group">
@@ -41,6 +140,7 @@
                             <i class="fas fa-eye"></i>
                         </span>
                     </div>
+                    <div class="field-feedback" id="confirm-password-feedback"></div>
                 </div>
                 
                 <hr>
@@ -79,8 +179,16 @@
                 </div>
                 
                 <div class="input-group">
-                    <label for="contact">Contact Number</label>
-                    <input type="tel" id="contact" name="userscontact">
+                    <label for="contact">Contact Number <span class="required">*</span></label>
+                    <input type="tel" 
+                           id="contact" 
+                           name="userscontact" 
+                           placeholder="09XXXXXXXXX (11 digits)"
+                           maxlength="11"
+                           pattern="[0-9]{11}"
+                           required>
+                    <div class="char-counter" id="contact-counter">0/11 digits</div>
+                    <div class="field-feedback" id="contact-feedback"></div>
                 </div>
                 
                 <div class="input-group">
@@ -99,8 +207,14 @@
                 </div>
                 
                 <div class="input-group">
-                    <label for="cityzipcode">City/Zip Code</label>
-                    <input type="text" id="cityzipcode" name="userscityzipcode">
+                    <label for="cityzipcode">City/Zip Code <span class="required">*</span></label>
+                    <input type="text" 
+                           id="cityzipcode" 
+                           name="userscityzipcode" 
+                           placeholder="e.g., Quezon City, 1103 (max 4 digits total)"
+                           required>
+                    <div class="char-counter" id="zipcode-counter">Zip code: 0/4 digits (max)</div>
+                    <div class="field-feedback" id="zipcode-feedback"></div>
                 </div>
                 
                 <div class="input-group access-level" style="display: none;">
@@ -112,7 +226,7 @@
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="register-btn">Register</button>
+                    <button type="submit" class="register-btn" id="submitBtn">Register</button>
                 </div>
                 
                 <div class="login-link">
@@ -123,6 +237,7 @@
     </div>
     
     <script>
+        // Function to toggle password visibility
         function togglePasswordVisibility(inputId) {
             const passwordInput = document.getElementById(inputId);
             const icon = event.currentTarget.querySelector('i');
@@ -154,6 +269,360 @@
                 document.getElementById('age').value = age;
             }
         });
+        
+        // NEW: Enhanced password validation functions
+        function validatePassword(password) {
+            const requirements = {
+                length: password.length >= 7,
+                lowercase: /[a-z]/.test(password),
+                uppercase: /[A-Z]/.test(password),
+                number: /\d/.test(password)
+            };
+            
+            // Update visual indicators
+            updateRequirement('req-length', requirements.length);
+            updateRequirement('req-lowercase', requirements.lowercase);
+            updateRequirement('req-uppercase', requirements.uppercase);
+            updateRequirement('req-number', requirements.number);
+            
+            // Return overall validity
+            return Object.values(requirements).every(req => req);
+        }
+        
+        function updateRequirement(elementId, isValid) {
+            const element = document.getElementById(elementId);
+            const icon = element.querySelector('i');
+            
+            if (isValid) {
+                element.classList.remove('invalid');
+                element.classList.add('valid');
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-check');
+            } else {
+                element.classList.remove('valid');
+                element.classList.add('invalid');
+                icon.classList.remove('fa-check');
+                icon.classList.add('fa-times');
+            }
+        }
+        
+        // Password input validation
+        const passwordInput = document.getElementById('password');
+        const passwordFeedback = document.getElementById('password-feedback');
+        
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            const isValid = validatePassword(password);
+            
+            // Update input styling
+            passwordInput.classList.remove('input-error', 'input-success');
+            passwordFeedback.classList.remove('error', 'success');
+            
+            if (password.length === 0) {
+                // No feedback for empty password
+                return;
+            }
+            
+            if (isValid) {
+                passwordInput.classList.add('input-success');
+                passwordFeedback.textContent = 'Password meets all requirements ✓';
+                passwordFeedback.classList.add('success');
+            } else {
+                passwordInput.classList.add('input-error');
+                passwordFeedback.textContent = 'Password does not meet all requirements';
+                passwordFeedback.classList.add('error');
+            }
+        });
+        
+        // Confirm password validation
+        const confirmPasswordInput = document.getElementById('confirm-password');
+        const confirmPasswordFeedback = document.getElementById('confirm-password-feedback');
+        
+        function validatePasswordMatch() {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            
+            confirmPasswordInput.classList.remove('input-error', 'input-success');
+            confirmPasswordFeedback.classList.remove('error', 'success');
+            
+            if (confirmPassword.length === 0) {
+                return;
+            }
+            
+            if (password === confirmPassword) {
+                confirmPasswordInput.classList.add('input-success');
+                confirmPasswordFeedback.textContent = 'Passwords match ✓';
+                confirmPasswordFeedback.classList.add('success');
+                return true;
+            } else {
+                confirmPasswordInput.classList.add('input-error');
+                confirmPasswordFeedback.textContent = 'Passwords do not match';
+                confirmPasswordFeedback.classList.add('error');
+                return false;
+            }
+        }
+        
+        confirmPasswordInput.addEventListener('input', validatePasswordMatch);
+        passwordInput.addEventListener('input', function() {
+            // Also validate confirm password when main password changes
+            if (confirmPasswordInput.value.length > 0) {
+                validatePasswordMatch();
+            }
+        });
+        
+        // CONTACT NUMBER VALIDATION - Only digits, max 11
+        const contactInput = document.getElementById('contact');
+        const contactCounter = document.getElementById('contact-counter');
+        const contactFeedback = document.getElementById('contact-feedback');
+        
+        contactInput.addEventListener('input', function(e) {
+            // Remove any non-digit characters
+            let value = e.target.value.replace(/\D/g, '');
+            
+            // Limit to 11 digits
+            if (value.length > 11) {
+                value = value.substring(0, 11);
+            }
+            
+            // Update the input value
+            e.target.value = value;
+            
+            // Update counter
+            updateContactCounter(value.length);
+            
+            // Validate
+            validateContact(value);
+        });
+        
+        contactInput.addEventListener('keypress', function(e) {
+            // Only allow digits (0-9)
+            const char = String.fromCharCode(e.which);
+            if (!/[0-9]/.test(char)) {
+                e.preventDefault();
+            }
+        });
+        
+        contactInput.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text');
+            const digitsOnly = paste.replace(/\D/g, '').substring(0, 11);
+            e.target.value = digitsOnly;
+            updateContactCounter(digitsOnly.length);
+            validateContact(digitsOnly);
+        });
+        
+        function updateContactCounter(length) {
+            contactCounter.textContent = `${length}/11 digits`;
+            
+            if (length === 0) {
+                contactCounter.className = 'char-counter';
+            } else if (length < 11) {
+                contactCounter.className = 'char-counter warning';
+            } else {
+                contactCounter.className = 'char-counter';
+            }
+        }
+        
+        function validateContact(value) {
+            contactInput.classList.remove('input-error', 'input-success');
+            contactFeedback.classList.remove('error', 'success');
+            
+            if (value.length === 0) {
+                contactFeedback.textContent = 'Contact number is required';
+                contactFeedback.classList.add('error');
+                contactInput.classList.add('input-error');
+            } else if (value.length < 11) {
+                contactFeedback.textContent = `Please enter ${11 - value.length} more digit(s)`;
+                contactFeedback.classList.add('error');
+                contactInput.classList.add('input-error');
+            } else if (value.length === 11) {
+                contactFeedback.textContent = 'Valid contact number ✓';
+                contactFeedback.classList.add('success');
+                contactInput.classList.add('input-success');
+            }
+        }
+        
+        // ZIP CODE VALIDATION - Extract and validate 4-digit zip
+        const zipInput = document.getElementById('cityzipcode');
+        const zipCounter = document.getElementById('zipcode-counter');
+        const zipFeedback = document.getElementById('zipcode-feedback');
+        
+        zipInput.addEventListener('input', function(e) {
+            let value = e.target.value;
+            let currentDigits = value.replace(/\D/g, '');
+            
+            // If more than 4 digits, remove the excess
+            if (currentDigits.length > 4) {
+                // Keep only the first 4 digits and reconstruct the string
+                const first4Digits = currentDigits.substring(0, 4);
+                let newValue = '';
+                let digitCount = 0;
+                
+                for (let i = 0; i < value.length && digitCount < 4; i++) {
+                    if (/\d/.test(value[i])) {
+                        newValue += first4Digits[digitCount];
+                        digitCount++;
+                    } else {
+                        newValue += value[i];
+                    }
+                }
+                
+                value = newValue;
+                e.target.value = value;
+                currentDigits = first4Digits;
+            }
+            
+            updateZipCounter(currentDigits.length);
+            validateZipCode(value);
+        });
+        
+        zipInput.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            
+            // If it's a digit, check if we already have 4 digits
+            if (/[0-9]/.test(char)) {
+                const currentDigits = e.target.value.replace(/\D/g, '');
+                if (currentDigits.length >= 4) {
+                    e.preventDefault(); // Prevent typing more digits
+                    
+                    // Show brief feedback
+                    zipFeedback.textContent = 'Maximum 4 digits allowed';
+                    zipFeedback.classList.remove('success');
+                    zipFeedback.classList.add('error');
+                    
+                    setTimeout(() => {
+                        validateZipCode(e.target.value);
+                    }, 1500);
+                }
+            }
+        });
+        
+        zipInput.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text');
+            
+            // Extract only the first 4 digits from pasted content
+            const digitsOnly = paste.replace(/\D/g, '').substring(0, 4);
+            
+            // Reconstruct the value with existing non-digit characters plus the digits
+            let currentValue = e.target.value;
+            let newValue = '';
+            let digitCount = 0;
+            
+            // First, remove all existing digits
+            currentValue = currentValue.replace(/\d/g, '');
+            
+            // Then add back up to 4 digits from paste
+            for (let i = 0; i < currentValue.length + digitsOnly.length; i++) {
+                if (i < currentValue.length) {
+                    newValue += currentValue[i];
+                } else if (digitCount < digitsOnly.length) {
+                    newValue += digitsOnly[digitCount];
+                    digitCount++;
+                }
+            }
+            
+            // If no non-digit characters, just use the digits
+            if (newValue.replace(/\d/g, '') === '') {
+                newValue = digitsOnly;
+            }
+            
+            e.target.value = newValue;
+            updateZipCounter(digitsOnly.length);
+            validateZipCode(newValue);
+        });
+        
+        function updateZipCounter(length) {
+            zipCounter.textContent = `Zip code: ${length}/4 digits (max)`;
+            
+            if (length === 0) {
+                zipCounter.className = 'char-counter';
+            } else if (length < 4) {
+                zipCounter.className = 'char-counter warning';
+            } else if (length === 4) {
+                zipCounter.className = 'char-counter';
+            }
+        }
+        
+        function validateZipCode(value) {
+            zipInput.classList.remove('input-error', 'input-success');
+            zipFeedback.classList.remove('error', 'success');
+            
+            const zipDigits = value.replace(/\D/g, '');
+            
+            if (value.length === 0) {
+                zipFeedback.textContent = 'City and zip code are required';
+                zipFeedback.classList.add('error');
+                zipInput.classList.add('input-error');
+            } else if (zipDigits.length === 0) {
+                zipFeedback.textContent = 'Please include a 4-digit zip code (maximum 4 digits total)';
+                zipFeedback.classList.add('error');
+                zipInput.classList.add('input-error');
+            } else if (zipDigits.length < 4) {
+                zipFeedback.textContent = `Zip code needs ${4 - zipDigits.length} more digit(s) (maximum 4 total)`;
+                zipFeedback.classList.add('error');
+                zipInput.classList.add('input-error');
+            } else if (zipDigits.length === 4) {
+                zipFeedback.textContent = 'Valid zip code ✓';
+                zipFeedback.classList.add('success');
+                zipInput.classList.add('input-success');
+            }
+        }
+        
+        // UPDATED: Enhanced form submission validation
+        document.getElementById('registrationForm').addEventListener('submit', function(e) {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            const contactValue = contactInput.value.replace(/\D/g, '');
+            const zipValue = zipInput.value.replace(/\D/g, '');
+            
+            let isValid = true;
+            let errorMessages = [];
+            
+            // Validate password requirements
+            if (!validatePassword(password)) {
+                errorMessages.push('Password does not meet all requirements');
+                isValid = false;
+            }
+            
+            // Validate password match
+            if (password !== confirmPassword) {
+                errorMessages.push('Passwords do not match');
+                isValid = false;
+            }
+            
+            // Validate contact number
+            if (contactValue.length !== 11) {
+                validateContact(contactValue);
+                errorMessages.push('Contact number must be exactly 11 digits');
+                isValid = false;
+            }
+            
+            // Validate zip code
+            if (zipValue.length !== 4) {
+                validateZipCode(zipInput.value);
+                errorMessages.push('Zip code must be exactly 4 digits');
+                isValid = false;
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                
+                // Show error messages
+                const firstError = errorMessages[0];
+                alert(`Registration failed:\n• ${errorMessages.join('\n• ')}`);
+                
+                // Highlight submit button as error
+                document.getElementById('submitBtn').style.backgroundColor = '#dc3545';
+                setTimeout(() => {
+                    document.getElementById('submitBtn').style.backgroundColor = '';
+                }, 2000);
+            }
+        });
+        
+        // Initialize counters
+        updateContactCounter(0);
+        updateZipCounter(0);
     </script>
 </body>
 </html>

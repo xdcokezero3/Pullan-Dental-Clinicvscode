@@ -46,6 +46,30 @@ def verify_password(password, hashed_password):
     """
     return hash_password(password) == hashed_password
 
+def validate_password(password):
+    """
+    Validate password meets security requirements:
+    - At least 7 characters
+    - At least 1 lowercase letter
+    - At least 1 uppercase letter  
+    - At least 1 number
+    """
+    import re
+    
+    if len(password) < 7:
+        return False, "Password must be at least 7 characters long"
+    
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number"
+    
+    return True, "Password is valid"
+
 # Decorator to check admin access
 def admin_required(f):
     @wraps(f)
@@ -2228,14 +2252,21 @@ def staff_details(staff_id):
 # Add @admin_required decorator to staff management routes in app.py
 
 @app.route('/add_staff', methods=['POST'])
-@admin_required  # ADD THIS LINE
+@admin_required
 def add_staff():
-    """Add a new staff member with SHA-256 password hashing - Admin only"""
+    """Add a new staff member with enhanced password validation - Admin only"""
     try:
+        password = request.form.get('password')
+        
+        # UPDATED: Enhanced password validation
+        is_valid, error_message = validate_password(password)
+        if not is_valid:
+            return jsonify({"success": False, "error": error_message})
+        
         # Create new user with staff details
         new_staff = User(
             usersusername=request.form.get('username'),
-            userspassword=hash_password(request.form.get('password')),  # Hash the password
+            userspassword=hash_password(password),
             usersrealname=request.form.get('name'),
             usersemail=request.form.get('email'),
             usershomeaddress=request.form.get('address'),
@@ -2243,9 +2274,7 @@ def add_staff():
             userscontact=request.form.get('contact'),
             usersreligion=request.form.get('religion'),
             usersgender=request.form.get('gender'),
-            # Only allow 'admin' or default to 'user'
             usersaccess=request.form.get('access'),
-            # Store in occupation field
             usersoccupation=request.form.get('occupation')
         )
         
@@ -2269,7 +2298,6 @@ def add_staff():
             f'Added new staff member: {new_staff.usersrealname} ({new_staff.usersusername})'
         )
         
-        # Return success response
         return jsonify({
             "success": True,
             "staff": {
@@ -2286,9 +2314,9 @@ def add_staff():
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/update_staff/<int:staff_id>', methods=['POST'])
-@admin_required  # ADD THIS LINE
+@admin_required
 def update_staff(staff_id):
-    """Update staff information with SHA-256 password hashing - Admin only"""
+    """Update staff information with enhanced password validation - Admin only"""
     try:
         staff = User.query.get_or_404(staff_id)
         
@@ -2304,8 +2332,6 @@ def update_staff(staff_id):
         staff.usersreligion = request.form.get('religion')
         staff.usersgender = request.form.get('gender')
         staff.usersaccess = request.form.get('access')
-        
-        # Update occupation field
         staff.usersoccupation = request.form.get('occupation')
         
         # Process date of birth if provided
@@ -2318,10 +2344,13 @@ def update_staff(staff_id):
         if age_str and age_str.isdigit():
             staff.usersage = int(age_str)
         
-        # Update password if provided (hash the new password)
+        # UPDATED: Enhanced password validation if password is being changed
         new_password = request.form.get('password')
         if new_password:
-            staff.userspassword = hash_password(new_password)  # Hash the new password
+            is_valid, error_message = validate_password(new_password)
+            if not is_valid:
+                return jsonify({'success': False, 'error': error_message})
+            staff.userspassword = hash_password(new_password)
         
         # Save changes to database
         db.session.commit()
@@ -2333,11 +2362,9 @@ def update_staff(staff_id):
             f'Updated staff member: {old_name} -> {staff.usersrealname} ({staff.usersusername})'
         )
         
-        # Return success response for AJAX request
         return jsonify({'success': True})
     
     except Exception as e:
-        # Return error response for AJAX request
         db.session.rollback()
         print(f"Error in update_staff route: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -2951,9 +2978,10 @@ def filter_inventory(filter_type):
 def register():
     return render_template('register.html')
 
+# Update the register_process route - Replace the existing password validation
 @app.route('/register_process', methods=['POST'])
 def register_process():
-    """Process new user registration with SHA-256 password hashing"""
+    """Process new user registration with enhanced password validation"""
     try:
         # Get form data
         username = request.form.get('usersusername')
@@ -2972,6 +3000,28 @@ def register_process():
         if password != confirm_password:
             return render_template('register.html', error="Passwords do not match")
         
+        # UPDATED: Enhanced password validation
+        is_valid, error_message = validate_password(password)
+        if not is_valid:
+            return render_template('register.html', error=error_message)
+        
+        # Validate contact number (11 digits only)
+        if contact:
+            contact_clean = ''.join(filter(str.isdigit, contact))
+            if len(contact_clean) != 11:
+                return render_template('register.html', error="Contact number must be exactly 11 digits")
+            contact = contact_clean
+        else:
+            return render_template('register.html', error="Contact number is required")
+        
+        # Validate zipcode (4 digits only)
+        if city_zipcode:
+            zipcode_clean = ''.join(filter(str.isdigit, city_zipcode))
+            if len(zipcode_clean) != 4:
+                return render_template('register.html', error="Zipcode must be exactly 4 digits")
+        else:
+            return render_template('register.html', error="City and zipcode are required")
+        
         # Check if username already exists
         existing_user = User.query.filter_by(usersusername=username).first()
         if existing_user:
@@ -2980,7 +3030,7 @@ def register_process():
         # Create new user with hashed password
         new_user = User(
             usersusername=username,
-            userspassword=hash_password(password),  # Hash the password
+            userspassword=hash_password(password),
             usersrealname=realname,
             usersemail=email,
             usershomeaddress=home_address,
@@ -2989,7 +3039,7 @@ def register_process():
             usersreligion=religion,
             usersgender=gender,
             usersoccupation=occupation,
-            usersaccess='user'  # Default access level
+            usersaccess='user'
         )
         
         # Process date of birth if provided
@@ -3013,14 +3063,13 @@ def register_process():
             f'New user registered: {realname} ({username})'
         )
         
-        # Redirect to login page with success message
         return redirect(url_for('login', registration_success=True))
     
     except Exception as e:
-        # If any error occurs, rollback the session
         db.session.rollback()
         print(f"Error in register_process route: {e}")
         return render_template('register.html', error=f"Registration failed: {str(e)}")
+
 
 
 @app.route('/backup_restore')
@@ -3232,7 +3281,7 @@ def verify_identity():
 
 @app.route('/reset_password', methods=['POST'])
 def reset_password():
-    """Reset user password after identity verification and clear failed attempts"""
+    """Reset user password after identity verification with enhanced password validation"""
     try:
         real_name = request.form.get('real_name', '').strip()
         username_email = request.form.get('username_email', '').strip()
@@ -3248,9 +3297,10 @@ def reset_password():
             return render_template('forget_password.html', 
                                  error="Passwords do not match")
         
-        if len(new_password) < 6:
-            return render_template('forget_password.html', 
-                                 error="Password must be at least 6 characters long")
+        # UPDATED: Enhanced password validation
+        is_valid, error_message = validate_password(new_password)
+        if not is_valid:
+            return render_template('forget_password.html', error=error_message)
         
         # Re-verify identity (security measure)
         user = None
