@@ -1721,8 +1721,73 @@ def billing():
 
 @app.route('/settings')
 def settings():
-    """Placeholder for settings page"""
-    return "Settings page - Coming soon!"
+    """About page with system and clinic information"""
+    try:
+        # Get system information
+        import sys
+        import platform
+        from sqlalchemy import __version__ as sqlalchemy_version
+        
+        # System stats
+        system_info = {
+            'version': 'v2.5.1 (Build 2025.01)',
+            'release_date': 'January 15, 2025',
+            'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            'platform': platform.system(),
+            'sqlalchemy_version': sqlalchemy_version,
+            'database_status': 'Connected',
+            'last_update': 'January 15, 2025',
+            'next_update': 'March 1, 2025'
+        }
+        
+        # Clinic information
+        clinic_info = {
+            'name': 'Pullan Dental Clinic',
+            'address': '142 Timog Avenue, Sacred Heart',
+            'city': 'Quezon City, 1103 Metro Manila, Philippines',
+            'phone': '(02) 8123-4567 / +63 917 123 4567',
+            'email': 'info@pullandental.com.ph',
+            'website': 'www.pullandental.com.ph',
+            'established': '2018',
+            'license': 'QC-DC-2018-0142'
+        }
+        
+        # Get database stats
+        try:
+            total_patients = Patient.query.filter_by(is_deleted=False).count()
+            total_appointments = Appointment.query.count()
+            total_procedures = Report.query.count()
+            total_staff = User.query.filter(User.usersaccess.in_(['admin', 'user'])).count()
+        except:
+            total_patients = 0
+            total_appointments = 0
+            total_procedures = 0
+            total_staff = 0
+        
+        # Current user info
+        current_user = session.get('real_name', session.get('username', 'User'))
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+        
+        # Log the page access
+        log_user_action(
+            session.get('user_id'),
+            'View About Page',
+            f'User {current_user} viewed system about page'
+        )
+        
+        return render_template('about.html',
+                              system_info=system_info,
+                              clinic_info=clinic_info,
+                              total_patients=total_patients,
+                              total_appointments=total_appointments,
+                              total_procedures=total_procedures,
+                              total_staff=total_staff,
+                              current_user=current_user,
+                              current_date=current_date)
+    
+    except Exception as e:
+        print(f"Error in settings/about route: {e}")
+        return f"Error loading about page: {e}", 500
 
 #_______________________________________________________________________
 #Staff Management Routes
