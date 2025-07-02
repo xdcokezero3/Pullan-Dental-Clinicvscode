@@ -85,6 +85,13 @@
             grid-column: 1 / -1;
         }
         
+        /* UPDATED: Required field styling */
+        .form-group.required .form-label::after {
+            content: ' *';
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
         .form-label {
             font-weight: 500;
             color: var(--text-color);
@@ -105,6 +112,12 @@
             box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
         }
         
+        /* UPDATED: Error state for required fields */
+        .form-input.error {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
+        }
+        
         .form-textarea {
             resize: vertical;
             min-height: 80px;
@@ -123,10 +136,27 @@
             border-left: 4px solid var(--primary-color);
         }
         
+        /* UPDATED: Required question styling */
+        .question-group.required {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .question-group.error {
+            background-color: rgba(220, 53, 69, 0.05);
+            border-left: 4px solid #dc3545;
+        }
+        
         .question-text {
             font-weight: 500;
             margin-bottom: 10px;
             color: var(--text-color);
+        }
+        
+        /* UPDATED: Required question indicator */
+        .question-text.required::after {
+            content: ' *';
+            color: #dc3545;
+            font-weight: bold;
         }
         
         .radio-group {
@@ -152,6 +182,44 @@
         
         .explanation-input.show {
             display: block;
+        }
+        
+        /* UPDATED: Error message styling */
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .error-message i {
+            margin-right: 8px;
+        }
+        
+        /* Success message styling */
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .success-message i {
+            margin-right: 8px;
         }
         
         /* Teeth Chart */
@@ -349,9 +417,15 @@
             color: white;
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background-color: #3367d6;
             color: white;
+        }
+        
+        .btn-primary:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
         }
         
         .btn-secondary {
@@ -493,6 +567,18 @@
                             <div class="card-header">
                                 <h3 class="card-title"><i class="fas fa-file-medical"></i> Dental Chart Information</h3>
                             </div>
+                            
+                            <!-- UPDATED: Error and Success Message Areas -->
+                            <div id="errorMessage" class="error-message">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span id="errorText"></span>
+                            </div>
+                            
+                            <div id="successMessage" class="success-message">
+                                <i class="fas fa-check-circle"></i>
+                                <span id="successText"></span>
+                            </div>
+                            
                             <form id="dentalChartForm">
                                 <input type="hidden" id="patientId" value="{{ patient.patId }}">
                                 <div class="form-grid">
@@ -500,9 +586,10 @@
                                         <label class="form-label">Referring Doctor</label>
                                         <input type="text" class="form-input" id="doctor" value="{{ dental_chart.dcdoctor if dental_chart else '' }}" placeholder="Enter doctor name">
                                     </div>
-                                    <div class="form-group">
+                                    <!-- UPDATED: Dentist field is now required -->
+                                    <div class="form-group required">
                                         <label class="form-label">Dentist</label>
-                                        <input type="text" class="form-input" id="dentist" value="{{ dental_chart.dcdentist if dental_chart else '' }}" placeholder="Enter dentist name">
+                                        <input type="text" class="form-input" id="dentist" value="{{ dental_chart.dcdentist if dental_chart else '' }}" placeholder="Enter dentist name" required>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Patient Contact</label>
@@ -514,37 +601,38 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Health Questionnaire -->
+                                <!-- Health Questionnaire - UPDATED: All questions are required -->
                                 <div class="questionnaire-section">
                                     <h4 style="margin-bottom: 20px; color: var(--primary-color);">
                                         <i class="fas fa-clipboard-list"></i> Health Questionnaire
+                                        <small style="color: #dc3545; font-size: 14px; font-weight: normal;">(All questions are required)</small>
                                     </h4>
                                     
-                                    <!-- Question 1 -->
-                                    <div class="question-group">
-                                        <div class="question-text">1. Are you currently taking any medications?</div>
+                                    <!-- Question 1 - REQUIRED -->
+                                    <div class="question-group required" id="q1_group">
+                                        <div class="question-text required">1. Are you currently taking any medications?</div>
                                         <div class="radio-group">
                                             <div class="radio-item">
-                                                <input type="radio" name="q1" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq1 == 'Yes' else '' }}>
+                                                <input type="radio" name="q1" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq1 == 'Yes' else '' }} required>
                                                 <label>Yes</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q1" value="No" {{ 'checked' if dental_chart and dental_chart.dcq1 == 'No' else '' }}>
+                                                <input type="radio" name="q1" value="No" {{ 'checked' if dental_chart and dental_chart.dcq1 == 'No' else '' }} required>
                                                 <label>No</label>
                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <!-- Question 2 -->
-                                    <div class="question-group">
-                                        <div class="question-text">2. Do you have any allergies to medications?</div>
+                                    <!-- Question 2 - REQUIRED -->
+                                    <div class="question-group required" id="q2_group">
+                                        <div class="question-text required">2. Do you have any allergies to medications?</div>
                                         <div class="radio-group">
                                             <div class="radio-item">
-                                                <input type="radio" name="q2" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq2 == 'Yes' else '' }} onchange="toggleExplanation('q2')">
+                                                <input type="radio" name="q2" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq2 == 'Yes' else '' }} onchange="toggleExplanation('q2')" required>
                                                 <label>Yes</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q2" value="No" {{ 'checked' if dental_chart and dental_chart.dcq2 == 'No' else '' }} onchange="toggleExplanation('q2')">
+                                                <input type="radio" name="q2" value="No" {{ 'checked' if dental_chart and dental_chart.dcq2 == 'No' else '' }} onchange="toggleExplanation('q2')" required>
                                                 <label>No</label>
                                             </div>
                                         </div>
@@ -553,16 +641,16 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Question 3 -->
-                                    <div class="question-group">
-                                        <div class="question-text">3. Have you had any serious illnesses or surgeries?</div>
+                                    <!-- Question 3 - REQUIRED -->
+                                    <div class="question-group required" id="q3_group">
+                                        <div class="question-text required">3. Have you had any serious illnesses or surgeries?</div>
                                         <div class="radio-group">
                                             <div class="radio-item">
-                                                <input type="radio" name="q3" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq3 == 'Yes' else '' }} onchange="toggleExplanation('q3')">
+                                                <input type="radio" name="q3" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq3 == 'Yes' else '' }} onchange="toggleExplanation('q3')" required>
                                                 <label>Yes</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q3" value="No" {{ 'checked' if dental_chart and dental_chart.dcq3 == 'No' else '' }} onchange="toggleExplanation('q3')">
+                                                <input type="radio" name="q3" value="No" {{ 'checked' if dental_chart and dental_chart.dcq3 == 'No' else '' }} onchange="toggleExplanation('q3')" required>
                                                 <label>No</label>
                                             </div>
                                         </div>
@@ -571,16 +659,16 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Question 4 -->
-                                    <div class="question-group">
-                                        <div class="question-text">4. Do you have any heart problems?</div>
+                                    <!-- Question 4 - REQUIRED -->
+                                    <div class="question-group required" id="q4_group">
+                                        <div class="question-text required">4. Do you have any heart problems?</div>
                                         <div class="radio-group">
                                             <div class="radio-item">
-                                                <input type="radio" name="q4" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq4 == 'Yes' else '' }} onchange="toggleExplanation('q4')">
+                                                <input type="radio" name="q4" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq4 == 'Yes' else '' }} onchange="toggleExplanation('q4')" required>
                                                 <label>Yes</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q4" value="No" {{ 'checked' if dental_chart and dental_chart.dcq4 == 'No' else '' }} onchange="toggleExplanation('q4')">
+                                                <input type="radio" name="q4" value="No" {{ 'checked' if dental_chart and dental_chart.dcq4 == 'No' else '' }} onchange="toggleExplanation('q4')" required>
                                                 <label>No</label>
                                             </div>
                                         </div>
@@ -589,20 +677,20 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Question 5 -->
-                                    <div class="question-group">
-                                        <div class="question-text">5. Are you pregnant or nursing?</div>
+                                    <!-- Question 5 - REQUIRED -->
+                                    <div class="question-group required" id="q5_group">
+                                        <div class="question-text required">5. Are you pregnant or nursing?</div>
                                         <div class="radio-group">
                                             <div class="radio-item">
-                                                <input type="radio" name="q5" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'Yes' else '' }} onchange="toggleExplanation('q5')">
+                                                <input type="radio" name="q5" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'Yes' else '' }} onchange="toggleExplanation('q5')" required>
                                                 <label>Yes</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q5" value="No" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'No' else '' }} onchange="toggleExplanation('q5')">
+                                                <input type="radio" name="q5" value="No" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'No' else '' }} onchange="toggleExplanation('q5')" required>
                                                 <label>No</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q5" value="N/A" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'N/A' else '' }} onchange="toggleExplanation('q5')">
+                                                <input type="radio" name="q5" value="N/A" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'N/A' else '' }} onchange="toggleExplanation('q5')" required>
                                                 <label>N/A</label>
                                             </div>
                                         </div>
@@ -611,16 +699,16 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Question 6 -->
-                                    <div class="question-group">
-                                        <div class="question-text">6. Do you smoke or use tobacco products?</div>
+                                    <!-- Question 6 - REQUIRED -->
+                                    <div class="question-group required" id="q6_group">
+                                        <div class="question-text required">6. Do you smoke or use tobacco products?</div>
                                         <div class="radio-group">
                                             <div class="radio-item">
-                                                <input type="radio" name="q6" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq6 == 'Yes' else '' }}>
+                                                <input type="radio" name="q6" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq6 == 'Yes' else '' }} required>
                                                 <label>Yes</label>
                                             </div>
                                             <div class="radio-item">
-                                                <input type="radio" name="q6" value="No" {{ 'checked' if dental_chart and dental_chart.dcq6 == 'No' else '' }}>
+                                                <input type="radio" name="q6" value="No" {{ 'checked' if dental_chart and dental_chart.dcq6 == 'No' else '' }} required>
                                                 <label>No</label>
                                             </div>
                                         </div>
@@ -732,8 +820,8 @@
                         
                         <!-- Action Buttons -->
                         <div class="action-buttons">
-                            <button class="btn btn-primary" onclick="saveDentalChart()">
-                                <i class="fas fa-save"></i> Save Dental Chart
+                            <button class="btn btn-primary" id="saveButton" onclick="saveDentalChart()">
+                                <i class="fas fa-save"></i> Save Complete Chart
                             </button>
                             <a href="/print_dental_chart/{{ patient.patId }}" class="btn btn-success" target="_blank">
                                 <i class="fas fa-print"></i> Print Chart
@@ -804,6 +892,104 @@
             } else {
                 explanationDiv.classList.remove('show');
             }
+            
+            // UPDATED: Clear validation styling when user makes a selection
+            clearValidationError(questionNumber + '_group');
+        }
+        
+        // UPDATED: Validation helper functions
+        function showError(message, missingFields = []) {
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            
+            errorText.textContent = message;
+            errorDiv.classList.add('show');
+            
+            // Highlight missing fields
+            missingFields.forEach(field => {
+                if (field.startsWith('Question')) {
+                    const questionNum = field.split(' ')[1];
+                    const groupElement = document.getElementById(`q${questionNum}_group`);
+                    if (groupElement) {
+                        groupElement.classList.add('error');
+                    }
+                } else if (field === 'Dentist Name') {
+                    const dentistInput = document.getElementById('dentist');
+                    if (dentistInput) {
+                        dentistInput.classList.add('error');
+                    }
+                }
+            });
+            
+            // Scroll to error message
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                hideError();
+            }, 10000);
+        }
+        
+        function hideError() {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.classList.remove('show');
+            
+            // Clear all error styling
+            document.querySelectorAll('.error').forEach(el => {
+                el.classList.remove('error');
+            });
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const successText = document.getElementById('successText');
+            
+            successText.textContent = message;
+            successDiv.classList.add('show');
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                successDiv.classList.remove('show');
+            }, 5000);
+        }
+        
+        function clearValidationError(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.remove('error');
+            }
+        }
+        
+        // UPDATED: Enhanced form validation
+        function validateForm() {
+            const missingFields = [];
+            
+            // Clear previous error styling
+            hideError();
+            
+            // Check dentist field
+            const dentistValue = document.getElementById('dentist').value.trim();
+            if (!dentistValue) {
+                missingFields.push('Dentist Name');
+            }
+            
+            // Check all required questions (q1-q6)
+            for (let i = 1; i <= 6; i++) {
+                const radioButtons = document.querySelectorAll(`input[name="q${i}"]`);
+                let isAnswered = false;
+                
+                radioButtons.forEach(radio => {
+                    if (radio.checked) {
+                        isAnswered = true;
+                    }
+                });
+                
+                if (!isAnswered) {
+                    missingFields.push(`Question ${i}`);
+                }
+            }
+            
+            return missingFields;
         }
         
         // Open tooth condition modal
@@ -855,8 +1041,22 @@
             closeConditionModal();
         }
         
-        // Save dental chart
+        // UPDATED: Enhanced save function with validation
         function saveDentalChart() {
+            const saveButton = document.getElementById('saveButton');
+            
+            // Validate form first
+            const missingFields = validateForm();
+            
+            if (missingFields.length > 0) {
+                showError(`Please complete the following required fields: ${missingFields.join(', ')}`, missingFields);
+                return;
+            }
+            
+            // Disable button and show loading state
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            
             const formData = new FormData();
             formData.append('patient_id', document.getElementById('patientId').value);
             formData.append('doctor', document.getElementById('doctor').value);
@@ -881,17 +1081,49 @@
             })
             .then(response => response.json())
             .then(data => {
+                // Re-enable button
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save"></i> Save Complete Chart';
+                
                 if (data.success) {
-                    alert('Dental chart saved successfully!');
+                    showSuccess(data.message || 'Dental chart saved successfully! Chart is now complete.');
+                    
+                    // Update page URL to reflect completion
+                    const currentUrl = new URL(window.location);
+                    currentUrl.searchParams.set('completed', 'true');
+                    window.history.replaceState({}, '', currentUrl);
+                    
                 } else {
-                    alert('Error saving dental chart: ' + data.error);
+                    if (data.missing_fields) {
+                        showError(data.error, data.missing_fields);
+                    } else {
+                        showError('Error saving dental chart: ' + data.error);
+                    }
                 }
             })
             .catch(error => {
+                // Re-enable button
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save"></i> Save Complete Chart';
+                
                 console.error('Error:', error);
-                alert('Error saving dental chart');
+                showError('Error saving dental chart. Please try again.');
             });
         }
+        
+        // Clear validation errors when user starts typing in dentist field
+        document.getElementById('dentist').addEventListener('input', function() {
+            clearValidationError('dentist');
+            this.classList.remove('error');
+        });
+        
+        // Clear validation errors when user selects radio buttons
+        document.addEventListener('change', function(event) {
+            if (event.target.type === 'radio') {
+                const questionName = event.target.name;
+                clearValidationError(questionName + '_group');
+            }
+        });
         
         // Close modal when clicking outside
         window.onclick = function(event) {
@@ -916,7 +1148,18 @@
             if (dateElement) {
                 dateElement.textContent = `${day}, ${month} ${date}, ${year}`;
             }
+            
+            // Check if chart was just completed and show success message
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('completed') === 'true') {
+                showSuccess('Chart completed successfully! All required information has been saved.');
+                
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         });
+        
+        console.log('Dental Chart loaded with validation - All fields are required for completion');
     </script>
 </body>
 </html>

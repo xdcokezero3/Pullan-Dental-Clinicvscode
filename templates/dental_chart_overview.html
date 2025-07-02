@@ -118,12 +118,7 @@
             color: var(--secondary-color);
         }
         
-        .status-partial {
-            background-color: rgba(251, 188, 5, 0.1);
-            color: var(--warning-color);
-        }
-        
-        .status-missing {
+        .status-incomplete {
             background-color: rgba(234, 67, 53, 0.1);
             color: var(--danger-color);
         }
@@ -214,7 +209,7 @@
             100% { transform: rotate(360deg); }
         }
         
-        /* Quick Stats */
+        /* Quick Stats - UPDATED: Only 3 stats now */
         .quick-stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -366,19 +361,19 @@
                 </h1>
                 <p class="date">{{ current_date }}</p>
                 
-                <!-- Quick Statistics -->
+                <!-- Quick Statistics - UPDATED: Only 3 stats -->
                 <div class="quick-stats">
                     <div class="stat-card">
                         <div class="stat-number">{{ total_patients }}</div>
                         <div class="stat-label">Total Patients</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">{{ patients_with_charts }}</div>
-                        <div class="stat-label">Have Dental Charts</div>
-                    </div>
-                    <div class="stat-card">
                         <div class="stat-number">{{ complete_charts }}</div>
                         <div class="stat-label">Complete Charts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ incomplete_charts }}</div>
+                        <div class="stat-label">Incomplete Charts</div>
                     </div>
                 </div>
                 
@@ -398,11 +393,11 @@
                                     <input type="text" id="searchPatients" placeholder="Search patients...">
                                     <i class="fas fa-search"></i>
                                 </div>
+                                <!-- UPDATED: Removed "Partial Charts" filter -->
                                 <div class="filter-buttons">
                                     <button class="filter-btn active" onclick="filterCharts('all')">All Patients</button>
                                     <button class="filter-btn" onclick="filterCharts('complete')">Complete Charts</button>
-                                    <button class="filter-btn" onclick="filterCharts('partial')">Partial Charts</button>
-                                    <button class="filter-btn" onclick="filterCharts('missing')">Missing Charts</button>
+                                    <button class="filter-btn" onclick="filterCharts('incomplete')">Incomplete Charts</button>
                                 </div>
                             </div>
                         </div>
@@ -422,7 +417,8 @@
                                 </thead>
                                 <tbody id="chartsTable">
                                     {% for patient in patients %}
-                                    <tr data-status="{{ 'complete' if patient.chart_complete else ('partial' if patient.has_dental_chart or patient.has_teeth_chart else 'missing') }}">
+                                    <!-- UPDATED: Only 'complete' or 'incomplete' status -->
+                                    <tr data-status="{{ 'complete' if patient.chart_complete else 'incomplete' }}">
                                         <td>
                                             <span class="patient-id-badge">{{ patient.id }}</span>
                                         </td>
@@ -434,27 +430,16 @@
                                         <td>
                                             {% if patient.chart_complete %}
                                                 <span class="chart-status-badge status-complete">
-                                                    <i class="fas fa-check"></i> Complete Chart
+                                                    <i class="fas fa-check-circle"></i> Complete Chart
                                                 </span>
-                                            {% elif patient.has_dental_chart or patient.has_teeth_chart %}
-                                                <span class="chart-status-badge status-partial">
-                                                    <i class="fas fa-exclamation"></i> Partial Chart
+                                            {% else %}
+                                                <span class="chart-status-badge status-incomplete">
+                                                    <i class="fas fa-exclamation-circle"></i> Incomplete Chart
                                                 </span>
                                                 <br>
-                                                {% if patient.has_dental_chart %}
-                                                <small style="color: var(--secondary-color);">
-                                                    <i class="fas fa-check"></i> Dental Info
+                                                <small style="color: var(--text-light); font-size: 10px;">
+                                                    Missing required information
                                                 </small>
-                                                {% endif %}
-                                                {% if patient.has_teeth_chart %}
-                                                <small style="color: var(--secondary-color); margin-left: 10px;">
-                                                    <i class="fas fa-check"></i> Teeth Chart
-                                                </small>
-                                                {% endif %}
-                                            {% else %}
-                                                <span class="chart-status-badge status-missing">
-                                                    <i class="fas fa-times"></i> No Chart
-                                                </span>
                                             {% endif %}
                                         </td>
                                         <td>
@@ -466,15 +451,10 @@
                                             <div class="action-buttons">
                                                 {% if patient.has_dental_chart %}
                                                     <a href="/patient_dental_chart/{{ patient.raw_id }}" class="btn-chart">
-                                                        <i class="fas fa-edit" style="margin-right: 5px;"></i>Edit Chart
+                                                        <i class="fas fa-edit" style="margin-right: 5px;"></i>
+                                                        {% if patient.chart_complete %}Edit Chart{% else %}Complete Chart{% endif %}
                                                     </a>
                                                 {% else %}
-                                                    <!-- Test button to diagnose issues -->
-                                                    <a href="/test_chart_creation/{{ patient.raw_id }}" class="btn-view" target="_blank" title="Test chart creation">
-                                                        <i class="fas fa-bug" style="margin-right: 5px;"></i>Test
-                                                    </a>
-                                                    
-                                                    <!-- Working create button -->
                                                     <a href="/create_dental_chart_now/{{ patient.raw_id }}" class="btn-create" onclick="showCreating(this, {{ patient.raw_id }})">
                                                         <i class="fas fa-plus" style="margin-right: 5px;"></i>Create Chart
                                                     </a>
@@ -657,7 +637,7 @@
             console.log(`Search results: ${visibleCount} patients found`);
         });
 
-        // Filter charts by status
+        // UPDATED: Filter charts by status (no partial option)
         function filterCharts(status) {
             const tableRows = document.querySelectorAll('#chartsTable tr');
             const filterButtons = document.querySelectorAll('.filter-btn');
@@ -672,9 +652,11 @@
                     row.style.display = '';
                 } else {
                     const rowStatus = row.getAttribute('data-status');
-                    if (rowStatus === status) {
+                    if (status === 'incomplete' && rowStatus === 'incomplete') {
                         row.style.display = '';
-                    } else {
+                    } else if (status === 'complete' && rowStatus === 'complete') {
+                        row.style.display = '';
+                    } else if (status !== 'all') {
                         row.style.display = 'none';
                     }
                 }
@@ -698,26 +680,7 @@
             }
         });
 
-        // Debug function for testing
-        function debugChartCreation(patientId) {
-            console.log('Debug: Testing chart creation for patient', patientId);
-            
-            // Open test page in new window
-            window.open('/test_chart_creation/' + patientId, '_blank');
-            
-            // Also test direct creation
-            console.log('Debug: Direct creation URL would be /create_dental_chart_now/' + patientId);
-        }
-
-        // Handle browser back button
-        window.addEventListener('popstate', function(event) {
-            // Refresh the page to ensure proper state
-            window.location.reload();
-        });
-
-        // Add console logging for debugging
-        console.log('Dental Charts Overview loaded successfully');
-        console.log('Available functions: showCreating(), showMessage(), filterCharts(), debugChartCreation()');
+        console.log('Dental Charts Overview loaded successfully - No partial charts');
     </script>
 </body>
 </html>

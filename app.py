@@ -216,6 +216,10 @@ def login():
                           max_attempts=MAX_FAILED_ATTEMPTS,
                           redirect_countdown=REDIRECT_COUNTDOWN_SECONDS)
 
+# Find the dashboard route in your app.py and replace it with this updated version
+
+# Replace the entire dashboard route in your app.py with this updated version
+
 @app.route('/dashboard')
 def dashboard():
     """Dashboard with real data from database"""
@@ -228,9 +232,6 @@ def dashboard():
         
         # Calculate yesterday for comparisons
         yesterday = today - timedelta(days=1)
-        week_start = today - timedelta(days=today.weekday())  # Monday of current week
-        last_week_start = week_start - timedelta(weeks=1)
-        last_week_end = week_start - timedelta(days=1)
         
         # 1. PATIENT STATISTICS
         total_patients = Patient.query.filter_by(is_deleted=False).count()
@@ -251,60 +252,7 @@ def dashboard():
         elif todays_appointment_count > 0:
             appointment_growth = 100
         
-        # 3. TODAY'S REVENUE (calculated from procedures)
-        todays_procedures = Report.query.filter_by(repdate=today).all()
-        todays_revenue = 0
-        
-        # Calculate revenue based on procedures (you can adjust these rates)
-        procedure_rates = {
-            'cleaning': 80,
-            'extraction': 150,
-            'root_canal': 300,
-            'braces': 2000,
-            'dentures': 800
-        }
-        
-        for procedure in todays_procedures:
-            if procedure.repcleaning: todays_revenue += procedure_rates['cleaning']
-            if procedure.repextraction: todays_revenue += procedure_rates['extraction']
-            if procedure.reprootcanal: todays_revenue += procedure_rates['root_canal']
-            if procedure.repbraces: todays_revenue += procedure_rates['braces']
-            if procedure.repdentures: todays_revenue += procedure_rates['dentures']
-        
-        # Yesterday's revenue for comparison
-        yesterday_procedures = Report.query.filter_by(repdate=yesterday).all()
-        yesterday_revenue = 0
-        for procedure in yesterday_procedures:
-            if procedure.repcleaning: yesterday_revenue += procedure_rates['cleaning']
-            if procedure.repextraction: yesterday_revenue += procedure_rates['extraction']
-            if procedure.reprootcanal: yesterday_revenue += procedure_rates['root_canal']
-            if procedure.repbraces: yesterday_revenue += procedure_rates['braces']
-            if procedure.repdentures: yesterday_revenue += procedure_rates['dentures']
-        
-        revenue_growth = 0
-        if yesterday_revenue > 0:
-            revenue_growth = ((todays_revenue - yesterday_revenue) / yesterday_revenue) * 100
-        elif todays_revenue > 0:
-            revenue_growth = 100
-        
-        # 4. THIS WEEK'S TREATMENTS
-        this_week_treatments = Report.query.filter(
-            Report.repdate >= week_start,
-            Report.repdate <= today
-        ).count()
-        
-        last_week_treatments = Report.query.filter(
-            Report.repdate >= last_week_start,
-            Report.repdate <= last_week_end
-        ).count()
-        
-        treatment_growth = 0
-        if last_week_treatments > 0:
-            treatment_growth = ((this_week_treatments - last_week_treatments) / last_week_treatments) * 100
-        elif this_week_treatments > 0:
-            treatment_growth = 100
-        
-        # 5. FORMAT TODAY'S APPOINTMENTS FOR TABLE
+        # 3. FORMAT TODAY'S APPOINTMENTS FOR TABLE
         formatted_appointments = []
         for appointment in todays_appointments:
             # Get patient details
@@ -333,8 +281,6 @@ def dashboard():
                 'patient_name': appointment.apppatient,
                 'patient_id': patient_id,
                 'time': appointment.apptime or "N/A",
-                'treatment': "General Checkup",  # Default since not in schema
-                'doctor': "Dr. Andrews",  # Default since not in schema
                 'status': status,
                 'raw_id': appointment.appid,
                 'patient_phone': patient.patcontact if patient else "N/A"
@@ -343,7 +289,7 @@ def dashboard():
         # Sort appointments by time
         formatted_appointments.sort(key=lambda x: x['time'] if x['time'] != "N/A" else "00:00")
         
-        # 6. RECENT PATIENTS (last 3 patients who had procedures)
+        # 4. RECENT PATIENTS (last 3 patients who had procedures)
         recent_procedures = Report.query.order_by(Report.repdate.desc()).limit(3).all()
         recent_patients = []
         
@@ -367,50 +313,47 @@ def dashboard():
                     'raw_id': patient.patId
                 })
         
-        # 7. UPCOMING EVENTS (you can customize this based on your needs)
-        upcoming_events = [
-            {
-                'title': 'Staff Meeting',
-                'date': (today + timedelta(days=1)).strftime('%b %d'),
-                'time': '9:00 AM',
-                'type': 'staff-meeting'
-            },
-            {
-                'title': 'Inventory Check',
-                'date': (today + timedelta(days=3)).strftime('%b %d'),
-                'time': '2:00 PM',
-                'type': 'inventory'
-            },
-            {
-                'title': 'Equipment Maintenance',
-                'date': (today + timedelta(days=5)).strftime('%b %d'),
-                'time': '10:00 AM',
-                'type': 'training'
-            }
-        ]
+        # 5. GET APPOINTMENT DATES FOR CALENDAR MARKING
+        # Get current month start and end dates
+        current_month = today.replace(day=1)
+        if today.month == 12:
+            next_month = today.replace(year=today.year + 1, month=1, day=1)
+        else:
+            next_month = today.replace(month=today.month + 1, day=1)
         
-        # 8. INVENTORY ALERTS
+        # Get all appointments for current month
+        monthly_appointments = Appointment.query.filter(
+            Appointment.appdate >= current_month,
+            Appointment.appdate < next_month
+        ).all()
+        
+        # Create list of dates that have appointments
+        appointment_dates = []
+        for appointment in monthly_appointments:
+            if appointment.appdate:
+                appointment_dates.append(appointment.appdate.day)
+        
+        # Remove duplicates and sort
+        appointment_dates = sorted(list(set(appointment_dates)))
+        
+        # 6. INVENTORY ALERTS
         low_stock_items = Inventory.query.filter(Inventory.invquantity < 5).count()
         expired_items = Inventory.query.filter(
             Inventory.invdoe.isnot(None),
             Inventory.invdoe < today
         ).count()
         
-        # Prepare all data for template
+        # Prepare all data for template (removed revenue and treatments, added appointment dates)
         dashboard_data = {
             'stats': {
                 'total_patients': total_patients,
                 'patient_growth': patient_growth,
                 'todays_appointments': todays_appointment_count,
-                'appointment_growth': appointment_growth,
-                'todays_revenue': todays_revenue,
-                'revenue_growth': revenue_growth,
-                'this_week_treatments': this_week_treatments,
-                'treatment_growth': treatment_growth
+                'appointment_growth': appointment_growth
             },
             'appointments': formatted_appointments,
             'recent_patients': recent_patients,
-            'upcoming_events': upcoming_events,
+            'appointment_dates': appointment_dates,
             'alerts': {
                 'low_stock': low_stock_items,
                 'expired_items': expired_items
@@ -428,15 +371,11 @@ def dashboard():
                                  'total_patients': 0, 
                                  'patient_growth': 0,
                                  'todays_appointments': 0, 
-                                 'appointment_growth': 0,
-                                 'todays_revenue': 0,
-                                 'revenue_growth': 0,
-                                 'this_week_treatments': 0,
-                                 'treatment_growth': 0
+                                 'appointment_growth': 0
                              },
                              appointments=[], 
                              recent_patients=[], 
-                             upcoming_events=[],
+                             appointment_dates=[],
                              alerts={'low_stock': 0, 'expired_items': 0},
                              current_date=datetime.now().strftime("%A, %B %d, %Y"),
                              error=f"Dashboard error: {e}")
@@ -4190,7 +4129,7 @@ def add_procedure():
 
 @app.route('/update_dental_chart', methods=['POST'])
 def update_dental_chart():
-    """Update patient's dental chart information"""
+    """Update patient's dental chart information - UPDATED: Added validation"""
     try:
         patient_id = request.form.get('patient_id')
         patient = Patient.query.get_or_404(patient_id)
@@ -4200,7 +4139,35 @@ def update_dental_chart():
         if not dental_chart:
             return jsonify({"success": False, "error": "Dental chart not found"})
         
-        # Update dental chart fields
+        # UPDATED: Validate required fields before saving
+        required_fields = {
+            'dentist': request.form.get('dentist'),
+            'q1': request.form.get('q1'),
+            'q2': request.form.get('q2'),
+            'q3': request.form.get('q3'),
+            'q4': request.form.get('q4'),
+            'q5': request.form.get('q5'),
+            'q6': request.form.get('q6')
+        }
+        
+        # Check for missing required fields
+        missing_fields = []
+        for field_name, field_value in required_fields.items():
+            if not field_value or field_value.strip() == '':
+                if field_name == 'dentist':
+                    missing_fields.append('Dentist Name')
+                else:
+                    question_number = field_name[1:]  # Extract number from 'q1', 'q2', etc.
+                    missing_fields.append(f'Question {question_number}')
+        
+        if missing_fields:
+            return jsonify({
+                "success": False, 
+                "error": f"Please complete the following required fields: {', '.join(missing_fields)}",
+                "missing_fields": missing_fields
+            })
+        
+        # If validation passes, update dental chart fields
         dental_chart.dcdoctor = request.form.get('doctor')
         dental_chart.dcdentist = request.form.get('dentist')
         dental_chart.dcdcontact = request.form.get('dentist_contact')
@@ -4230,19 +4197,18 @@ def update_dental_chart():
         log_user_action(
             session.get('user_id'),
             'Update Dental Chart',
-            f'Updated dental chart for patient {patient.patname}'
+            f'Updated complete dental chart for patient {patient.patname}'
         )
         
         return jsonify({
             "success": True,
-            "message": "Dental chart updated successfully"
+            "message": "Dental chart saved successfully! Chart is now complete."
         })
     
     except Exception as e:
         db.session.rollback()
         print(f"Error in update_dental_chart route: {e}")
         return jsonify({"success": False, "error": str(e)})
-
 
 @app.route('/procedure_history/<int:patient_id>')
 def procedure_history(patient_id):
@@ -4285,9 +4251,27 @@ def procedure_history(patient_id):
         print(f"Error in procedure_history route: {e}")
         return f"Error loading procedure history: {e}", 500
     
+def is_chart_complete(dental_chart):
+    """Check if a dental chart has all required information"""
+    if not dental_chart:
+        return False
+    
+    # Required fields for a complete chart
+    required_fields = [
+        'dcdentist',  # Dentist name is required
+        'dcq1', 'dcq2', 'dcq3', 'dcq4', 'dcq5', 'dcq6'  # All questionnaire answers required
+    ]
+    
+    for field in required_fields:
+        field_value = getattr(dental_chart, field, None)
+        if not field_value or field_value.strip() == '':
+            return False
+    
+    return True
+    
 @app.route('/dental_charts')
 def dental_charts():
-    """Dental charts overview page showing all patients and their chart status"""
+    """Dental charts overview page - UPDATED: No partial charts, only complete or missing"""
     try:
         # Get all active patients
         patients_list = Patient.query.filter_by(is_deleted=False).all()
@@ -4302,6 +4286,9 @@ def dental_charts():
             # Get latest procedure
             latest_procedure = Report.query.filter_by(reppatient=patient.patname).order_by(Report.repdate.desc()).first()
             
+            # UPDATED: Only complete or missing - no partial
+            chart_complete = dental_chart is not None and teeth_chart is not None and is_chart_complete(dental_chart)
+            
             formatted_patients.append({
                 'id': f"PAT-{patient.patId:03d}",
                 'name': patient.patname,
@@ -4310,30 +4297,29 @@ def dental_charts():
                 'gender': patient.patgender or "N/A",
                 'has_dental_chart': dental_chart is not None,
                 'has_teeth_chart': teeth_chart is not None,
-                'chart_complete': dental_chart is not None and teeth_chart is not None,
+                'chart_complete': chart_complete,
                 'last_procedure_date': latest_procedure.repdate.strftime('%B %d, %Y') if latest_procedure and latest_procedure.repdate else "No procedures",
-                'chart_created_date': dental_chart.dcpatname if dental_chart else None,  # You might want to add a created date field
                 'raw_id': patient.patId
             })
         
-        # Get statistics
+        # Get statistics - UPDATED: Only complete vs incomplete
         total_patients = len(patients_list)
-        patients_with_charts = sum(1 for p in formatted_patients if p['has_dental_chart'])
         complete_charts = sum(1 for p in formatted_patients if p['chart_complete'])
+        incomplete_charts = total_patients - complete_charts
         
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
         return render_template('dental_chart_overview.html',
                               patients=formatted_patients,
                               total_patients=total_patients,
-                              patients_with_charts=patients_with_charts,
                               complete_charts=complete_charts,
+                              incomplete_charts=incomplete_charts,
                               current_date=current_date)
     
     except Exception as e:
         print(f"Error in dental_charts route: {e}")
         return f"Error loading dental charts: {e}", 500
-
+    
 @app.route('/print_dental_chart/<int:patient_id>')
 def print_dental_chart(patient_id):
     """Generate a printable dental chart - FIXED VERSION"""
