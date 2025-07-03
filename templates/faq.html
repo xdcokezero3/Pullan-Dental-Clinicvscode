@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ - Pullan Dental Clinic</title>
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        .faq-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .faq-header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #007bff;
+        }
+        
+        .faq-header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .faq-header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .faq-section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        
+        .faq-section h2 {
+            color: #007bff;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .developer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        .developer-card {
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            border: 2px solid #e9ecef;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .developer-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .developer-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .developer-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .developer-title {
+            color: #007bff;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .contact-item i {
+            width: 20px;
+            color: #007bff;
+        }
+        
+        .download-section {
+            text-align: center;
+        }
+        
+        .download-card {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 2px solid #e9ecef;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .download-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2.5rem;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            text-decoration: none;
+            color: white;
+        }
+        
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 30px;
+            transition: background 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background: #5a6268;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .support-note {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .support-note h3 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+        
+        .support-note p {
+            color: #555;
+            margin: 0;
+        }
+        
+        @media (max-width: 768px) {
+            .developer-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .faq-container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .faq-header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                <!-- Admin Only - Backup & Restore -->
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                <!-- Admin Only - User Logs -->
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                {% endif %}
+                <li class="active"><a href="{{ url_for('faq') }}"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> About</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" placeholder="Search...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="user">
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- FAQ Content -->
+            <div class="faq-container">
+                <a href="{{ url_for('dashboard') }}" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Dashboard
+                </a>
+                
+                <div class="faq-header">
+                    <h1><i class="fas fa-question-circle"></i> Frequently Asked Questions</h1>
+                    <p>Need help? Contact our developers or download the user manual below.</p>
+                </div>
+                
+                <!-- Developer Contact Section -->
+                <div class="faq-section">
+                    <h2>
+                        <i class="fas fa-users"></i>
+                        Developer Contact Information
+                    </h2>
+                    <p style="margin-bottom: 20px; color: #666;">
+                        Have questions or need technical support? Reach out to our development team:
+                    </p>
+                    
+                    <div class="developer-grid">
+                        <!-- Louie Averion -->
+                        <div class="developer-card">
+                            <div class="developer-avatar">LA</div>
+                            <div class="developer-name">Louie Martin F. Averion</div>
+                            <div class="developer-title">Lead Developer</div>
+                            <div class="contact-item">
+                                <i class="fas fa-envelope"></i>
+                                <span>louie.averion@pullandental.com.ph</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-phone"></i>
+                                <span>+63 917 123 4567</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>Metro Manila, Philippines</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fab fa-linkedin"></i>
+                                <span>linkedin.com/in/louie-averion</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Emeric Araneta -->
+                        <div class="developer-card">
+                            <div class="developer-avatar">EA</div>
+                            <div class="developer-name">Emeric Joseph Araneta</div>
+                            <div class="developer-title">Full Stack Developer</div>
+                            <div class="contact-item">
+                                <i class="fas fa-envelope"></i>
+                                <span>emeric.araneta@pullandental.com.ph</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-phone"></i>
+                                <span>+63 917 876 5432</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>Metro Manila, Philippines</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fab fa-linkedin"></i>
+                                <span>linkedin.com/in/emeric-araneta</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- User Manual Download Section -->
+                <div class="faq-section download-section">
+                    <h2>
+                        <i class="fas fa-book"></i>
+                        User Manual & Documentation
+                    </h2>
+                    <p style="margin-bottom: 20px; color: #666;">
+                        Download the complete user manual for detailed instructions and troubleshooting guides.
+                    </p>
+                    
+                    <div class="download-card">
+                        <div class="download-icon">
+                            <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <h3 style="color: #333; margin-bottom: 10px;">Pullan Dental Clinic User Manual</h3>
+                        <p style="color: #666; margin-bottom: 25px;">
+                            Complete guide with step-by-step instructions for all system features.
+                        </p>
+                        <a href="{{ url_for('download_user_manual') }}" class="download-btn">
+                            <i class="fas fa-download"></i>
+                            Download PDF Manual
+                        </a>
+                        <p style="margin-top: 15px; font-size: 0.9rem; color: #999;">
+                            Version 2.5.1 • Updated January 2025 • 2.1 MB
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Support Note -->
+                <div class="support-note">
+                    <h3><i class="fas fa-info-circle"></i> Need Immediate Support?</h3>
+                    <p>
+                        For urgent technical issues or system problems, please contact our developers directly via email or phone. 
+                        We're here to help ensure your clinic management system runs smoothly!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

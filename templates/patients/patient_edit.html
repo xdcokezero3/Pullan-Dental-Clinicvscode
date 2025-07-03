@@ -221,7 +221,9 @@
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
                 {% endif %}
-                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+                <!-- ADD THIS LINE FOR FAQ BUTTON -->
+                <li><a href="{{ url_for('faq') }}"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> About</a></li>
             </ul>
             <div class="logout">
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>

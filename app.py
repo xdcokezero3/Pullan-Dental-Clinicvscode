@@ -46,8 +46,81 @@ REDIRECT_COUNTDOWN_SECONDS = 5
 
 # Time (in minutes) after which failed attempts counter resets automatically
 # Set to 0 to disable auto-reset (counter only resets on successful login or password reset)
-FAILED_ATTEMPTS_RESET_MINUTES = 30
+FAILED_ATTEMPTS_RESET_MINUTES = 1
 
+# =============================================================================
+# FAQ AND SUPPORT ROUTES
+# =============================================================================
+
+@app.route('/faq')
+def faq():
+    """Render the FAQ page with developer contact information"""
+    try:
+        # Log the page access
+        log_user_action(
+            session.get('user_id'),
+            'View FAQ Page',
+            f'User accessed FAQ and support page'
+        )
+        
+        return render_template('faq.html')
+    
+    except Exception as e:
+        print(f"Error in FAQ route: {e}")
+        return f"Error loading FAQ page: {e}", 500
+
+@app.route('/download_user_manual')
+def download_user_manual():
+    """Download the user manual PDF"""
+    try:
+        # FIXED: Path to the user manual in templates folder
+        manual_path = os.path.join(app.template_folder, 'User Manual.pdf')
+        
+        # Alternative paths to check if not in templates folder
+        alternative_paths = [
+            os.path.join(os.getcwd(), 'User Manual.pdf'),  # Root directory
+            os.path.join(app.static_folder, 'User Manual.pdf'),  # Static folder
+            os.path.join('templates', 'User Manual.pdf'),  # Relative templates path
+        ]
+        
+        # Check if file exists in templates folder first
+        if not os.path.exists(manual_path):
+            print(f"Manual not found in templates folder: {manual_path}")
+            
+            # Try alternative locations
+            found_path = None
+            for alt_path in alternative_paths:
+                if os.path.exists(alt_path):
+                    manual_path = alt_path
+                    found_path = alt_path
+                    print(f"Found manual at: {found_path}")
+                    break
+            
+            if not found_path:
+                print("Manual not found in any location:")
+                print(f"  Templates folder: {os.path.join(app.template_folder, 'User Manual.pdf')}")
+                for i, path in enumerate(alternative_paths):
+                    print(f"  Alternative {i+1}: {path}")
+                return "User manual not found. Please contact the administrator.", 404
+        
+        # Log the download action
+        log_user_action(
+            session.get('user_id'),
+            'Download User Manual',
+            f'User downloaded the user manual PDF from: {manual_path}'
+        )
+        
+        return send_file(
+            manual_path,
+            as_attachment=True,
+            download_name='Pullan_Dental_Clinic_User_Manual.pdf',
+            mimetype='application/pdf'
+        )
+    
+    except Exception as e:
+        print(f"Error downloading user manual: {e}")
+        return f"Error downloading user manual: {e}", 500
+    
 def hash_password(password):
     """
     Hash a password using SHA-256
