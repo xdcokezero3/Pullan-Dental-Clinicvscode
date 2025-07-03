@@ -348,7 +348,6 @@
                             <th>Age</th>
                             <th>Address</th>
                             <th>Status</th>
-                            <th>Last Visit</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -366,7 +365,6 @@
                                     {{ patient.status }}
                                 </span>
                             </td>
-                            <td>{{ patient.last_visit }}</td>
                             <td>
                                 <a href="{{ url_for('patient_details', patient_id=patient.id|replace('PAT-', '')|int) }}" 
                                    class="action-button view-button" title="View Details">

@@ -238,6 +238,37 @@
     background-color: #ff9800;
 }
 
+/* Date validation styles */
+.form-group.invalid input {
+    border-color: #f44336;
+    background-color: #ffebee;
+}
+
+.form-group .error-message {
+    color: #f44336;
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+}
+
+.form-group.invalid .error-message {
+    display: block;
+}
+
+.form-group .helper-text {
+    color: #666;
+    font-size: 12px;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* Disabled submit button when invalid */
+.btn.submit-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 /* Status Badge Responsive */
 @media (max-width: 768px) {
     .status-badge {
@@ -533,8 +564,7 @@
                 <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
             </ul>
             <div class="logout">
-                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
-            </div>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></div>
         </div>
 
         <!-- Main Content -->
@@ -752,9 +782,11 @@
                     </div>
                     
                     <div class="form-row">
-                        <div class="form-group">
+                        <div class="form-group" id="appointmentDateGroup">
                             <label for="appointmentDate">Date*</label>
                             <input type="date" id="appointmentDate" name="date" required>
+                            <div class="helper-text">Only future dates are allowed</div>
+                            <div class="error-message">Please select a future date. Past dates are not allowed.</div>
                         </div>
                         <div class="form-group">
                             <label for="appointmentTime">Time*</label>
@@ -769,7 +801,7 @@
                     
                     <div class="form-actions">
                         <button type="button" class="btn cancel-btn" id="cancelAddAppointment">Cancel</button>
-                        <button type="submit" class="btn submit-btn">Schedule Appointment</button>
+                        <button type="submit" class="btn submit-btn" id="scheduleAppointmentBtn">Schedule Appointment</button>
                     </div>
                 </form>
             </div>
@@ -797,9 +829,11 @@
                     </div>
                     
                     <div class="form-row">
-                        <div class="form-group">
+                        <div class="form-group" id="newAppointmentDateGroup">
                             <label for="newAppointmentDate">New Date*</label>
                             <input type="date" id="newAppointmentDate" name="date" required>
+                            <div class="helper-text">Only future dates are allowed</div>
+                            <div class="error-message">Please select a future date. Past dates are not allowed.</div>
                         </div>
                         <div class="form-group">
                             <label for="newAppointmentTime">New Time*</label>
@@ -814,7 +848,7 @@
                     
                     <div class="form-actions">
                         <button type="button" class="btn cancel-btn" id="cancelReschedule">Cancel</button>
-                        <button type="submit" class="btn submit-btn">Save Changes</button>
+                        <button type="submit" class="btn submit-btn" id="saveRescheduleBtn">Save Changes</button>
                     </div>
                 </form>
             </div>
@@ -823,6 +857,108 @@
 
     <script>
         console.log('🔄 Loading appointments page...');
+        
+        // Date validation functions
+        function getTodayString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        function validateDate(dateInput, formGroup, submitButton) {
+            const selectedDate = dateInput.value;
+            const today = getTodayString();
+            
+            if (selectedDate && selectedDate < today) {
+                formGroup.classList.add('invalid');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+                return false;
+            } else {
+                formGroup.classList.remove('invalid');
+                if (submitButton) {
+                    submitButton.disabled = false;
+                }
+                return true;
+            }
+        }
+        
+        // Initialize date validation for add appointment modal
+        function initializeDateValidation() {
+            const today = getTodayString();
+            console.log('Today date:', today);
+            
+            // Add appointment modal
+            const appointmentDate = document.getElementById('appointmentDate');
+            const appointmentDateGroup = document.getElementById('appointmentDateGroup');
+            const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
+            
+            // Set min date to today
+            appointmentDate.setAttribute('min', today);
+            appointmentDate.value = today; // Set default to today
+            
+            // Add change event listener
+            appointmentDate.addEventListener('change', function() {
+                validateDate(this, appointmentDateGroup, scheduleBtn);
+            });
+            
+            // Reschedule appointment modal
+            const newAppointmentDate = document.getElementById('newAppointmentDate');
+            const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
+            const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
+            
+            // Set min date to today
+            newAppointmentDate.setAttribute('min', today);
+            
+            // Add change event listener
+            newAppointmentDate.addEventListener('change', function() {
+                validateDate(this, newAppointmentDateGroup, saveRescheduleBtn);
+            });
+            
+            console.log('✅ Date validation initialized');
+        }
+        
+        // Call initialization when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDateValidation();
+        });
+        
+        // Also call it immediately in case DOM is already loaded
+        initializeDateValidation();
+        
+        // Enhanced form submission validation
+        function validateAppointmentForm() {
+            const appointmentDate = document.getElementById('appointmentDate');
+            const appointmentDateGroup = document.getElementById('appointmentDateGroup');
+            const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
+            
+            const isValidDate = validateDate(appointmentDate, appointmentDateGroup, scheduleBtn);
+            
+            if (!isValidDate) {
+                showNotification('Please select a valid future date for the appointment.', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function validateRescheduleForm() {
+            const newAppointmentDate = document.getElementById('newAppointmentDate');
+            const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
+            const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
+            
+            const isValidDate = validateDate(newAppointmentDate, newAppointmentDateGroup, saveRescheduleBtn);
+            
+            if (!isValidDate) {
+                showNotification('Please select a valid future date for rescheduling.', 'error');
+                return false;
+            }
+            
+            return true;
+        }
         
         // Print Appointments Report functionality - SAFER VERSION
         const printButton = document.getElementById('printAppointmentsReport');
@@ -1215,14 +1351,27 @@
             modal.style.display = 'block';
             document.body.classList.add('modal-open');
             
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('appointmentDate').value = today;
+            // Set default date to today and trigger validation
+            const today = getTodayString();
+            const appointmentDate = document.getElementById('appointmentDate');
+            appointmentDate.value = today;
+            
+            // Trigger validation
+            const appointmentDateGroup = document.getElementById('appointmentDateGroup');
+            const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
+            validateDate(appointmentDate, appointmentDateGroup, scheduleBtn);
         });
         
         function closeModal() {
             modal.style.display = 'none';
             document.body.classList.remove('modal-open');
             document.getElementById('addAppointmentForm').reset();
+            
+            // Reset validation states
+            const appointmentDateGroup = document.getElementById('appointmentDateGroup');
+            appointmentDateGroup.classList.remove('invalid');
+            const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
+            scheduleBtn.disabled = false;
         }
         
         closeModalBtn.addEventListener('click', closeModal);
@@ -1242,9 +1391,14 @@
             window.location.href = "{{ url_for('patients') }}?show_add_modal=true";
         });
         
-        // Add appointment form submission
+        // Enhanced add appointment form submission with date validation
         document.getElementById('addAppointmentForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            // Validate date before submission
+            if (!validateAppointmentForm()) {
+                return;
+            }
             
             const formData = new FormData(this);
             
@@ -1360,8 +1514,10 @@
                 document.getElementById('currentDate').textContent = date;
                 document.getElementById('currentTime').textContent = time;
                 
-                const today = new Date().toISOString().split('T')[0];
-                document.getElementById('newAppointmentDate').value = today;
+                // Set default date to today and trigger validation
+                const today = getTodayString();
+                const newAppointmentDate = document.getElementById('newAppointmentDate');
+                newAppointmentDate.value = today;
                 
                 let timeValue = '';
                 if (time.match(/^\d{1,2}:\d{2}/)) {
@@ -1369,6 +1525,11 @@
                 }
                 document.getElementById('newAppointmentTime').value = timeValue;
                 document.getElementById('rescheduleReason').value = '';
+                
+                // Trigger validation
+                const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
+                const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
+                validateDate(newAppointmentDate, newAppointmentDateGroup, saveRescheduleBtn);
                 
                 rescheduleModal.style.display = 'block';
                 document.body.classList.add('modal-open');
@@ -1379,6 +1540,12 @@
             rescheduleModal.style.display = 'none';
             document.body.classList.remove('modal-open');
             document.getElementById('rescheduleAppointmentForm').reset();
+            
+            // Reset validation states
+            const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
+            newAppointmentDateGroup.classList.remove('invalid');
+            const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
+            saveRescheduleBtn.disabled = false;
         }
 
         closeRescheduleModalBtn.addEventListener('click', closeRescheduleModal);
@@ -1390,8 +1557,14 @@
             }
         });
 
+        // Enhanced reschedule form submission with date validation
         document.getElementById('rescheduleAppointmentForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            // Validate date before submission
+            if (!validateRescheduleForm()) {
+                return;
+            }
             
             const formData = new FormData(this);
             
@@ -1437,6 +1610,7 @@
         }
 
         console.log('✅ Fixed appointment cancellation script loaded');
+        console.log('✅ Date validation initialized - no past dates allowed');
         console.log('🔧 Run debugCancelButtons() in console to check button setup');
         console.log('🖨️ Print functionality ready - Press Ctrl+P to print with filters');
         console.log('📋 Page setup complete!');
