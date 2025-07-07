@@ -346,7 +346,7 @@ def login():
 
 @app.route('/dashboard')
 def dashboard():
-    """Dashboard with real data from database"""
+    """Dashboard with real data from database - Updated to show all patients with completed appointments"""
     try:
         # Get current date
         today = datetime.now().date()
@@ -413,29 +413,63 @@ def dashboard():
         # Sort appointments by time
         formatted_appointments.sort(key=lambda x: x['time'] if x['time'] != "N/A" else "00:00")
         
-        # 4. RECENT PATIENTS (last 3 patients who had procedures)
-        recent_procedures = Report.query.order_by(Report.repdate.desc()).limit(3).all()
-        recent_patients = []
+        # 4. ALL PATIENTS WITH COMPLETED APPOINTMENTS (UPDATED SECTION)
+        # Get all completed appointments (appointments in the past)
+        completed_appointments = Appointment.query.filter(Appointment.appdate < today).all()
         
-        for procedure in recent_procedures:
-            patient = Patient.query.filter_by(patname=procedure.reppatient).first()
-            if patient:
-                # Build procedure list
-                procedures_done = []
-                if procedure.repcleaning: procedures_done.append("Cleaning")
-                if procedure.repextraction: procedures_done.append("Extraction")
-                if procedure.reprootcanal: procedures_done.append("Root Canal")
-                if procedure.repbraces: procedures_done.append("Braces")
-                if procedure.repdentures: procedures_done.append("Dentures")
-                if procedure.repothers: procedures_done.append(procedure.repothers)
+        # Also get appointments marked as completed if status field exists
+        if hasattr(Appointment, 'status'):
+            completed_status_appointments = Appointment.query.filter_by(status='completed').all()
+            # Combine both lists and remove duplicates
+            all_completed = list({apt.appid: apt for apt in (completed_appointments + completed_status_appointments)}.values())
+        else:
+            all_completed = completed_appointments
+        
+        # Group by patient and get the most recent completed appointment for each
+        patient_latest_appointments = {}
+        for appointment in all_completed:
+            patient_name = appointment.apppatient
+            if patient_name not in patient_latest_appointments:
+                patient_latest_appointments[patient_name] = appointment
+            else:
+                # Keep the most recent appointment
+                if appointment.appdate > patient_latest_appointments[patient_name].appdate:
+                    patient_latest_appointments[patient_name] = appointment
+        
+        # Format recent patients with completed appointments
+        recent_patients = []
+        for patient_name, latest_appointment in patient_latest_appointments.items():
+            # Get patient details
+            patient = Patient.query.filter_by(patname=patient_name, is_deleted=False).first()
+            if patient:  # Only include active patients
+                # Get the latest procedure/treatment for this patient
+                latest_procedure = Report.query.filter_by(reppatient=patient_name).order_by(Report.repdate.desc()).first()
+                
+                # Build treatment description
+                treatment = "General Visit"  # Default
+                if latest_procedure:
+                    procedures_done = []
+                    if latest_procedure.repcleaning: procedures_done.append("Cleaning")
+                    if latest_procedure.repextraction: procedures_done.append("Extraction")
+                    if latest_procedure.reprootcanal: procedures_done.append("Root Canal")
+                    if latest_procedure.repbraces: procedures_done.append("Braces")
+                    if latest_procedure.repdentures: procedures_done.append("Dentures")
+                    if latest_procedure.repothers: procedures_done.append(latest_procedure.repothers)
+                    
+                    if procedures_done:
+                        treatment = ", ".join(procedures_done)
                 
                 recent_patients.append({
                     'id': f"PAT-{patient.patId:03d}",
                     'name': patient.patname,
-                    'last_visit': procedure.repdate.strftime('%b %d, %Y') if procedure.repdate else "N/A",
-                    'treatment': ", ".join(procedures_done) if procedures_done else "General Visit",
+                    'last_visit': latest_appointment.appdate.strftime('%b %d, %Y'),
+                    'treatment': treatment,
+                    'appointment_time': latest_appointment.apptime or "N/A",
                     'raw_id': patient.patId
                 })
+        
+        # Sort by most recent visit date (newest first)
+        recent_patients.sort(key=lambda x: datetime.strptime(x['last_visit'], '%b %d, %Y'), reverse=True)
         
         # 5. GET APPOINTMENT DATES FOR CALENDAR MARKING
         # Get current month start and end dates
@@ -467,7 +501,7 @@ def dashboard():
             Inventory.invdoe < today
         ).count()
         
-        # Prepare all data for template (removed revenue and treatments, added appointment dates)
+        # Prepare all data for template
         dashboard_data = {
             'stats': {
                 'total_patients': total_patients,
@@ -476,13 +510,14 @@ def dashboard():
                 'appointment_growth': appointment_growth
             },
             'appointments': formatted_appointments,
-            'recent_patients': recent_patients,
+            'recent_patients': recent_patients,  # Now contains ALL patients with completed appointments
             'appointment_dates': appointment_dates,
             'alerts': {
                 'low_stock': low_stock_items,
                 'expired_items': expired_items
             },
-            'current_date': datetime.now().strftime("%A, %B %d, %Y")
+            'current_date': datetime.now().strftime("%A, %B %d, %Y"),
+            'total_completed_patients': len(recent_patients)  # Add total count for display
         }
         
         return render_template('dashboard.html', **dashboard_data)
@@ -502,6 +537,7 @@ def dashboard():
                              appointment_dates=[],
                              alerts={'low_stock': 0, 'expired_items': 0},
                              current_date=datetime.now().strftime("%A, %B %d, %Y"),
+                             total_completed_patients=0,
                              error=f"Dashboard error: {e}")
 
 @app.route('/logout')
@@ -775,8 +811,6 @@ def patient_details(patient_id):
                 'id': f"APT-{appointment.appid:03d}",
                 'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
                 'time': appointment.apptime or "N/A",
-                'treatment': "General Checkup",  # Default since not in your schema
-                'doctor': "Dr. Andrews",  # Default since not in your schema
                 'status': status,
                 'raw_id': appointment.appid
             })

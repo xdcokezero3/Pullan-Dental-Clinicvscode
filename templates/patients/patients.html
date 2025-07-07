@@ -254,8 +254,8 @@
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
                 {% endif %}
-                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
-                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li class="active"><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
@@ -497,6 +497,65 @@
     </div>
 
     <script>
+        // AUTO AGE CALCULATION - Add this new functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set max date to today for DOB input (prevents future dates in date picker)
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dob').setAttribute('max', today);
+            
+            // Auto-calculate age when date of birth is selected
+            document.getElementById('dob').addEventListener('change', function() {
+                const dobValue = this.value;
+                if (dobValue) {
+                    const age = calculateAge(dobValue);
+                    document.getElementById('age').value = age;
+                } else {
+                    document.getElementById('age').value = '';
+                }
+            });
+            
+            // Validate DOB input to prevent future dates
+            document.getElementById('dob').addEventListener('input', function() {
+                const selectedDate = new Date(this.value);
+                const today = new Date();
+                
+                if (selectedDate > today) {
+                    this.setCustomValidity('Date of birth cannot be in the future');
+                    document.getElementById('age').value = '';
+                } else {
+                    this.setCustomValidity('');
+                }
+            });
+        });
+        
+        // Function to calculate age from date of birth
+        function calculateAge(dateOfBirth) {
+            const dob = new Date(dateOfBirth);
+            const today = new Date();
+            
+            // Check if the date is valid
+            if (isNaN(dob.getTime())) {
+                return '';
+            }
+            
+            // Check if DOB is in the future
+            if (dob > today) {
+                return '';
+            }
+            
+            let age = today.getFullYear() - dob.getFullYear();
+            const monthDiff = today.getMonth() - dob.getMonth();
+            
+            // If birthday hasn't occurred this year yet, subtract 1
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            
+            return age;
+        }
+        
+        // EXISTING FUNCTIONALITY - Keep all your existing code below
+        
         // Search functionality with filter awareness
         document.getElementById('searchInput').addEventListener('keyup', function() {
             const searchValue = this.value.toLowerCase();

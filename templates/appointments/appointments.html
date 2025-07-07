@@ -551,9 +551,9 @@
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
                 {% endif %}
-                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li class="active"><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
@@ -1119,16 +1119,13 @@
                     this.disabled = true;
                     this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                     
-                    // Create form data
-                    const formData = new FormData();
-                    formData.append('appointment_id', appointmentId);
-                    
                     console.log('Sending cancellation request...');
                     
-                    fetch('/cancel_appointment', {
+                    // FIXED: Use the correct URL format that matches backend route
+                    fetch(`/cancel_appointment/${appointmentId}`, {
                         method: 'POST',
-                        body: formData,
                         headers: {
+                            'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'
                         }
                     })
@@ -1616,6 +1613,6 @@
         console.log('🔧 Run debugCancelButtons() in console to check button setup');
         console.log('🖨️ Print functionality ready - Press Ctrl+P to print with filters');
         console.log('📋 Page setup complete!');
-    </script>
+</script>
 </body>
 </html>

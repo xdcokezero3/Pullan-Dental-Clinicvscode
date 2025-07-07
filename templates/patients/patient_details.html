@@ -159,6 +159,7 @@
             border-bottom: 2px solid transparent;
             transition: var(--transition);
             font-weight: 500;
+            text-decoration: none;
         }
 
         .tab-button.active {
@@ -452,8 +453,8 @@
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
                 {% endif %}
-                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
-                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li class="active"><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
                 <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
@@ -569,9 +570,9 @@
                 <button class="tab-button active" data-tab="appointments">
                     <i class="fas fa-calendar-check"></i> Appointments ({{ appointments|length }})
                 </button>
-                <button class="tab-button" data-tab="dental-chart">
+                <a href="/patient_dental_chart/{{ patient.patId }}" class="tab-button">
                     <i class="fas fa-tooth"></i> Dental Chart
-                </button>
+                </a>
             </div>
 
             <div class="tab-content active" id="appointments-tab">
@@ -581,7 +582,7 @@
                         <div>
                             <div class="appointment-date">{{ appointment.date }} - {{ appointment.time }}</div>
                             <div class="appointment-info">
-                                ID: {{ appointment.id }} | Treatment: {{ appointment.treatment }} | Doctor: {{ appointment.doctor }}
+                                ID: {{ appointment.id }}
                             </div>
                         </div>
                         <span class="status {{ appointment.status }}">{{ appointment.status|capitalize }}</span>
@@ -616,132 +617,6 @@
                     {% endif %}
                 </div>
             </div>
-
-            <div class="tab-content" id="dental-chart-tab">
-                {% if has_dental_chart and teeth_data %}
-                <div class="dental-chart-preview">
-                    <h3><i class="fas fa-tooth"></i> Dental Chart Overview</h3>
-                    
-                    <!-- Teeth Grid Preview -->
-                    <div style="margin: 20px 0;">
-                        <h4>Upper Jaw</h4>
-                        <div class="teeth-grid">
-                            <!-- Upper right quadrant (teeth 1-8) -->
-                            {% for tooth in teeth_data[0:8] %}
-                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                            {% endfor %}
-                            
-                            <!-- Upper left quadrant (teeth 9-16) -->
-                            {% for tooth in teeth_data[8:16] %}
-                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                            {% endfor %}
-                        </div>
-                        
-                        <h4>Lower Jaw</h4>
-                        <div class="teeth-grid">
-                            <!-- Lower left quadrant (teeth 17-24) -->
-                            {% for tooth in teeth_data[16:24] %}
-                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                            {% endfor %}
-                            
-                            <!-- Lower right quadrant (teeth 25-32) -->
-                            {% for tooth in teeth_data[24:32] %}
-                            <div class="tooth {{ tooth.condition }}" title="Tooth {{ tooth.number }}: {{ tooth.condition|title }}">{{ tooth.number }}</div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    
-                    <!-- Legend -->
-                    <div class="chart-legend">
-                        <div class="legend-item">
-                            <div class="legend-color healthy" style="background-color: var(--secondary-color);"></div>
-                            <span>Healthy</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color cavity" style="background-color: var(--danger-color);"></div>
-                            <span>Cavity</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color filling" style="background-color: #17a2b8;"></div>
-                            <span>Filling</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color crown" style="background-color: var(--warning-color);"></div>
-                            <span>Crown</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color root-canal" style="background-color: #e83e8c;"></div>
-                            <span>Root Canal</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color missing" style="background-color: #6c757d;"></div>
-                            <span>Missing</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart Actions -->
-                    <div class="chart-actions">
-                        <a href="/patient_dental_chart/{{ patient.patId }}" class="chart-btn primary">
-                            <i class="fas fa-eye"></i> View Full Chart
-                        </a>
-                        <a href="/patient_dental_chart/{{ patient.patId }}" class="chart-btn secondary">
-                            <i class="fas fa-edit"></i> Edit Chart
-                        </a>
-                        <button class="chart-btn secondary" onclick="printChart()">
-                            <i class="fas fa-print"></i> Print Chart
-                        </button>
-                    </div>
-                </div>
-                {% else %}
-                <!-- No Dental Chart State -->
-                <div class="empty-state">
-                    <i class="fas fa-tooth"></i>
-                    <h3>No Dental Chart Available</h3>
-                    <p>Create a dental chart to track this patient's dental health.</p>
-                    <a href="/create_dental_chart_now/{{ patient.patId }}" class="chart-btn primary">
-                        <i class="fas fa-plus"></i> Create Dental Chart
-                    </a>
-                </div>
-                {% endif %}
-                
-                <!-- Recent Procedures Summary -->
-                {% if recent_procedures %}
-                <div class="procedure-summary">
-                    <h3><i class="fas fa-procedures"></i> Recent Procedures</h3>
-                    
-                    {% for procedure in recent_procedures %}
-                    <div class="procedure-item">
-                        <div>
-                            <div class="procedure-date">{{ procedure.date }}</div>
-                            <div class="procedure-details">{{ procedure.procedures }} - {{ procedure.dentist }}</div>
-                            {% if procedure.prescription != "None" %}
-                            <div class="procedure-details" style="font-style: italic;">Prescription: {{ procedure.prescription }}</div>
-                            {% endif %}
-                        </div>
-                        <span class="status {{ procedure.status }}">{{ procedure.status|capitalize }}</span>
-                    </div>
-                    {% endfor %}
-                    
-                    <div class="chart-actions">
-                        <a href="/procedure_history/{{ patient.patId }}" class="chart-btn primary">
-                            <i class="fas fa-history"></i> View All Procedures ({{ recent_procedures|length }}{% if recent_procedures|length >= 5 %}+{% endif %})
-                        </a>
-                        <button class="chart-btn secondary" onclick="addNewProcedure()">
-                            <i class="fas fa-plus"></i> Add Procedure
-                        </button>
-                    </div>
-                </div>
-                {% else %}
-                <div class="empty-state">
-                    <i class="fas fa-procedures"></i>
-                    <h3>No Procedures Recorded</h3>
-                    <p>No dental procedures have been recorded for this patient yet.</p>
-                    <button class="chart-btn primary" onclick="addNewProcedure()">
-                        <i class="fas fa-plus"></i> Add First Procedure
-                    </button>
-                </div>
-                {% endif %}
-            </div>
         </div>
     </div>
 
@@ -761,27 +636,6 @@
             if (dateElement) {
                 dateElement.textContent = `${day}, ${month} ${date}, ${year}`;
             }
-        });
-
-        // Tab switching functionality
-        document.addEventListener("DOMContentLoaded", function() {
-            const tabButtons = document.querySelectorAll(".tab-button");
-            const tabContents = document.querySelectorAll(".tab-content");
-            
-            tabButtons.forEach(button => {
-                button.addEventListener("click", function() {
-                    // Remove active class from all buttons and contents
-                    tabButtons.forEach(btn => btn.classList.remove("active"));
-                    tabContents.forEach(content => content.classList.remove("active"));
-                    
-                    // Add active class to clicked button
-                    this.classList.add("active");
-                    
-                    // Show the selected tab content
-                    const tabId = this.getAttribute("data-tab") + "-tab";
-                    document.getElementById(tabId).classList.add("active");
-                });
-            });
         });
 
         function deletePatient(patientId) {
@@ -807,15 +661,6 @@
                     alert('An error occurred: ' + error);
                 });
             }
-        }
-        
-        function printChart() {
-            window.open(`/print_dental_chart/{{ patient.patId }}`, '_blank');
-        }
-        
-        function addNewProcedure() {
-            // Redirect to the full dental chart page where procedures can be added
-            window.location.href = `/patient_dental_chart/{{ patient.patId }}`;
         }
     </script>
 </body>
