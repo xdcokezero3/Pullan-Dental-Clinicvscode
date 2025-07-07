@@ -1,51 +1,40 @@
-# db_connector.py - Fresh Start with Robust MySQL Connection + UserLog Model
+# db_connector.py - PostgreSQL Version for pgAdmin 4 with Schema Fix
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-import pymysql
+import psycopg2
 import os
 import time
 from datetime import date, datetime
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
-# Install PyMySQL as MySQLdb replacement
-pymysql.install_as_MySQLdb()
-
 # Create Flask app
 app = Flask(__name__)
 
-# Database configuration class
+# Database configuration class for PostgreSQL
 class DatabaseConfig:
-    """Centralized database configuration with multiple fallback options"""
+    """Centralized PostgreSQL database configuration"""
     
-    # Default configuration - modify these if needed
-    DB_USER = 'root'
-    DB_PASSWORD = 'root' 
-    DB_NAME = 'pullandentalclinic'
-    DB_PORT = 3306
-    
-    # Host options to try in order
-    HOST_OPTIONS = [
-        'localhost',
-        '127.0.0.1',
-        '::1',  # IPv6 localhost
-    ]
+    # PostgreSQL configuration - modify these to match your pgAdmin setup
+    DB_USER = 'pullan_dental_db_user'  # Default PostgreSQL username
+    DB_PASSWORD = 'HRZrgc3Zn9wJ1IhhqrOnvKTQy04f0CZH'  # Change this to your PostgreSQL password
+    DB_NAME = 'pullan_dental_db'
+    DB_HOST = 'dpg-d1er2l3e5dus739sktvg-a.oregon-postgres.render.com'
+    DB_PORT = 5432  # Default PostgreSQL port
+    DB_SCHEMA = 'pullandentalclinic'  # Add schema specification
     
     @classmethod
     def test_connection(cls, host, user, password, database, port):
-        """Test if we can connect to MySQL with given parameters"""
+        """Test if we can connect to PostgreSQL with given parameters"""
         try:
             # Test basic connection
-            connection = pymysql.connect(
+            connection = psycopg2.connect(
                 host=host,
                 user=user,
                 password=password,
                 database=database,
                 port=port,
-                connect_timeout=10,
-                read_timeout=10,
-                write_timeout=10,
-                charset='utf8mb4'
+                connect_timeout=10
             )
             
             # Test query execution
@@ -64,57 +53,55 @@ class DatabaseConfig:
     
     @classmethod
     def get_working_uri(cls):
-        """Find a working database URI by testing different configurations"""
-        print("Testing database connections...")
+        """Get PostgreSQL database URI with schema"""
+        print("Testing PostgreSQL connection...")
         
-        for host in cls.HOST_OPTIONS:
-            print(f"Testing connection to {host}:{cls.DB_PORT}...")
+        if cls.test_connection(cls.DB_HOST, cls.DB_USER, cls.DB_PASSWORD, cls.DB_NAME, cls.DB_PORT):
+            # Add options to set search_path to include the correct schema
+            uri = f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}?options=-csearch_path%3D{cls.DB_SCHEMA}%2Cpublic"
+            print(f"✅ Successfully connected to PostgreSQL at {cls.DB_HOST}:{cls.DB_PORT}")
+            return uri
+        
+        # If connection fails, try connecting to default 'postgres' database
+        print("Direct database connection failed. Trying default postgres database...")
+        try:
+            connection = psycopg2.connect(
+                host=cls.DB_HOST,
+                user=cls.DB_USER,
+                password=cls.DB_PASSWORD,
+                database='postgres',  # Default database
+                port=cls.DB_PORT
+            )
             
-            if cls.test_connection(host, cls.DB_USER, cls.DB_PASSWORD, cls.DB_NAME, cls.DB_PORT):
-                uri = f"mysql+pymysql://{cls.DB_USER}:{cls.DB_PASSWORD}@{host}:{cls.DB_PORT}/{cls.DB_NAME}"
-                print(f"✅ Successfully connected to MySQL at {host}:{cls.DB_PORT}")
-                return uri
-        
-        # If all direct connections fail, try without specifying database
-        print("Direct database connections failed. Trying to connect to MySQL server...")
-        for host in cls.HOST_OPTIONS:
-            try:
-                connection = pymysql.connect(
-                    host=host,
-                    user=cls.DB_USER,
-                    password=cls.DB_PASSWORD,
-                    port=cls.DB_PORT,
-                    connect_timeout=10
-                )
-                
-                # Try to create database if it doesn't exist
-                with connection.cursor() as cursor:
-                    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {cls.DB_NAME}")
-                    cursor.execute(f"USE {cls.DB_NAME}")
-                
-                connection.close()
-                uri = f"mysql+pymysql://{cls.DB_USER}:{cls.DB_PASSWORD}@{host}:{cls.DB_PORT}/{cls.DB_NAME}"
-                print(f"✅ Connected to MySQL server and created/used database at {host}:{cls.DB_PORT}")
-                return uri
-                
-            except Exception as e:
-                print(f"Failed to connect to MySQL server at {host}: {str(e)}")
-                continue
-        
-        # Last resort - return a default URI and let SQLAlchemy handle the error
-        print("❌ All connection attempts failed!")
-        print("Please check:")
-        print("1. MySQL service is running")
-        print("2. Username and password are correct")
-        print("3. Database exists")
-        print("4. Port 3306 is not blocked")
-        
-        return f"mysql+pymysql://{cls.DB_USER}:{cls.DB_PASSWORD}@localhost:{cls.DB_PORT}/{cls.DB_NAME}"
+            # Try to create database if it doesn't exist
+            connection.autocommit = True
+            with connection.cursor() as cursor:
+                cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{cls.DB_NAME}'")
+                exists = cursor.fetchone()
+                if not exists:
+                    cursor.execute(f"CREATE DATABASE {cls.DB_NAME}")
+                    print(f"Created database {cls.DB_NAME}")
+            
+            connection.close()
+            uri = f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}?options=-csearch_path%3D{cls.DB_SCHEMA}%2Cpublic"
+            print(f"✅ Connected to PostgreSQL server and created/used database at {cls.DB_HOST}:{cls.DB_PORT}")
+            return uri
+            
+        except Exception as e:
+            print(f"Failed to connect to PostgreSQL server: {str(e)}")
+            print("❌ All connection attempts failed!")
+            print("Please check:")
+            print("1. PostgreSQL service is running")
+            print("2. Username and password are correct")
+            print("3. Database exists or you have permission to create it")
+            print("4. Port 5432 is not blocked")
+            
+            return f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}?options=-csearch_path%3D{cls.DB_SCHEMA}%2Cpublic"
 
 # Get working database URI
 database_uri = DatabaseConfig.get_working_uri()
 
-# Configure Flask app with database settings
+# Configure Flask app with PostgreSQL database settings
 app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -125,9 +112,7 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'max_overflow': 20,
     'connect_args': {
         'connect_timeout': 10,
-        'read_timeout': 10,
-        'write_timeout': 10,
-        'charset': 'utf8mb4'
+        'options': f'-csearch_path={DatabaseConfig.DB_SCHEMA},public'  # Set search_path
     }
 }
 
@@ -138,7 +123,7 @@ db = SQLAlchemy(app)
 def test_database_connection():
     """Comprehensive database connection test"""
     print("\n" + "="*50)
-    print("TESTING DATABASE CONNECTION")
+    print("TESTING POSTGRESQL DATABASE CONNECTION")
     print("="*50)
     
     try:
@@ -154,15 +139,41 @@ def test_database_connection():
         
         # Test 2: Database existence
         with app.app_context():
-            result = db.engine.execute(text("SELECT DATABASE()"))
+            result = db.engine.execute(text("SELECT current_database()"))
             db_name = result.fetchone()[0]
             print(f"✅ Connected to database: {db_name}")
         
-        # Test 3: Check if tables can be created
+        # Test 3: Check current schema
         with app.app_context():
-            db.engine.execute(text("CREATE TABLE IF NOT EXISTS connection_test (id INT PRIMARY KEY)"))
-            db.engine.execute(text("DROP TABLE connection_test"))
-            print("✅ Table creation/deletion: SUCCESS")
+            result = db.engine.execute(text("SELECT current_schema()"))
+            schema_name = result.fetchone()[0]
+            print(f"✅ Current schema: {schema_name}")
+        
+        # Test 4: Check if patients table exists
+        with app.app_context():
+            result = db.engine.execute(text("""
+                SELECT table_name, table_schema 
+                FROM information_schema.tables 
+                WHERE table_name = 'patients' 
+                AND table_schema IN ('pullandentalclinic', 'public')
+            """))
+            tables = result.fetchall()
+            if tables:
+                for table in tables:
+                    print(f"✅ Found patients table in schema: {table[1]}")
+            else:
+                print("❌ Patients table not found")
+                return False
+        
+        # Test 5: Check if tables can be queried
+        with app.app_context():
+            try:
+                result = db.engine.execute(text("SELECT COUNT(*) FROM patients"))
+                count = result.fetchone()[0]
+                print(f"✅ Patients table accessible: {count} records")
+            except Exception as e:
+                print(f"❌ Cannot query patients table: {e}")
+                return False
         
         print("✅ All database tests passed!")
         return True
@@ -171,9 +182,10 @@ def test_database_connection():
         print(f"❌ Database connection failed: {str(e)}")
         return False
 
-# Database Models
+# Database Models (Updated with explicit schema where needed)
 class Patient(db.Model):
     __tablename__ = 'patients'
+    __table_args__ = {'schema': 'pullandentalclinic'}  # Explicitly specify schema
     
     patId = db.Column(db.Integer, primary_key=True)
     patname = db.Column(db.String(255))
@@ -194,12 +206,13 @@ class Patient(db.Model):
 
 class Appointment(db.Model):
     __tablename__ = 'appointment'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     appid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     apppatient = db.Column(db.String(100))
     apptime = db.Column(db.String(20))
     appdate = db.Column(db.Date)
-    status = db.Column(db.String(20), default='active')  # ← This line should exist
+    status = db.Column(db.String(20), default='active')
     
     def __repr__(self):
         return f'<Appointment {self.appid}: {self.apppatient} on {self.appdate} at {self.apptime} - {self.status}>'
@@ -209,6 +222,7 @@ class Appointment(db.Model):
 
 class RescheduleAppointment(db.Model):
     __tablename__ = 'rappointment'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     rappid = db.Column(db.Integer, primary_key=True)
     rapppatient = db.Column(db.String(255))
@@ -223,6 +237,7 @@ class RescheduleAppointment(db.Model):
 
 class Inventory(db.Model):
     __tablename__ = 'inventory'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     invid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     invname = db.Column(db.String(100), nullable=False)
@@ -230,8 +245,6 @@ class Inventory(db.Model):
     invquantity = db.Column(db.Integer, default=0)
     invdoe = db.Column(db.Date)  # Date of Expiry
     invremarks = db.Column(db.Text)
-    
-    # Add this new field for soft delete functionality
     is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     
     def __repr__(self):
@@ -260,13 +273,14 @@ class Inventory(db.Model):
             return 'Inactive'
         elif self.invdoe and self.invdoe < datetime.now().date():
             return 'Expired'
-        elif self.invquantity < 5:  # Assuming 5 is the minimum threshold
+        elif self.invquantity < 5:
             return 'Low Stock'
         else:
             return 'OK'
 
 class User(db.Model):
     __tablename__ = 'users'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     usersid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     usersusername = db.Column(db.String(255), unique=True, nullable=False)
@@ -290,6 +304,7 @@ class User(db.Model):
 
 class UserLog(db.Model):
     __tablename__ = 'user_logs'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     log_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer)
@@ -306,6 +321,7 @@ class UserLog(db.Model):
 
 class DentalChart(db.Model):
     __tablename__ = 'dentalchart'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     dcID = db.Column(db.Integer, primary_key=True)
     dcpatname = db.Column(db.String(255))
@@ -337,6 +353,7 @@ class DentalChart(db.Model):
 
 class Report(db.Model):
     __tablename__ = 'reports'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     repid = db.Column(db.Integer, primary_key=True)
     reppatient = db.Column(db.String(255))
@@ -352,11 +369,10 @@ class Report(db.Model):
     
     def __repr__(self):
         return f"<Report {self.repid}: {self.reppatient} on {self.repdate}>"
-    
-# Add this Teeth model to your db_connector.py file after the existing models
 
 class Teeth(db.Model):
     __tablename__ = 'teeth'
+    __table_args__ = {'schema': 'pullandentalclinic'}
     
     tID = db.Column(db.Integer, primary_key=True)
     tpatname = db.Column(db.String(255))
@@ -423,45 +439,6 @@ class Teeth(db.Model):
             count[condition] = count.get(condition, 0) + 1
         return count
 
-# Add this utility function after the models
-def create_initial_teeth_chart(patient_name):
-    """Create initial teeth chart for a patient with all teeth healthy"""
-    try:
-        # Check if teeth chart already exists
-        existing_chart = Teeth.query.filter_by(tpatname=patient_name, is_deleted=False).first()
-        if existing_chart:
-            return existing_chart
-        
-        # Get next ID
-        max_id = db.session.query(db.func.max(Teeth.tID)).first()[0]
-        next_id = 1 if max_id is None else max_id + 1
-        
-        # Create new teeth chart
-        teeth_chart = Teeth(
-            tID=next_id,
-            tpatname=patient_name,
-            is_deleted=False
-        )
-        
-        db.session.add(teeth_chart)
-        db.session.commit()
-        
-        return teeth_chart
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error creating teeth chart: {e}")
-        return None
-
-def get_teeth_chart_for_patient(patient_name):
-    """Get or create teeth chart for a patient"""
-    teeth_chart = Teeth.query.filter_by(tpatname=patient_name, is_deleted=False).first()
-    if not teeth_chart:
-        teeth_chart = create_initial_teeth_chart(patient_name)
-    return teeth_chart
-
-# Also update the import statement at the top of your app.py to include Teeth:
-# from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
-
 # Utility functions
 def get_db_connection():
     """Get database connection instance"""
@@ -521,6 +498,35 @@ def get_upcoming_appointments(from_date=None):
     
     return Appointment.query.filter(Appointment.appdate >= from_date).order_by(Appointment.appdate, Appointment.apptime).all()
 
+def create_initial_teeth_chart(patient_name):
+    """Create initial teeth chart for a patient with all teeth healthy"""
+    try:
+        existing_chart = Teeth.query.filter_by(tpatname=patient_name, is_deleted=False).first()
+        if existing_chart:
+            return existing_chart
+        
+        # For PostgreSQL, use sequence for auto-increment
+        teeth_chart = Teeth(
+            tpatname=patient_name,
+            is_deleted=False
+        )
+        
+        db.session.add(teeth_chart)
+        db.session.commit()
+        
+        return teeth_chart
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating teeth chart: {e}")
+        return None
+
+def get_teeth_chart_for_patient(patient_name):
+    """Get or create teeth chart for a patient"""
+    teeth_chart = Teeth.query.filter_by(tpatname=patient_name, is_deleted=False).first()
+    if not teeth_chart:
+        teeth_chart = create_initial_teeth_chart(patient_name)
+    return teeth_chart
+
 # Initialize database tables
 def init_database():
     """Initialize database tables"""
@@ -536,13 +542,13 @@ def init_database():
 
 # Main execution
 if __name__ == "__main__":
-    print("Pullan Dental Clinic - Database Connector")
-    print("="*50)
+    print("Pullan Dental Clinic - PostgreSQL Database Connector")
+    print("="*60)
     
     with app.app_context():
         # Test connection
         if test_database_connection():
-            print("\n🎉 Database connection successful!")
+            print("\n🎉 PostgreSQL database connection successful!")
             
             # Initialize tables
             if init_database():
@@ -550,9 +556,9 @@ if __name__ == "__main__":
             else:
                 print("❌ Database setup failed!")
         else:
-            print("\n❌ Database connection failed!")
+            print("\n❌ PostgreSQL database connection failed!")
             print("\nTroubleshooting steps:")
-            print("1. Check if MySQL service is running")
-            print("2. Verify username and password")
-            print("3. Ensure database 'pullandentalclinic' exists")
-            print("4. Check if port 3306 is accessible")
+            print("1. Check if PostgreSQL service is running")
+            print("2. Verify username and password in DatabaseConfig class")
+            print("3. Ensure database 'pullan_dental_db' exists in pgAdmin")
+            print("4. Check if port 5432 is accessible")
