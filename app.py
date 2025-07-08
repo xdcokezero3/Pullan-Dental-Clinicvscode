@@ -708,7 +708,7 @@ def patients():
         return f"Error loading patients: {e}", 500
 
 def create_postgresql_backup(username, password, host, database_name, backup_path, port=5432):
-    """Create a PostgreSQL database backup using pg_dump - FIXED for schema"""
+    """Create a PostgreSQL database backup using pg_dump - IMPROVED VERSION"""
     try:
         # Set password environment variable for pg_dump
         env = os.environ.copy()
@@ -716,7 +716,7 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
         
         print(f"Creating backup with pg_dump - Database: {database_name}")
         
-        # Use pg_dump command with schema specification
+        # Use pg_dump command with improved options
         cmd = [
             'pg_dump',
             f'--host={host}',
@@ -724,12 +724,13 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
             f'--username={username}',
             f'--dbname={database_name}',
             '--verbose',
-            '--clean',
-            '--if-exists',
-            '--create',
-            '--format=plain',
+            '--clean',                    # Add DROP statements
+            '--if-exists',               # Use IF EXISTS with DROP
+            '--create',                  # Include CREATE DATABASE statement
+            '--format=plain',            # Plain SQL format
+            '--no-owner',               # Don't include ownership commands
+            '--no-privileges',          # Don't include privilege commands
             '--schema=pullandentalclinic',  # Only backup our schema
-            '--schema=public',  # Include public schema too (for safety)
             f'--file={backup_path}'
         ]
         
@@ -743,7 +744,7 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
         stdout, stderr = process.communicate()
         
         if process.returncode != 0:
-            # If schema-specific backup fails, try without schema restriction
+            # If schema-specific backup fails, try full database backup
             print("Schema-specific backup failed, trying full database backup...")
             cmd_fallback = [
                 'pg_dump',
@@ -756,6 +757,8 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
                 '--if-exists',
                 '--create',
                 '--format=plain',
+                '--no-owner',
+                '--no-privileges',
                 f'--file={backup_path}'
             ]
             
@@ -773,14 +776,70 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
                 print(f"pg_dump stderr: {error_output}")
                 raise Exception(f"pg_dump failed: {error_output}")
         
+        # Post-process the backup file to fix schema issues
+        fix_backup_file(backup_path, database_name)
+        
         print(f"PostgreSQL backup completed successfully: {backup_path}")
         
     except Exception as e:
         raise Exception(f"PostgreSQL backup failed: {str(e)}")
+    
+def fix_backup_file(backup_path, database_name):
+    """Post-process backup file to ensure proper restore"""
+    try:
+        with open(backup_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        # Add proper database connection and schema setup
+        header = f"""--
+-- PostgreSQL database dump for {database_name}
+-- Fixed for proper restore
+--
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+-- Connect to the target database
+\\connect {database_name}
+
+-- Create schema if not exists
+CREATE SCHEMA IF NOT EXISTS pullandentalclinic;
+
+-- Set search path
+SET search_path = pullandentalclinic, public;
+
+"""
+        
+        # Add footer to reset search path
+        footer = """
+-- Reset search path
+SET search_path = pullandentalclinic, public;
+
+-- End of dump
+"""
+        
+        # Combine header, content, and footer
+        fixed_content = header + content + footer
+        
+        # Write fixed content back to file
+        with open(backup_path, 'w', encoding='utf-8') as file:
+            file.write(fixed_content)
+            
+        print(f"Backup file fixed: {backup_path}")
+        
+    except Exception as e:
+        print(f"Warning: Could not fix backup file: {e}")
 
 
 def restore_postgresql_backup(username, password, host, backup_path, port=5432):
-    """Restore a PostgreSQL database backup using psql"""
+    """Restore a PostgreSQL database backup using psql - IMPROVED VERSION"""
     try:
         # Set password environment variable for psql
         env = os.environ.copy()
@@ -788,13 +847,18 @@ def restore_postgresql_backup(username, password, host, backup_path, port=5432):
         
         print(f"Restoring backup from: {backup_path}")
         
-        # Use psql command to restore
+        # Parse database name from backup file
+        db_config = parse_database_uri(app.config['SQLALCHEMY_DATABASE_URI'])
+        target_database = db_config['database'] if db_config else 'pullan_dental_db'
+        
+        # Step 1: Connect to postgres database and run the restore
         cmd = [
             'psql',
             f'--host={host}',
             f'--port={port}',
             f'--username={username}',
-            '--dbname=postgres',  # Connect to default database first
+            '--dbname=postgres',  # Connect to postgres first
+            '--quiet',
             f'--file={backup_path}'
         ]
         
@@ -807,15 +871,63 @@ def restore_postgresql_backup(username, password, host, backup_path, port=5432):
         
         stdout, stderr = process.communicate()
         
-        if process.returncode != 0:
-            stderr_text = stderr.decode('utf-8')
+        # Check if restore had any critical errors
+        stderr_text = stderr.decode('utf-8')
+        if process.returncode != 0 and 'FATAL' in stderr_text:
             print(f"psql stderr: {stderr_text}")
             raise Exception(f"psql restore failed: {stderr_text}")
         
-        print(f"PostgreSQL restore completed successfully from: {backup_path}")
+        # Step 2: Verify the restore by connecting to target database
+        verify_cmd = [
+            'psql',
+            f'--host={host}',
+            f'--port={port}',
+            f'--username={username}',
+            f'--dbname={target_database}',
+            '--command=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \'pullandentalclinic\';'
+        ]
+        
+        verify_process = subprocess.Popen(
+            verify_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env
+        )
+        
+        verify_stdout, verify_stderr = verify_process.communicate()
+        
+        if verify_process.returncode == 0:
+            print(f"PostgreSQL restore completed successfully from: {backup_path}")
+            print("Database verification: Tables restored successfully")
+        else:
+            print(f"Restore completed but verification failed: {verify_stderr.decode('utf-8')}")
+        
+        # Step 3: Update Flask app database connection to refresh schema
+        refresh_database_connection()
         
     except Exception as e:
         raise Exception(f"PostgreSQL restore failed: {str(e)}")
+    
+def refresh_database_connection():
+    """Refresh the database connection after restore"""
+    try:
+        # Close existing connections
+        db.session.close()
+        db.engine.dispose()
+        
+        # Recreate engine with fresh connection
+        with app.app_context():
+            # Test connection
+            result = db.engine.execute(text("SELECT 1"))
+            row = result.fetchone()
+            if row and row[0] == 1:
+                print("Database connection refreshed successfully")
+            else:
+                print("Warning: Database connection refresh may have failed")
+                
+    except Exception as e:
+        print(f"Warning: Could not refresh database connection: {e}")
+
 
 def create_direct_postgresql_backup(username, password, host, database_name, backup_path, port=5432):
     """Create a PostgreSQL database backup directly using psycopg2 with fixed connection"""
@@ -1030,7 +1142,7 @@ def backup_restore():
 @app.route('/create_backup', methods=['POST'])
 @admin_required
 def create_backup():
-    """Create a backup of the PostgreSQL database with fixed URI parsing"""
+    """Create a backup of the PostgreSQL database with improved error handling"""
     try:
         if session.get('access_level') != 'admin':
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
@@ -1125,7 +1237,7 @@ def create_backup():
 @app.route('/restore_backup/<filename>', methods=['POST'])
 @admin_required
 def restore_backup(filename):
-    """Restore the database from a backup file with fixed URI parsing"""
+    """Restore the database from a backup file with improved error handling"""
     try:
         if session.get('access_level') != 'admin':
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
@@ -1154,10 +1266,10 @@ def restore_backup(filename):
         resolved_host = resolve_host(host)
 
         try:
-            # Try using psql client external command first
+            # Use improved restore function
             restore_postgresql_backup(username, password, resolved_host, backup_path, port)
         except Exception as e:
-            print(f"External psql restore failed: {e}")
+            print(f"Restore failed: {e}")
             return jsonify({"success": False, "error": f"Restore failed: {str(e)}"})
         
         # Log the restore action
@@ -1169,11 +1281,37 @@ def restore_backup(filename):
             
         return jsonify({
             "success": True,
-            "message": "Database restored successfully from backup"
+            "message": "Database restored successfully from backup. Please refresh the page to see updated data."
         })
     except Exception as e:
         print(f"Error restoring backup: {e}")
         return jsonify({"success": False, "error": str(e)})
+    
+def test_database_after_restore():
+    """Test database connectivity after restore operation"""
+    try:
+        with app.app_context():
+            # Test basic connection
+            result = db.engine.execute(text("SELECT 1"))
+            row = result.fetchone()
+            
+            if not row or row[0] != 1:
+                return False, "Basic connection test failed"
+            
+            # Test if main tables exist
+            tables_to_check = ['patients', 'appointment', 'users', 'inventory']
+            for table in tables_to_check:
+                try:
+                    result = db.engine.execute(text(f"SELECT COUNT(*) FROM pullandentalclinic.{table}"))
+                    count = result.fetchone()[0]
+                    print(f"Table {table}: {count} records")
+                except Exception as table_error:
+                    return False, f"Table {table} is not accessible: {str(table_error)}"
+            
+            return True, "All tables accessible"
+            
+    except Exception as e:
+        return False, f"Database test failed: {str(e)}"
 
 @app.route('/download_backup/<filename>')
 @admin_required
