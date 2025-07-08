@@ -128,13 +128,40 @@
             background-color: #e6a700;
         }
 
-        .btn-delete {
+        .btn-deactivate {
             background-color: var(--danger-color);
             color: white;
         }
 
-        .btn-delete:hover {
+        .btn-deactivate:hover {
             background-color: #c23321;
+        }
+
+        .btn-reactivate {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-reactivate:hover {
+            background-color: #2d7a32;
+        }
+
+        .patient-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        .patient-status.active {
+            background-color: rgba(52, 168, 83, 0.1);
+            color: var(--secondary-color);
+        }
+
+        .patient-status.inactive {
+            background-color: rgba(234, 67, 53, 0.1);
+            color: var(--danger-color);
         }
 
         .tabs {
@@ -272,66 +299,6 @@
             min-width: 120px;
         }
 
-        /* Dental Chart Styles */
-        .dental-chart-preview {
-            background: #f8f9fa;
-            border-radius: var(--border-radius);
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .teeth-grid {
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            gap: 8px;
-            margin: 15px 0;
-        }
-
-        .tooth {
-            width: 35px;
-            height: 35px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            color: white;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .tooth:hover {
-            transform: scale(1.1);
-        }
-
-        .tooth.healthy { background-color: var(--secondary-color); }
-        .tooth.cavity { background-color: var(--danger-color); }
-        .tooth.filling { background-color: #17a2b8; }
-        .tooth.crown { background-color: var(--warning-color); color: #000; }
-        .tooth.missing { background-color: #6c757d; }
-        .tooth.root-canal { background-color: #e83e8c; }
-
-        .chart-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 15px;
-            font-size: 12px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-        }
-
         .chart-actions {
             display: flex;
             gap: 10px;
@@ -371,35 +338,10 @@
             background-color: #545b62;
         }
 
-        .procedure-summary {
-            background: var(--white);
-            border-radius: var(--border-radius);
-            padding: 20px;
-            border-left: 4px solid var(--primary-color);
-            margin-top: 20px;
-        }
-
-        .procedure-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .procedure-item:last-child {
-            border-bottom: none;
-        }
-
-        .procedure-date {
-            font-weight: 600;
-            color: var(--text-color);
-        }
-
-        .procedure-details {
-            font-size: 14px;
-            color: var(--text-light);
-            margin-top: 5px;
+        .chart-btn:disabled {
+            background-color: #ccc;
+            color: #666;
+            cursor: not-allowed;
         }
 
         /* Responsive Design */
@@ -422,16 +364,6 @@
             .action-buttons {
                 width: 100%;
                 justify-content: flex-start;
-            }
-            
-            .teeth-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
-            
-            .tooth {
-                width: 30px;
-                height: 30px;
-                font-size: 10px;
             }
             
             .chart-actions {
@@ -501,9 +433,15 @@
                     <a href="{{ url_for('edit_patient', patient_id=patient.patId) }}" class="btn btn-edit">
                         <i class="fas fa-edit"></i> Edit Patient
                     </a>
-                    <button class="btn btn-delete" onclick="deletePatient({{ patient.patId }})">
-                        <i class="fas fa-trash"></i> Delete Patient
-                    </button>
+                    {% if patient.is_deleted %}
+                        <button class="btn btn-reactivate" onclick="reactivatePatient({{ patient.patId }})">
+                            <i class="fas fa-undo"></i> Reactivate
+                        </button>
+                    {% else %}
+                        <button class="btn btn-deactivate" onclick="deactivatePatient({{ patient.patId }})">
+                            <i class="fas fa-user-times"></i> Deactivate
+                        </button>
+                    {% endif %}
                 </div>
             </div>
 
@@ -513,7 +451,12 @@
                         <i class="fas fa-user"></i>
                     </div>
                     <div class="patient-info">
-                        <h2>{{ patient.patname }}</h2>
+                        <h2>
+                            {{ patient.patname }}
+                            <span class="patient-status {{ 'active' if not patient.is_deleted else 'inactive' }}">
+                                {{ 'Active' if not patient.is_deleted else 'Inactive' }}
+                            </span>
+                        </h2>
                         <p class="patient-id">ID: {{ formatted_patient_id }}</p>
                     </div>
                 </div>
@@ -606,16 +549,7 @@
                     </div>
                 {% endif %}
                 
-                <div class="chart-actions">
-                    <a href="{{ url_for('appointments') }}" class="chart-btn primary">
-                        <i class="fas fa-plus"></i> Schedule New Appointment
-                    </a>
-                    {% if appointments %}
-                    <a href="{{ url_for('appointment_details', appointment_id=appointments[0].raw_id) }}" class="chart-btn secondary">
-                        <i class="fas fa-eye"></i> View Latest Appointment
-                    </a>
-                    {% endif %}
-                </div>
+
             </div>
         </div>
     </div>
@@ -638,9 +572,9 @@
             }
         });
 
-        function deletePatient(patientId) {
-            if (confirm('Are you sure you want to delete this patient record? This action cannot be undone.')) {
-                fetch(`/delete_patient/${patientId}`, {
+        function deactivatePatient(patientId) {
+            if (confirm('Are you sure you want to deactivate this patient? This will hide them from the active patient list, but their data will be preserved.')) {
+                fetch(`/deactivate_patient/${patientId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -649,11 +583,36 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Show success message and redirect
-                        alert('Patient deleted successfully.');
-                        window.location.href = '/patients';
+                        // Show success message and reload page to reflect changes
+                        alert('Patient deactivated successfully.');
+                        window.location.reload();
                     } else {
-                        alert('Error deleting patient: ' + data.error);
+                        alert('Error deactivating patient: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred: ' + error);
+                });
+            }
+        }
+
+        function reactivatePatient(patientId) {
+            if (confirm('Are you sure you want to reactivate this patient? They will be returned to the active patient list.')) {
+                fetch(`/reactivate_patient/${patientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Show success message and reload page to reflect changes
+                        alert('Patient reactivated successfully.');
+                        window.location.reload();
+                    } else {
+                        alert('Error reactivating patient: ' + data.error);
                     }
                 })
                 .catch(error => {

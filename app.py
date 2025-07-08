@@ -1739,7 +1739,12 @@ def delete_backup(filename):
 def patient_details(patient_id):
     """View details of a specific patient with real database data"""
     try:
+        # Get patient regardless of is_deleted status for details view
         patient = Patient.query.get_or_404(patient_id)
+        
+        # Ensure is_deleted attribute exists (for backward compatibility)
+        if not hasattr(patient, 'is_deleted'):
+            patient.is_deleted = False
         
         formatted_patient_id = f"PAT-{patient.patId:03d}"
         
@@ -1800,6 +1805,13 @@ def patient_details(patient_id):
                 'status': 'completed',
                 'raw_id': proc.repid
             })
+        
+        # Log the view action
+        log_user_action(
+            session.get('user_id'),
+            'View Patient Details',
+            f'Viewed details for patient: {patient.patname} (ID: PAT-{patient.patId:03d}) - Status: {"Active" if not patient.is_deleted else "Inactive"}'
+        )
         
         return render_template('patients/patient_details.html', 
                               patient=patient, 

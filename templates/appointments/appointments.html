@@ -351,91 +351,6 @@
             opacity: 0.6;
         }
 
-        /* Status Badge Responsive */
-        @media (max-width: 768px) {
-            .status-badge {
-                font-size: 10px;
-                padding: 2px 6px;
-            }
-            
-            .status-filters {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .status-filter-btn {
-                justify-content: center;
-                margin-bottom: 5px;
-            }
-            
-            .appointments-header {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 15px;
-            }
-            
-            .header-actions {
-                flex-direction: column;
-                width: 100%;
-            }
-            
-            .print-report-button,
-            .add-button {
-                width: 100%;
-                justify-content: center;
-                padding: 14px 20px;
-            }
-            
-            .appointments-stats {
-                order: -1;
-                justify-content: space-between;
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-            
-            .stat-item {
-                flex: 1;
-                min-width: 120px;
-            }
-
-            /* Responsive filter controls */
-            .filter-controls {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 15px;
-            }
-            
-            .filter-group {
-                min-width: unset;
-            }
-            
-            .filter-actions {
-                flex-direction: column;
-                gap: 10px;
-            }
-            
-            .filter-button {
-                width: 100%;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header-actions {
-                gap: 8px;
-            }
-            
-            .print-report-button,
-            .add-button {
-                font-size: 13px;
-                padding: 12px 16px;
-            }
-            
-            .appointments-stats {
-                flex-direction: column;
-                gap: 8px;
-            }
-        }
-
         /* Action Button Improvements */
         .action-button {
             margin: 0 2px;
@@ -519,80 +434,125 @@
             background-color: #f8f9fa;
         }
 
-        /* Status filter buttons active state */
-        .status-filter-btn.active {
-            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        .stat-item .count {
+            font-weight: bold;
+            color: #333;
         }
 
-        /* Loading state for buttons */
-        .action-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        /* View Details Modal Styling */
+        .appointment-details-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
         }
 
-        .action-button.loading {
-            position: relative;
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
         }
 
-        .action-button.loading::after {
-            content: '';
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            border: 2px solid transparent;
-            border-top: 2px solid currentColor;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .detail-row:last-child {
+            border-bottom: none;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        /* Loading state for print button */
-        .print-report-button.loading {
-            opacity: 0.7;
-            cursor: not-allowed;
+        .detail-value {
+            color: #333;
+            font-weight: 500;
         }
 
-        .print-report-button.loading::after {
-            content: '';
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            border: 2px solid transparent;
-            border-top: 2px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-left: 5px;
+        .modal-header h2 {
+            color: #2196f3;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        /* Print button icon animation */
-        .print-report-button i {
-            transition: transform 0.3s ease;
+        .status-indicator {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
         }
 
-        .print-report-button:hover i {
-            transform: scale(1.1);
-        }
-
-        /* Improved layout for larger screens */
-        @media (min-width: 1200px) {
-            .header-actions {
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .status-badge {
+                font-size: 10px;
+                padding: 2px 6px;
+            }
+            
+            .status-filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .status-filter-btn {
+                justify-content: center;
+                margin-bottom: 5px;
+            }
+            
+            .appointments-header {
+                flex-direction: column;
+                align-items: stretch;
                 gap: 15px;
+            }
+            
+            .header-actions {
+                flex-direction: column;
+                width: 100%;
             }
             
             .print-report-button,
             .add-button {
-                padding: 14px 24px;
-                font-size: 15px;
+                width: 100%;
+                justify-content: center;
+                padding: 14px 20px;
             }
-        }
-        
-        .stat-item .count {
-            font-weight: bold;
-            color: #333;
+            
+            .appointments-stats {
+                order: -1;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .stat-item {
+                flex: 1;
+                min-width: 120px;
+            }
+
+            .filter-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            .filter-group {
+                min-width: unset;
+            }
+            
+            .filter-actions {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .filter-button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -619,7 +579,6 @@
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
                 {% endif %}
-                <!-- ADD THIS LINE FOR FAQ BUTTON -->
                 <li><a href="{{ url_for('faq') }}"><i class="fas fa-question-circle"></i> FAQ</a></li>
                 <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> About</a></li>
             </ul>
@@ -709,7 +668,7 @@
                 </a>
             </div>
 
-            <!-- UPDATED FILTER CONTROLS -->
+            <!-- Filter Controls -->
             <div class="filter-controls">
                 <div class="filter-group">
                     <label for="dateFilter">Date:</label>
@@ -762,10 +721,15 @@
                                 </span>
                             </td>
                             <td>
-                                <a href="{{ url_for('appointment_details', appointment_id=appointment.raw_id) }}" 
-                                   class="action-button view-button" title="View Details">
+                                <button class="action-button view-button" 
+                                        data-id="{{ appointment.raw_id }}" 
+                                        data-patient="{{ appointment.patient_name }}"
+                                        data-date="{{ appointment.date }}"
+                                        data-time="{{ appointment.time }}"
+                                        data-status="{{ appointment.status }}"
+                                        title="View Details">
                                     <i class="fas fa-eye"></i>
-                                </a>
+                                </button>
                                 
                                 {% if appointment.status == 'active' %}
                                     <!-- Active appointment actions -->
@@ -923,47 +887,157 @@
         </div>
     </div>
 
+    <!-- View Appointment Details Modal -->
+    <div id="viewAppointmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-calendar-alt"></i> Appointment Details</h2>
+                <span class="close-modal" id="closeViewModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="appointment-details-info">
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-hashtag"></i> Appointment ID:
+                        </span>
+                        <span class="detail-value" id="viewAppointmentId">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-user-injured"></i> Patient Name:
+                        </span>
+                        <span class="detail-value" id="viewPatientName">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-phone"></i> Patient Contact:
+                        </span>
+                        <span class="detail-value" id="viewPatientContact">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-calendar"></i> Date:
+                        </span>
+                        <span class="detail-value" id="viewAppointmentDate">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-clock"></i> Time:
+                        </span>
+                        <span class="detail-value" id="viewAppointmentTime">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-info-circle"></i> Status:
+                        </span>
+                        <span class="detail-value">
+                            <span id="viewAppointmentStatus" class="status-indicator">-</span>
+                        </span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <i class="fas fa-sticky-note"></i> Notes:
+                        </span>
+                        <span class="detail-value" id="viewAppointmentNotes">No notes available</span>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn cancel-btn" id="closeViewDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         console.log('🔄 Loading appointments page...');
         
-        // FIXED DATE PARSING AND FILTERING FUNCTIONS
-        function parseDisplayedDate(dateText) {
-            try {
-                // Handle different date formats that might be displayed
-                // e.g., "January 08, 2025", "January 8, 2025", "Jan 08, 2025"
-                const cleanDateText = dateText.trim();
-                
-                // Try to parse the displayed date
-                const parsedDate = new Date(cleanDateText);
-                
-                // Check if parsing was successful
-                if (isNaN(parsedDate.getTime())) {
-                    console.warn('Could not parse date:', cleanDateText);
-                    return null;
-                }
-                
-                return parsedDate;
-            } catch (error) {
-                console.error('Error parsing date:', dateText, error);
-                return null;
-            }
-        }
-
-        function formatDateForComparison(date) {
-            // Convert Date object to YYYY-MM-DD format for comparison
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        }
+        // Get patient contact info for view details
+        const patientContacts = {};
+        {% for patient in all_patients %}
+        patientContacts['{{ patient.patname }}'] = '{{ patient.patcontact or "N/A" }}';
+        {% endfor %}
         
-        // Date validation functions
+        // Date validation and parsing functions
         function getTodayString() {
             const today = new Date();
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
+        }
+
+        // Function to parse date string and normalize format
+        function parseAndNormalizeDate(dateStr) {
+            if (!dateStr) return null;
+            
+            // Remove extra spaces and normalize
+            const cleanDate = dateStr.trim();
+            
+            // Try different date formats that might be in the table
+            const formats = [
+                // ISO format YYYY-MM-DD
+                /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
+                // MM/DD/YYYY format
+                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+                // DD/MM/YYYY format
+                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+                // MM-DD-YYYY format
+                /^(\d{1,2})-(\d{1,2})-(\d{4})$/,
+                // DD-MM-YYYY format
+                /^(\d{1,2})-(\d{1,2})-(\d{4})$/,
+                // Month DD, YYYY format (e.g., "January 15, 2024")
+                /^(\w+)\s+(\d{1,2}),\s+(\d{4})$/
+            ];
+            
+            // Check ISO format first (YYYY-MM-DD)
+            if (formats[0].test(cleanDate)) {
+                return cleanDate; // Already in correct format
+            }
+            
+            // Check MM/DD/YYYY or MM-DD-YYYY
+            let match = cleanDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (match) {
+                const month = match[1].padStart(2, '0');
+                const day = match[2].padStart(2, '0');
+                const year = match[3];
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Check for month name format
+            const monthNames = {
+                'january': '01', 'february': '02', 'march': '03', 'april': '04',
+                'may': '05', 'june': '06', 'july': '07', 'august': '08',
+                'september': '09', 'october': '10', 'november': '11', 'december': '12',
+                'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+                'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09',
+                'oct': '10', 'nov': '11', 'dec': '12'
+            };
+            
+            match = cleanDate.match(/^(\w+)\s+(\d{1,2}),\s+(\d{4})$/);
+            if (match) {
+                const monthName = match[1].toLowerCase();
+                const day = match[2].padStart(2, '0');
+                const year = match[3];
+                const monthNum = monthNames[monthName];
+                if (monthNum) {
+                    return `${year}-${monthNum}-${day}`;
+                }
+            }
+            
+            // If no format matches, try to parse with Date constructor
+            try {
+                const date = new Date(cleanDate);
+                if (!isNaN(date.getTime())) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+            } catch (e) {
+                console.warn('Could not parse date:', cleanDate);
+            }
+            
+            return null;
         }
         
         function validateDate(dateInput, formGroup, submitButton) {
@@ -985,21 +1059,18 @@
             }
         }
         
-        // Initialize date validation for add appointment modal
+        // Initialize date validation
         function initializeDateValidation() {
             const today = getTodayString();
-            console.log('Today date:', today);
             
             // Add appointment modal
             const appointmentDate = document.getElementById('appointmentDate');
             const appointmentDateGroup = document.getElementById('appointmentDateGroup');
             const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
             
-            // Set min date to today
             appointmentDate.setAttribute('min', today);
-            appointmentDate.value = today; // Set default to today
+            appointmentDate.value = today;
             
-            // Add change event listener
             appointmentDate.addEventListener('change', function() {
                 validateDate(this, appointmentDateGroup, scheduleBtn);
             });
@@ -1009,163 +1080,66 @@
             const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
             const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
             
-            // Set min date to today
             newAppointmentDate.setAttribute('min', today);
             
-            // Add change event listener
             newAppointmentDate.addEventListener('change', function() {
                 validateDate(this, newAppointmentDateGroup, saveRescheduleBtn);
             });
-            
-            console.log('✅ Date validation initialized');
         }
         
-        // Call initialization when DOM is ready
+        // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
             initializeDateValidation();
         });
         
-        // Also call it immediately in case DOM is already loaded
-        initializeDateValidation();
-        
-        // Enhanced form submission validation
-        function validateAppointmentForm() {
-            const appointmentDate = document.getElementById('appointmentDate');
-            const appointmentDateGroup = document.getElementById('appointmentDateGroup');
-            const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
-            
-            const isValidDate = validateDate(appointmentDate, appointmentDateGroup, scheduleBtn);
-            
-            if (!isValidDate) {
-                showNotification('Please select a valid future date for the appointment.', 'error');
-                return false;
-            }
-            
-            return true;
-        }
-        
-        function validateRescheduleForm() {
-            const newAppointmentDate = document.getElementById('newAppointmentDate');
-            const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
-            const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
-            
-            const isValidDate = validateDate(newAppointmentDate, newAppointmentDateGroup, saveRescheduleBtn);
-            
-            if (!isValidDate) {
-                showNotification('Please select a valid future date for rescheduling.', 'error');
-                return false;
-            }
-            
-            return true;
-        }
-        
-        // Print Appointments Report functionality - SAFER VERSION
-        const printButton = document.getElementById('printAppointmentsReport');
-        if (printButton) {
-            printButton.addEventListener('click', function() {
-                console.log('Print button clicked');
+        // View Appointment Details Modal functionality
+        const viewModal = document.getElementById('viewAppointmentModal');
+        const closeViewModalBtn = document.getElementById('closeViewModal');
+        const closeViewDetailsBtn = document.getElementById('closeViewDetails');
+
+        // Setup view buttons
+        document.querySelectorAll('.view-button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
                 
-                // Get current status filter from URL params (more reliable)
-                const urlParams = new URLSearchParams(window.location.search);
-                const currentStatus = urlParams.get('status') || 'all';
+                const appointmentId = this.getAttribute('data-id');
+                const patientName = this.getAttribute('data-patient');
+                const appointmentDate = this.getAttribute('data-date');
+                const appointmentTime = this.getAttribute('data-time');
+                const status = this.getAttribute('data-status');
                 
-                // Get additional filters from form inputs
-                const dateFilter = document.getElementById('dateFilter').value;
-                const patientFilter = document.getElementById('patientFilter').value;
+                // Populate modal fields
+                document.getElementById('viewAppointmentId').textContent = `APT-${String(appointmentId).padStart(3, '0')}`;
+                document.getElementById('viewPatientName').textContent = patientName;
+                document.getElementById('viewPatientContact').textContent = patientContacts[patientName] || 'N/A';
+                document.getElementById('viewAppointmentDate').textContent = appointmentDate;
+                document.getElementById('viewAppointmentTime').textContent = appointmentTime;
+                document.getElementById('viewAppointmentNotes').textContent = 'No notes available';
                 
-                console.log('Current status filter:', currentStatus);
-                console.log('Date filter:', dateFilter);
-                console.log('Patient filter:', patientFilter);
+                // Set status with appropriate styling
+                const statusElement = document.getElementById('viewAppointmentStatus');
+                statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                statusElement.className = `status-indicator status-${status}`;
                 
-                // Build URL with current filters
-                const printUrl = new URL('/print_appointments_report', window.location.origin);
-                
-                // ALWAYS add status filter (including 'all')
-                printUrl.searchParams.append('status', currentStatus);
-                
-                // Add date filter if set
-                if (dateFilter) {
-                    printUrl.searchParams.append('date', dateFilter);
-                }
-                
-                // Add patient filter if set
-                if (patientFilter.trim()) {
-                    printUrl.searchParams.append('patient', patientFilter.trim());
-                }
-                
-                // Add auto-print parameter to trigger print dialog automatically
-                printUrl.searchParams.append('auto_print', 'true');
-                
-                console.log('Opening print URL:', printUrl.toString());
-                
-                // Show loading state
-                this.classList.add('loading');
-                this.disabled = true;
-                const originalText = this.innerHTML;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-                
-                // Open print page in new window
-                const printWindow = window.open(printUrl.toString(), '_blank');
-                
-                if (!printWindow) {
-                    // Fallback if popup was blocked
-                    showNotification('Print window blocked. Please allow popups or try again.', 'warning');
-                    // Navigate to print page instead
-                    window.location.href = printUrl.toString();
-                } else {
-                    showNotification('Print report generated successfully!', 'success');
-                    
-                    // Reset button state after a delay
-                    setTimeout(() => {
-                        this.classList.remove('loading');
-                        this.disabled = false;
-                        this.innerHTML = originalText;
-                    }, 1500);
-                }
+                // Show modal
+                viewModal.style.display = 'block';
+                document.body.classList.add('modal-open');
             });
+        });
 
-            // Update print button tooltip with current filters
-            function updatePrintButtonTooltip() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const currentStatus = urlParams.get('status') || 'all';
-                const dateFilter = document.getElementById('dateFilter').value;
-                const patientFilter = document.getElementById('patientFilter').value;
-                
-                let tooltip = 'Print appointments report';
-                const filters = [];
-                
-                // Always show status filter
-                const statusLabels = {
-                    'all': 'All Appointments',
-                    'active': 'Active Only',
-                    'completed': 'Completed Only',
-                    'cancelled': 'Cancelled Only'
-                };
-                filters.push(`Status: ${statusLabels[currentStatus] || currentStatus}`);
-                
-                if (dateFilter) {
-                    const filterDate = new Date(dateFilter);
-                    filters.push(`Date: ${filterDate.toLocaleDateString()}`);
-                }
-                if (patientFilter.trim()) {
-                    filters.push(`Patient: ${patientFilter.trim()}`);
-                }
-                
-                tooltip += ` (${filters.join(', ')})`;
-                printButton.title = tooltip;
-            }
-
-            // Update tooltip when filters change
-            document.getElementById('dateFilter').addEventListener('change', updatePrintButtonTooltip);
-            document.getElementById('patientFilter').addEventListener('input', updatePrintButtonTooltip);
-
-            // Initialize tooltip
-            updatePrintButtonTooltip();
-            
-            console.log('✅ Enhanced print functionality initialized successfully');
-        } else {
-            console.warn('⚠️  Print button not found in DOM - skipping print functionality');
+        function closeViewModal() {
+            viewModal.style.display = 'none';
+            document.body.classList.remove('modal-open');
         }
+
+        closeViewModalBtn.addEventListener('click', closeViewModal);
+        closeViewDetailsBtn.addEventListener('click', closeViewModal);
+
+        window.addEventListener('click', function(event) {
+            if (event.target === viewModal) {
+                closeViewModal();
+            }
+        });
         
         // Search functionality
         document.getElementById('searchInput').addEventListener('keyup', function() {
@@ -1189,16 +1163,7 @@
             }
         });
         
-        // FIXED APPOINTMENT CANCELLATION FUNCTIONALITY
-        console.log('🔧 Setting up appointment cancellation...');
-        
-        // Remove any existing event listeners to avoid conflicts
-        document.querySelectorAll('.delete-button').forEach(button => {
-            const newButton = button.cloneNode(true);
-            button.parentNode.replaceChild(newButton, button);
-        });
-
-        // Add the corrected event listeners
+        // Appointment cancellation functionality
         document.querySelectorAll('.delete-button').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -1208,17 +1173,11 @@
                 const row = this.closest('tr');
                 const patientName = row.cells[1].textContent.trim();
                 
-                console.log(`Attempting to cancel appointment ID: ${appointmentId} for patient: ${patientName}`);
-                
                 if(confirm(`Are you sure you want to cancel the appointment for ${patientName}?`)) {
-                    // Show loading state
                     this.style.opacity = '0.5';
                     this.disabled = true;
                     this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                     
-                    console.log('Sending cancellation request...');
-                    
-                    // FIXED: Use the correct URL format that matches backend route
                     fetch(`/cancel_appointment/${appointmentId}`, {
                         method: 'POST',
                         headers: {
@@ -1227,46 +1186,23 @@
                         }
                     })
                     .then(response => {
-                        console.log('Response received:', response);
-                        console.log('Response status:', response.status);
-                        console.log('Response ok:', response.ok);
-                        
                         if (!response.ok) {
                             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                         }
-                        
-                        return response.text().then(text => {
-                            console.log('Raw response text:', text);
-                            
-                            try {
-                                return JSON.parse(text);
-                            } catch (parseError) {
-                                console.error('JSON parse error:', parseError);
-                                console.error('Response was not valid JSON:', text);
-                                throw new Error('Server returned invalid JSON response');
-                            }
-                        });
+                        return response.json();
                     })
                     .then(data => {
-                        console.log('Parsed response data:', data);
-                        
-                        // Reset button state
                         this.style.opacity = '1';
                         this.disabled = false;
                         this.innerHTML = '<i class="fas fa-times"></i>';
                         
                         if (data.success === true) {
-                            console.log('Cancellation successful!');
                             showNotification('Appointment cancelled successfully!', 'success');
                             
-                            // Update the row to show cancelled status
                             const statusCell = row.cells[4];
                             statusCell.innerHTML = '<span class="status-badge status-cancelled"><i class="fas fa-times-circle"></i> Cancelled</span>';
                             
-                            // Update action buttons
                             const actionsCell = row.cells[5];
-                            
-                            // Keep only the view button and add reactivate button
                             const viewButton = actionsCell.querySelector('.view-button');
                             const viewButtonClone = viewButton ? viewButton.cloneNode(true) : null;
                             
@@ -1274,9 +1210,31 @@
                             
                             if (viewButtonClone) {
                                 actionsCell.appendChild(viewButtonClone);
+                                // Re-add event listener to cloned view button
+                                viewButtonClone.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    const appointmentId = this.getAttribute('data-id');
+                                    const patientName = this.getAttribute('data-patient');
+                                    const appointmentDate = this.getAttribute('data-date');
+                                    const appointmentTime = this.getAttribute('data-time');
+                                    const status = 'cancelled';
+                                    
+                                    document.getElementById('viewAppointmentId').textContent = `APT-${String(appointmentId).padStart(3, '0')}`;
+                                    document.getElementById('viewPatientName').textContent = patientName;
+                                    document.getElementById('viewPatientContact').textContent = patientContacts[patientName] || 'N/A';
+                                    document.getElementById('viewAppointmentDate').textContent = appointmentDate;
+                                    document.getElementById('viewAppointmentTime').textContent = appointmentTime;
+                                    document.getElementById('viewAppointmentNotes').textContent = 'No notes available';
+                                    
+                                    const statusElement = document.getElementById('viewAppointmentStatus');
+                                    statusElement.textContent = 'Cancelled';
+                                    statusElement.className = 'status-indicator status-cancelled';
+                                    
+                                    viewModal.style.display = 'block';
+                                    document.body.classList.add('modal-open');
+                                });
                             }
                             
-                            // Add reactivate button
                             const reactivateBtn = document.createElement('button');
                             reactivateBtn.className = 'action-button action-reactivate';
                             reactivateBtn.setAttribute('data-id', appointmentId);
@@ -1289,40 +1247,19 @@
                             actionsCell.appendChild(reactivateBtn);
                             
                         } else {
-                            console.error('Server returned success=false:', data);
                             showNotification(data.error || 'Failed to cancel appointment', 'error');
                         }
                     })
                     .catch(error => {
-                        console.error('Fetch error details:', error);
-                        
-                        // Reset button state
                         this.style.opacity = '1';
                         this.disabled = false;
                         this.innerHTML = '<i class="fas fa-times"></i>';
-                        
-                        // Show specific error message
-                        let errorMessage = 'Failed to cancel appointment. ';
-                        if (error.message.includes('HTTP 404')) {
-                            errorMessage += 'Appointment not found.';
-                        } else if (error.message.includes('HTTP 500')) {
-                            errorMessage += 'Server error occurred.';
-                        } else if (error.message.includes('JSON')) {
-                            errorMessage += 'Server response error.';
-                        } else if (error.message.includes('Failed to fetch')) {
-                            errorMessage += 'Network connection error.';
-                        } else {
-                            errorMessage += error.message;
-                        }
-                        
-                        showNotification(errorMessage, 'error');
+                        showNotification('Failed to cancel appointment: ' + error.message, 'error');
                     });
                 }
             });
         });
 
-        console.log(`✅ Cancel buttons setup complete. Found ${document.querySelectorAll('.delete-button').length} buttons.`);
-        
         // Complete appointment functionality
         document.querySelectorAll('.action-complete').forEach(button => {
             button.addEventListener('click', function() {
@@ -1338,22 +1275,14 @@
                     .then(data => {
                         if (data.success) {
                             showNotification('Appointment marked as completed', 'success');
-                            // Update the row to show completed status
-                            const row = this.closest('tr');
-                            const statusCell = row.cells[4];
-                            statusCell.innerHTML = '<span class="status-badge status-completed"><i class="fas fa-check-circle"></i> Completed</span>';
-                            
-                            // Update action buttons
-                            const actionsCell = row.cells[5];
-                            actionsCell.innerHTML = '';
-                            actionsCell.appendChild(document.querySelector(`[href*="${appointmentId}"]`).cloneNode(true));
-                            actionsCell.innerHTML += '<span class="text-muted"><i class="fas fa-check-circle"></i> Completed</span>';
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
                         } else {
                             showNotification('Error completing appointment: ' + data.error, 'error');
                         }
                     })
                     .catch(error => {
-                        console.error('Error:', error);
                         showNotification('An error occurred while completing the appointment.', 'error');
                     });
                 }
@@ -1365,8 +1294,6 @@
             const patientName = row.cells[1].textContent.trim();
             
             if(confirm(`Reactivate the appointment for ${patientName}?`)) {
-                console.log(`Reactivating appointment ID: ${appointmentId}`);
-                
                 fetch(`/reactivate_appointment/${appointmentId}`, {
                     method: 'POST',
                     headers: {
@@ -1383,8 +1310,6 @@
                 .then(data => {
                     if (data.success) {
                         showNotification('Appointment reactivated successfully!', 'success');
-                        
-                        // Reload the page to reflect changes
                         setTimeout(() => {
                             window.location.reload();
                         }, 1000);
@@ -1393,7 +1318,6 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Reactivation error:', error);
                     showNotification('Failed to reactivate appointment: ' + error.message, 'error');
                 });
             }
@@ -1408,41 +1332,45 @@
             });
         });
         
-        // FIXED FILTER FUNCTIONALITY
+        // IMPROVED Filter functionality with proper date handling
         document.getElementById('applyFilters').addEventListener('click', function() {
             const dateFilter = document.getElementById('dateFilter').value;
-            const patientFilter = document.getElementById('patientFilter').value.toLowerCase();
-            
-            console.log('Applying filters - Date:', dateFilter, 'Patient:', patientFilter);
+            const patientFilter = document.getElementById('patientFilter').value.toLowerCase().trim();
             
             const table = document.getElementById('appointmentsTable');
             const rows = table.getElementsByTagName('tr');
             let visibleCount = 0;
             
+            console.log('Applying filters - Date:', dateFilter, 'Patient:', patientFilter);
+            
             for (let i = 1; i < rows.length; i++) {
                 const cells = rows[i].getElementsByTagName('td');
-                const dateText = cells[2].textContent; // Don't convert to lowercase for dates
-                const patientText = cells[1].textContent.toLowerCase();
+                const dateText = cells[2].textContent.trim();
+                const patientText = cells[1].textContent.toLowerCase().trim();
                 
                 let dateMatch = true;
                 let patientMatch = true;
                 
-                // Improved date matching
+                // Date filtering with proper parsing
                 if (dateFilter) {
-                    const displayedDate = parseDisplayedDate(dateText);
-                    if (displayedDate) {
-                        const displayedDateString = formatDateForComparison(displayedDate);
-                        dateMatch = displayedDateString === dateFilter;
-                        console.log(`Comparing: ${displayedDateString} === ${dateFilter} = ${dateMatch}`);
+                    const normalizedTableDate = parseAndNormalizeDate(dateText);
+                    console.log(`Row ${i}: Original date: "${dateText}", Normalized: "${normalizedTableDate}", Filter: "${dateFilter}"`);
+                    
+                    if (normalizedTableDate) {
+                        dateMatch = (normalizedTableDate === dateFilter);
                     } else {
-                        // If we can't parse the date, fall back to string matching
+                        // Fallback to string comparison if parsing fails
                         dateMatch = dateText.toLowerCase().includes(dateFilter.toLowerCase());
                     }
+                } else {
+                    dateMatch = true; // Show all if no date filter
                 }
                 
-                // Patient name matching (unchanged)
+                // Patient filtering
                 if (patientFilter) {
                     patientMatch = patientText.includes(patientFilter);
+                } else {
+                    patientMatch = true; // Show all if no patient filter
                 }
                 
                 const shouldShow = dateMatch && patientMatch;
@@ -1453,8 +1381,12 @@
                 }
             }
             
-            console.log(`Filter applied. ${visibleCount} appointments visible.`);
-            showNotification(`Filters applied. ${visibleCount} appointments found.`, 'info');
+            const filterMessage = [];
+            if (dateFilter) filterMessage.push(`date: ${dateFilter}`);
+            if (patientFilter) filterMessage.push(`patient: "${patientFilter}"`);
+            
+            const filterText = filterMessage.length > 0 ? ` (${filterMessage.join(', ')})` : '';
+            showNotification(`Filters applied${filterText}. ${visibleCount} appointments found.`, 'info');
         });
 
         // Clear filters functionality
@@ -1465,18 +1397,54 @@
             const table = document.getElementById('appointmentsTable');
             const rows = table.getElementsByTagName('tr');
             
-            // Show all rows
             for (let i = 1; i < rows.length; i++) {
                 rows[i].style.display = '';
             }
             
             showNotification('Filters cleared', 'info');
-            
-            // Update print button tooltip
-            if (typeof updatePrintButtonTooltip === 'function') {
-                updatePrintButtonTooltip();
-            }
         });
+        
+        // Print functionality
+        const printButton = document.getElementById('printAppointmentsReport');
+        if (printButton) {
+            printButton.addEventListener('click', function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentStatus = urlParams.get('status') || 'all';
+                const dateFilter = document.getElementById('dateFilter').value;
+                const patientFilter = document.getElementById('patientFilter').value;
+                
+                const printUrl = new URL('/print_appointments_report', window.location.origin);
+                printUrl.searchParams.append('status', currentStatus);
+                
+                if (dateFilter) {
+                    printUrl.searchParams.append('date', dateFilter);
+                }
+                
+                if (patientFilter.trim()) {
+                    printUrl.searchParams.append('patient', patientFilter.trim());
+                }
+                
+                this.classList.add('loading');
+                this.disabled = true;
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                
+                const printWindow = window.open(printUrl.toString(), '_blank');
+                
+                if (!printWindow) {
+                    showNotification('Print window blocked. Please allow popups or try again.', 'warning');
+                    window.location.href = printUrl.toString();
+                } else {
+                    showNotification('Print report generated successfully!', 'success');
+                    
+                    setTimeout(() => {
+                        this.classList.remove('loading');
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                    }, 1500);
+                }
+            });
+        }
         
         // Modal functionality
         const modal = document.getElementById('addAppointmentModal');
@@ -1488,12 +1456,10 @@
             modal.style.display = 'block';
             document.body.classList.add('modal-open');
             
-            // Set default date to today and trigger validation
             const today = getTodayString();
             const appointmentDate = document.getElementById('appointmentDate');
             appointmentDate.value = today;
             
-            // Trigger validation
             const appointmentDateGroup = document.getElementById('appointmentDateGroup');
             const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
             validateDate(appointmentDate, appointmentDateGroup, scheduleBtn);
@@ -1504,7 +1470,6 @@
             document.body.classList.remove('modal-open');
             document.getElementById('addAppointmentForm').reset();
             
-            // Reset validation states
             const appointmentDateGroup = document.getElementById('appointmentDateGroup');
             appointmentDateGroup.classList.remove('invalid');
             const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
@@ -1528,14 +1493,9 @@
             window.location.href = "{{ url_for('patients') }}?show_add_modal=true";
         });
         
-        // Enhanced add appointment form submission with date validation
+        // Add appointment form submission
         document.getElementById('addAppointmentForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
-            // Validate date before submission
-            if (!validateAppointmentForm()) {
-                return;
-            }
             
             const formData = new FormData(this);
             
@@ -1557,16 +1517,89 @@
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
                 showNotification('An error occurred while scheduling the appointment.', 'error');
             });
         });
         
-        // Improved notification function
-        function showNotification(message, type = 'info') {
-            console.log(`Showing notification: ${type} - ${message}`);
+        // Reschedule modal functionality
+        const rescheduleModal = document.getElementById('rescheduleAppointmentModal');
+        const closeRescheduleModalBtn = document.getElementById('closeRescheduleModal');
+        const cancelRescheduleBtn = document.getElementById('cancelReschedule');
+
+        document.querySelectorAll('.edit-button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const appointmentId = this.getAttribute('data-id');
+                const row = this.closest('tr');
+                const patient = row.cells[1].textContent;
+                const date = row.cells[2].textContent;
+                const time = row.cells[3].textContent;
+                
+                document.getElementById('appointmentId').value = appointmentId;
+                document.getElementById('currentPatient').textContent = patient;
+                document.getElementById('currentDate').textContent = date;
+                document.getElementById('currentTime').textContent = time;
+                
+                const today = getTodayString();
+                const newAppointmentDate = document.getElementById('newAppointmentDate');
+                newAppointmentDate.value = today;
+                
+                let timeValue = '';
+                if (time.match(/^\d{1,2}:\d{2}/)) {
+                    timeValue = time.trim();
+                }
+                document.getElementById('newAppointmentTime').value = timeValue;
+                document.getElementById('rescheduleReason').value = '';
+                
+                rescheduleModal.style.display = 'block';
+                document.body.classList.add('modal-open');
+            });
+        });
+
+        function closeRescheduleModal() {
+            rescheduleModal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.getElementById('rescheduleAppointmentForm').reset();
+        }
+
+        closeRescheduleModalBtn.addEventListener('click', closeRescheduleModal);
+        cancelRescheduleBtn.addEventListener('click', closeRescheduleModal);
+
+        window.addEventListener('click', function(event) {
+            if (event.target === rescheduleModal) {
+                closeRescheduleModal();
+            }
+        });
+
+        // Reschedule form submission
+        document.getElementById('rescheduleAppointmentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
             
-            // Remove any existing notifications
+            const formData = new FormData(this);
+            
+            fetch('/reschedule_appointment', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeRescheduleModal();
+                    showNotification('Appointment rescheduled successfully', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showNotification('Error rescheduling appointment: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('An error occurred while rescheduling the appointment.', 'error');
+            });
+        });
+
+        // Notification function
+        function showNotification(message, type = 'info') {
             const existingNotifications = document.querySelectorAll('.notification-popup');
             existingNotifications.forEach(notification => {
                 notification.remove();
@@ -1575,7 +1608,6 @@
             const notification = document.createElement('div');
             notification.className = `notification-popup ${type}`;
             
-            // Add icon based on type
             let icon = '';
             switch(type) {
                 case 'success':
@@ -1594,7 +1626,6 @@
             
             notification.innerHTML = icon + message;
             
-            // Style the notification
             notification.style.cssText = `
                 position: fixed;
                 top: 20px;
@@ -1616,12 +1647,10 @@
             
             document.body.appendChild(notification);
             
-            // Show the notification
             setTimeout(() => {
                 notification.style.transform = 'translateX(0)';
             }, 10);
             
-            // Auto-hide after 4 seconds
             setTimeout(() => {
                 notification.style.transform = 'translateX(100%)';
                 setTimeout(() => {
@@ -1632,147 +1661,7 @@
             }, 4000);
         }
 
-        // Reschedule modal functionality
-        const rescheduleModal = document.getElementById('rescheduleAppointmentModal');
-        const closeRescheduleModalBtn = document.getElementById('closeRescheduleModal');
-        const cancelRescheduleBtn = document.getElementById('cancelReschedule');
-
-        document.querySelectorAll('.edit-button').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                const appointmentId = this.getAttribute('data-id');
-                const row = this.closest('tr');
-                const patient = row.cells[1].textContent;
-                const date = row.cells[2].textContent;
-                const time = row.cells[3].textContent;
-                
-                document.getElementById('appointmentId').value = appointmentId;
-                document.getElementById('currentPatient').textContent = patient;
-                document.getElementById('currentDate').textContent = date;
-                document.getElementById('currentTime').textContent = time;
-                
-                // Set default date to today and trigger validation
-                const today = getTodayString();
-                const newAppointmentDate = document.getElementById('newAppointmentDate');
-                newAppointmentDate.value = today;
-                
-                let timeValue = '';
-                if (time.match(/^\d{1,2}:\d{2}/)) {
-                    timeValue = time.trim();
-                }
-                document.getElementById('newAppointmentTime').value = timeValue;
-                document.getElementById('rescheduleReason').value = '';
-                
-                // Trigger validation
-                const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
-                const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
-                validateDate(newAppointmentDate, newAppointmentDateGroup, saveRescheduleBtn);
-                
-                rescheduleModal.style.display = 'block';
-                document.body.classList.add('modal-open');
-            });
-        });
-
-        function closeRescheduleModal() {
-            rescheduleModal.style.display = 'none';
-            document.body.classList.remove('modal-open');
-            document.getElementById('rescheduleAppointmentForm').reset();
-            
-            // Reset validation states
-            const newAppointmentDateGroup = document.getElementById('newAppointmentDateGroup');
-            newAppointmentDateGroup.classList.remove('invalid');
-            const saveRescheduleBtn = document.getElementById('saveRescheduleBtn');
-            saveRescheduleBtn.disabled = false;
-        }
-
-        closeRescheduleModalBtn.addEventListener('click', closeRescheduleModal);
-        cancelRescheduleBtn.addEventListener('click', closeRescheduleModal);
-
-        window.addEventListener('click', function(event) {
-            if (event.target === rescheduleModal) {
-                closeRescheduleModal();
-            }
-        });
-
-        // Enhanced reschedule form submission with date validation
-        document.getElementById('rescheduleAppointmentForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Validate date before submission
-            if (!validateRescheduleForm()) {
-                return;
-            }
-            
-            const formData = new FormData(this);
-            
-            fetch('/reschedule_appointment', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    closeRescheduleModal();
-                    
-                    const appointmentId = formData.get('appointment_id');
-                    const row = document.querySelector(`.edit-button[data-id="${appointmentId}"]`).closest('tr');
-                    
-                    const newDate = new Date(formData.get('date'));
-                    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-                    row.cells[2].textContent = newDate.toLocaleDateString('en-US', options);
-                    row.cells[3].textContent = formData.get('time');
-                    
-                    showNotification('Appointment rescheduled successfully', 'success');
-                } else {
-                    showNotification('Error rescheduling appointment: ' + data.error, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('An error occurred while rescheduling the appointment.', 'error');
-            });
-        });
-
-        // Debug function - you can call this in browser console
-        function debugCancelButtons() {
-            const deleteButtons = document.querySelectorAll('.delete-button');
-            console.log(`Found ${deleteButtons.length} delete buttons`);
-            
-            deleteButtons.forEach((button, index) => {
-                const appointmentId = button.getAttribute('data-id');
-                const row = button.closest('tr');
-                const patientName = row ? row.cells[1].textContent.trim() : 'Unknown';
-                console.log(`Button ${index + 1}: ID=${appointmentId}, Patient=${patientName}`);
-            });
-        }
-
-        // Test function - run this in browser console to test date parsing
-        function testDateParsing() {
-            console.log('=== TESTING DATE PARSING ===');
-            const table = document.getElementById('appointmentsTable');
-            const rows = table.getElementsByTagName('tr');
-            
-            for (let i = 1; i < rows.length; i++) {
-                const cells = rows[i].getElementsByTagName('td');
-                const dateText = cells[2].textContent.trim();
-                const parsedDate = parseDisplayedDate(dateText);
-                
-                console.log(`Original: "${dateText}"`);
-                console.log(`Parsed: ${parsedDate}`);
-                if (parsedDate) {
-                    console.log(`Formatted: ${formatDateForComparison(parsedDate)}`);
-                }
-                console.log('---');
-            }
-        }
-
-        console.log('✅ Fixed appointment cancellation script loaded');
-        console.log('✅ Date validation initialized - no past dates allowed');
-        console.log('✅ FIXED date filter functionality - now properly compares dates');
-        console.log('🔧 Run debugCancelButtons() in console to check button setup');
-        console.log('🔧 Run testDateParsing() in console to test date parsing');
-        console.log('🖨️ Print functionality ready - Press Ctrl+P to print with filters');
-        console.log('📋 Page setup complete!');
+        console.log('✅ Appointments page loaded successfully with improved date filtering!');
     </script>
 </body>
 </html>

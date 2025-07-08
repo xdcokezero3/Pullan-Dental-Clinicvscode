@@ -97,6 +97,14 @@
             font-size: 0.85em;
         }
         
+        .status-badge.expired-low {
+            background-color: #dc3545;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        
         .btn-loading {
             display: none;
         }
@@ -220,6 +228,35 @@
         
         .deactivate-btn:hover {
             background: #c82333;
+        }
+
+        /* Form validation styles */
+        .form-group.error input {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+        }
+        
+        .error-message {
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .form-group.success input {
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }
+        
+        .success-message {
+            color: #28a745;
+            font-size: 0.875em;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
     </style>
 </head>
@@ -350,7 +387,7 @@
                 </div>
                 {% endif %}
                 
-                <!-- Inventory Categories/Filters -->
+               
                 <div class="inventory-filters">
                     <button class="filter-btn active" data-filter="all">All Categories</button>
                     <button class="filter-btn" data-filter="consumables">Consumables</button>
@@ -359,8 +396,8 @@
                     <button class="filter-btn" data-filter="instruments">Instruments</button>
                     <button class="filter-btn" data-filter="office_supplies">Office Supplies</button>
                     {% if status_filter == 'active' or status_filter == 'all' %}
-                    <button class="filter-btn warning" data-filter="low_stock">Low Stock</button>
-                    <button class="filter-btn danger" data-filter="expired">Expired</button>
+                    <button class="filter-btn warning" data-filter="low_stock">Low Stock (<span id="lowStockFilterCount">0</span>)</button>
+                    <button class="filter-btn danger" data-filter="expired">Expired (<span id="expiredFilterCount">0</span>)</button>
                     {% endif %}
                 </div>
                 
@@ -383,7 +420,8 @@
                             {% for item in inventory_items %}
                             <tr data-id="{{ item.raw_id }}" 
                                 data-type="{{ item.type|lower|replace(' ', '_') if item.type else 'unknown' }}" 
-                                class="{% if not item.is_active %}inactive{% endif %} {% if item.status == 'Low' %}low-stock{% endif %} {% if 'expired' in item.status|lower %}expired{% endif %}">
+                                data-name="{{ item.name|lower }}"
+                                class="{% if not item.is_active %}inactive{% endif %}{% if item.status == 'Low Stock' or item.status == 'Low' %} low-stock{% endif %}{% if 'expired' in item.status|lower %} expired{% endif %}">
                                 <td>{{ item.id }}</td>
                                 <td>{{ item.name }}{% if not item.is_active %} <small class="text-muted">(Inactive)</small>{% endif %}</td>
                                 <td>{{ item.type or 'N/A' }}</td>
@@ -456,9 +494,17 @@
                 <form id="inventoryForm">
                     <input type="hidden" id="itemId" name="itemId">
                     
-                    <div class="form-group">
+                    <div class="form-group" id="itemNameGroup">
                         <label for="itemName">Item Name*</label>
                         <input type="text" id="itemName" name="name" required>
+                        <div id="itemNameError" class="error-message" style="display: none;">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span></span>
+                        </div>
+                        <div id="itemNameSuccess" class="success-message" style="display: none;">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Item name is available</span>
+                        </div>
                     </div>
                     
                     <div class="form-row">
@@ -565,7 +611,7 @@
     </div>
 
     <script>
-        // Complete Inventory Management JavaScript with soft delete functionality
+        // Complete Inventory Management JavaScript with soft delete functionality and unique name validation
         document.addEventListener('DOMContentLoaded', function() {
             
             // Global variables
@@ -622,8 +668,8 @@
                 
                 tableRows.forEach(row => {
                     const itemType = row.getAttribute('data-type');
-                    const isLowStock = row.classList.contains('low-stock');
-                    const isExpired = row.classList.contains('expired');
+                    const isLowStock = row.classList.contains('low-stock') || row.querySelector('.status-badge.low') !== null;
+                    const isExpired = row.classList.contains('expired') || row.querySelector('.status-badge.expired') !== null;
                     
                     let shouldShow = false;
                     
@@ -643,7 +689,106 @@
                     
                     row.style.display = shouldShow ? '' : 'none';
                 });
+                
+                // Update filter button counts
+                updateFilterCounts();
             }
+
+            function updateFilterCounts() {
+                const tableRows = document.querySelectorAll('#inventoryTable tbody tr');
+                let lowStockCount = 0;
+                let expiredCount = 0;
+                
+                tableRows.forEach(row => {
+                    const isLowStock = row.classList.contains('low-stock') || row.querySelector('.status-badge.low') !== null;
+                    const isExpired = row.classList.contains('expired') || row.querySelector('.status-badge.expired') !== null;
+                    
+                    if (isLowStock) lowStockCount++;
+                    if (isExpired) expiredCount++;
+                });
+                
+                // Update filter button counts
+                const lowStockFilterCount = document.getElementById('lowStockFilterCount');
+                const expiredFilterCount = document.getElementById('expiredFilterCount');
+                
+                if (lowStockFilterCount) lowStockFilterCount.textContent = lowStockCount;
+                if (expiredFilterCount) expiredFilterCount.textContent = expiredCount;
+            }
+
+            // Initialize filter counts on page load
+            setTimeout(() => {
+                updateFilterCounts();
+            }, 100);
+
+            // Unique name validation
+            function checkItemNameUniqueness(itemName, excludeItemId = null) {
+                const normalizedName = itemName.toLowerCase().trim();
+                
+                if (!normalizedName) {
+                    return { isUnique: true, message: '' };
+                }
+                
+                const tableRows = document.querySelectorAll('#inventoryTable tbody tr');
+                
+                for (let row of tableRows) {
+                    const rowItemId = row.getAttribute('data-id');
+                    const rowItemName = row.getAttribute('data-name');
+                    
+                    // Skip the current item being edited
+                    if (excludeItemId && rowItemId === excludeItemId) {
+                        continue;
+                    }
+                    
+                    // Check if name already exists (case-insensitive)
+                    if (rowItemName === normalizedName) {
+                        return { 
+                            isUnique: false, 
+                            message: 'An item with this name already exists. Please choose a different name.' 
+                        };
+                    }
+                }
+                
+                return { isUnique: true, message: '' };
+            }
+
+            function showNameValidation(isValid, message = '') {
+                const nameGroup = document.getElementById('itemNameGroup');
+                const nameInput = document.getElementById('itemName');
+                const errorDiv = document.getElementById('itemNameError');
+                const successDiv = document.getElementById('itemNameSuccess');
+                
+                // Reset states
+                nameGroup.classList.remove('error', 'success');
+                errorDiv.style.display = 'none';
+                successDiv.style.display = 'none';
+                
+                if (nameInput.value.trim() === '') {
+                    // Empty field - no validation display
+                    return;
+                }
+                
+                if (isValid) {
+                    nameGroup.classList.add('success');
+                    successDiv.style.display = 'flex';
+                } else {
+                    nameGroup.classList.add('error');
+                    errorDiv.querySelector('span').textContent = message;
+                    errorDiv.style.display = 'flex';
+                }
+            }
+
+            // Real-time name validation
+            document.getElementById('itemName').addEventListener('input', function() {
+                const itemName = this.value.trim();
+                
+                if (itemName === '') {
+                    showNameValidation(true);
+                    return;
+                }
+                
+                const validation = checkItemNameUniqueness(itemName, currentEditingItemId);
+                showNameValidation(validation.isUnique, validation.message);
+            });
 
             // Modal functionality
             const modals = document.querySelectorAll('.modal');
@@ -656,7 +801,16 @@
                 document.getElementById('inventoryForm').reset();
                 document.getElementById('itemId').value = '';
                 currentEditingItemId = null;
+                
+                // Reset validation display
+                showNameValidation(true);
+                
                 document.getElementById('itemModal').style.display = 'block';
+                
+                // Focus on item name field
+                setTimeout(() => {
+                    document.getElementById('itemName').focus();
+                }, 100);
             }
             
             if (addItemBtn) {
@@ -696,11 +850,32 @@
                 currentAction = null;
             });
 
-            // Form submission with AJAX
+            // Form submission with AJAX and name validation
             const inventoryForm = document.getElementById('inventoryForm');
             if (inventoryForm) {
                 inventoryForm.addEventListener('submit', function(e) {
                     e.preventDefault();
+                    
+                    const itemName = document.getElementById('itemName').value.trim();
+                    
+                    // Validate item name uniqueness before submission
+                    const validation = checkItemNameUniqueness(itemName, currentEditingItemId);
+                    if (!validation.isUnique) {
+                        showNameValidation(false, validation.message);
+                        
+                        // Scroll to the name field and focus
+                        document.getElementById('itemName').focus();
+                        document.getElementById('itemName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        return;
+                    }
+                    
+                    // Check if name is empty
+                    if (!itemName) {
+                        showNameValidation(false, 'Item name is required.');
+                        document.getElementById('itemName').focus();
+                        return;
+                    }
                     
                     const saveBtn = document.getElementById('saveItemBtn');
                     const btnText = saveBtn.querySelector('.btn-text');
@@ -816,7 +991,16 @@
                         populateEditForm(data.item);
                         currentEditingItemId = itemId;
                         document.getElementById('modalTitle').textContent = 'Edit Item';
+                        
+                        // Reset validation display
+                        showNameValidation(true);
+                        
                         document.getElementById('itemModal').style.display = 'block';
+                        
+                        // Focus on item name field
+                        setTimeout(() => {
+                            document.getElementById('itemName').focus();
+                        }, 100);
                     } else {
                         showAlert('error', data.error || 'Failed to load item details.');
                     }
@@ -931,8 +1115,10 @@
             function displayItemDetails(item) {
                 const detailsDiv = document.getElementById('itemDetails');
                 const expiryDisplay = item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : 'No Expiry';
-                const statusText = item.is_active ? (item.quantity < 5 ? 'Low Stock' : 'OK') : 'Inactive';
-                const statusClass = item.is_active ? (item.quantity < 5 ? 'low' : 'ok') : 'inactive';
+                
+                // Use the status provided by the backend
+                const statusText = item.is_active ? (item.status || 'OK') : 'Inactive';
+                const statusClass = item.is_active ? (item.status ? item.status.toLowerCase().replace(' ', '-') : 'ok') : 'inactive';
                 
                 detailsDiv.innerHTML = `
                     <div class="item-details">
@@ -952,7 +1138,7 @@
                             <strong>Expiry Date:</strong> ${expiryDisplay}
                         </div>
                         <div class="detail-row">
-                            <strong>Minimum Quantity:</strong> ${item.min_quantity}
+                            <strong>Minimum Quantity:</strong> ${item.min_quantity || 'Not set'}
                         </div>
                         <div class="detail-row">
                             <strong>Status:</strong> <span class="status-badge ${statusClass}">${statusText}</span>
@@ -1090,20 +1276,25 @@
                 const row = document.createElement('tr');
                 row.setAttribute('data-id', item.raw_id);
                 row.setAttribute('data-type', item.type.toLowerCase().replace(' ', '_'));
+                row.setAttribute('data-name', item.name.toLowerCase());
                 
-                if (!item.is_active) {
-                    row.classList.add('inactive');
-                }
-                if (item.status === 'Low') {
-                    row.classList.add('low-stock');
+                // Apply CSS classes based on backend status
+                let cssClasses = [];
+                if (!item.is_active) cssClasses.push('inactive');
+                if (item.status === 'Low Stock' || item.status === 'Low') cssClasses.push('low-stock');
+                if (item.status && item.status.toLowerCase().includes('expired')) cssClasses.push('expired');
+                
+                if (cssClasses.length > 0) {
+                    row.className = cssClasses.join(' ');
                 }
                 
                 const expiryDisplay = item.expiry !== 'N/A' ? item.expiry : 'No Expiry';
                 const itemName = item.name + (!item.is_active ? ' <small class="text-muted">(Inactive)</small>' : '');
                 
+                // Use the status provided by backend
                 const statusBadge = !item.is_active 
                     ? '<span class="status-badge inactive">Inactive</span>'
-                    : `<span class="status-badge ${item.status.toLowerCase().replace(' ', '-')}">${item.status}</span>`;
+                    : `<span class="status-badge ${item.status ? item.status.toLowerCase().replace(' ', '-') : 'ok'}">${item.status || 'OK'}</span>`;
                 
                 const actionButtons = !item.is_active
                     ? `
