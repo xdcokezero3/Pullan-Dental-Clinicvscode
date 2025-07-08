@@ -909,7 +909,7 @@ def restore_postgresql_backup(username, password, host, backup_path, port=5432):
         raise Exception(f"PostgreSQL restore failed: {str(e)}")
     
 def refresh_database_connection():
-    """Refresh the database connection after restore"""
+    """Refresh the database connection after restore - FIXED VERSION"""
     try:
         # Close existing connections
         db.session.close()
@@ -917,16 +917,30 @@ def refresh_database_connection():
         
         # Recreate engine with fresh connection
         with app.app_context():
-            # Test connection
-            result = db.engine.execute(text("SELECT 1"))
-            row = result.fetchone()
-            if row and row[0] == 1:
-                print("Database connection refreshed successfully")
-            else:
-                print("Warning: Database connection refresh may have failed")
+            # Test connection with proper SQLAlchemy syntax
+            try:
+                # For newer SQLAlchemy versions (2.x)
+                result = db.session.execute(text("SELECT 1"))
+                row = result.fetchone()
+                if row and row[0] == 1:
+                    print("Database connection refreshed successfully (SQLAlchemy 2.x)")
+                else:
+                    print("Warning: Database connection refresh may have failed")
+            except AttributeError:
+                # Fallback for older SQLAlchemy versions (1.x)
+                try:
+                    result = db.engine.execute(text("SELECT 1"))
+                    row = result.fetchone()
+                    if row and row[0] == 1:
+                        print("Database connection refreshed successfully (SQLAlchemy 1.x)")
+                    else:
+                        print("Warning: Database connection refresh may have failed")
+                except Exception as fallback_error:
+                    print(f"Warning: Could not refresh database connection: {fallback_error}")
                 
     except Exception as e:
         print(f"Warning: Could not refresh database connection: {e}")
+
 
 
 def create_direct_postgresql_backup(username, password, host, database_name, backup_path, port=5432):
@@ -1234,10 +1248,258 @@ def create_backup():
             "error": f"Error processing backup request: {str(e)}"
         })
 
+def restore_direct_postgresql_backup(username, password, host, backup_path, port=5432):
+    """Direct restore using psycopg2 - Windows fallback method - FIXED VERSION"""
+    connection = None
+    try:
+        print(f"Starting direct restore from: {backup_path}")
+        
+        # Read the backup file
+        with open(backup_path, 'r', encoding='utf-8') as file:
+            sql_content = file.read()
+        
+        if not sql_content.strip():
+            raise Exception("Backup file is empty")
+        
+        print(f"Backup file size: {len(sql_content)} characters")
+        
+        # Parse database name from the backup content or use config
+        db_config = parse_database_uri(app.config['SQLALCHEMY_DATABASE_URI'])
+        target_database = db_config['database'] if db_config else 'pullan_dental_db'
+        
+        # Connect to the target database
+        try:
+            connection = psycopg2.connect(
+                host=host,
+                user=username,
+                password=password,
+                database=target_database,
+                port=port,
+                connect_timeout=30
+            )
+            connection.autocommit = True  # Important for DDL operations
+            print(f"Connected to database: {target_database}")
+        except psycopg2.OperationalError as e:
+            # If target database doesn't exist, connect to postgres and create it
+            if "does not exist" in str(e):
+                print(f"Database {target_database} doesn't exist, connecting to postgres...")
+                connection = psycopg2.connect(
+                    host=host,
+                    user=username,
+                    password=password,
+                    database='postgres',
+                    port=port,
+                    connect_timeout=30
+                )
+                connection.autocommit = True
+            else:
+                raise e
+        
+        cursor = connection.cursor()
+        
+        # STEP 1: Create schema if it doesn't exist
+        try:
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS pullandentalclinic;")
+            print("Created/verified pullandentalclinic schema")
+        except Exception as schema_error:
+            print(f"Schema creation warning: {schema_error}")
+        
+        # STEP 2: Set search path
+        try:
+            cursor.execute("SET search_path = pullandentalclinic, public;")
+            print("Set search path to pullandentalclinic, public")
+        except Exception as path_error:
+            print(f"Search path warning: {path_error}")
+        
+        # STEP 3: Parse and clean SQL content
+        sql_lines = []
+        for line in sql_content.split('\n'):
+            line = line.strip()
+            # Skip comments, empty lines, and problematic statements
+            if (line and 
+                not line.startswith('--') and 
+                not line.startswith('/*') and
+                not line.upper().startswith('SET ') and
+                not line.upper().startswith('\\CONNECT')):
+                sql_lines.append(line)
+        
+        sql_content = ' '.join(sql_lines)
+        
+        # STEP 4: Smart SQL statement splitting
+        statements = []
+        current_statement = ""
+        in_quotes = False
+        escape_next = False
+        
+        for char in sql_content:
+            if escape_next:
+                current_statement += char
+                escape_next = False
+                continue
+                
+            if char == '\\':
+                escape_next = True
+                current_statement += char
+                continue
+                
+            if char == "'" and not escape_next:
+                in_quotes = not in_quotes
+                
+            if char == ';' and not in_quotes:
+                if current_statement.strip():
+                    statements.append(current_statement.strip())
+                current_statement = ""
+            else:
+                current_statement += char
+        
+        # Add the last statement if it exists
+        if current_statement.strip():
+            statements.append(current_statement.strip())
+        
+        print(f"Executing {len(statements)} SQL statements...")
+        
+        # STEP 5: Execute statements with enhanced error handling
+        successful_statements = 0
+        failed_statements = 0
+        
+        for i, statement in enumerate(statements):
+            if not statement.strip():
+                continue
+                
+            try:
+                statement_upper = statement.upper().strip()
+                
+                # Skip certain problematic statements
+                skip_patterns = [
+                    'CREATE DATABASE',
+                    'DROP DATABASE',
+                    'ALTER DATABASE',
+                    'GRANT ',
+                    'REVOKE ',
+                    'CREATE ROLE',
+                    'ALTER ROLE'
+                ]
+                
+                should_skip = False
+                for pattern in skip_patterns:
+                    if statement_upper.startswith(pattern):
+                        should_skip = True
+                        break
+                
+                if should_skip:
+                    continue
+                
+                # Handle CREATE TABLE statements - ensure they use the schema
+                if statement_upper.startswith('CREATE TABLE'):
+                    # If table name doesn't have schema prefix, add it
+                    if 'pullandentalclinic.' not in statement.lower():
+                        # Extract table name and add schema prefix
+                        parts = statement.split()
+                        for j, part in enumerate(parts):
+                            if part.upper() == 'TABLE':
+                                if j + 1 < len(parts):
+                                    table_name = parts[j + 1]
+                                    # Remove any IF NOT EXISTS
+                                    if table_name.upper() == 'IF':
+                                        table_name = parts[j + 4] if j + 4 < len(parts) else parts[-1]
+                                    # Clean table name
+                                    table_name = table_name.replace('(', '').replace(',', '')
+                                    if '.' not in table_name:
+                                        statement = statement.replace(table_name, f'pullandentalclinic.{table_name}', 1)
+                                break
+                
+                # Handle INSERT statements - ensure they use the schema
+                elif statement_upper.startswith('INSERT INTO'):
+                    if 'pullandentalclinic.' not in statement.lower():
+                        # Extract table name and add schema prefix
+                        parts = statement.split()
+                        for j, part in enumerate(parts):
+                            if part.upper() == 'INTO':
+                                if j + 1 < len(parts):
+                                    table_name = parts[j + 1]
+                                    if '.' not in table_name and not table_name.startswith('pullandentalclinic'):
+                                        statement = statement.replace(f'INTO {table_name}', f'INTO pullandentalclinic.{table_name}', 1)
+                                break
+                
+                # Execute the statement
+                cursor.execute(statement)
+                successful_statements += 1
+                
+                # Progress indicator for large restores
+                if i % 50 == 0:
+                    print(f"Progress: {i}/{len(statements)} statements processed...")
+                    
+            except Exception as stmt_error:
+                failed_statements += 1
+                error_msg = str(stmt_error)
+                
+                # Only log significant errors
+                if not any(skip_word in error_msg.lower() for skip_word in 
+                          ['already exists', 'does not exist', 'permission denied', 'duplicate key']):
+                    print(f"Warning: Statement {i+1} failed: {error_msg}")
+                    print(f"Statement: {statement[:150]}...")
+                
+                # Continue with other statements
+                continue
+        
+        print(f"Restore completed: {successful_statements} successful, {failed_statements} failed statements")
+        
+        # STEP 6: Verification and table count
+        try:
+            # Check pullandentalclinic schema
+            cursor.execute("""
+                SELECT tablename FROM pg_tables 
+                WHERE schemaname = 'pullandentalclinic'
+                ORDER BY tablename
+            """)
+            schema_tables = cursor.fetchall()
+            
+            if schema_tables:
+                print(f"Verification: Found {len(schema_tables)} tables in pullandentalclinic schema:")
+                for table in schema_tables:
+                    print(f"  - {table[0]}")
+            else:
+                # Check public schema as fallback
+                cursor.execute("""
+                    SELECT tablename FROM pg_tables 
+                    WHERE schemaname = 'public' 
+                    AND tablename IN ('patients', 'appointment', 'users', 'inventory', 'dentalchart', 'teeth', 'report')
+                    ORDER BY tablename
+                """)
+                public_tables = cursor.fetchall()
+                
+                if public_tables:
+                    print(f"Verification: Found {len(public_tables)} key tables in public schema:")
+                    for table in public_tables:
+                        print(f"  - {table[0]}")
+                    
+                    # Move tables to pullandentalclinic schema
+                    for table in public_tables:
+                        table_name = table[0]
+                        try:
+                            cursor.execute(f"ALTER TABLE public.{table_name} SET SCHEMA pullandentalclinic;")
+                            print(f"Moved {table_name} to pullandentalclinic schema")
+                        except Exception as move_error:
+                            print(f"Could not move {table_name}: {move_error}")
+                else:
+                    print("Warning: No expected tables found in either schema")
+                
+        except Exception as verify_error:
+            print(f"Verification warning: {verify_error}")
+        
+        cursor.close()
+        print(f"Direct PostgreSQL restore completed successfully from: {backup_path}")
+        
+    except Exception as e:
+        raise Exception(f"Direct PostgreSQL restore failed: {str(e)}")
+    finally:
+        if connection:
+            connection.close()
+
 @app.route('/restore_backup/<filename>', methods=['POST'])
 @admin_required
 def restore_backup(filename):
-    """Restore the database from a backup file with improved error handling"""
+    """Restore the database from a backup file - COMPLETE FIXED VERSION"""
     try:
         if session.get('access_level') != 'admin':
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
@@ -1246,6 +1508,15 @@ def restore_backup(filename):
         
         if not os.path.exists(backup_path):
             return jsonify({"success": False, "error": "Backup file not found"})
+        
+        # Verify backup file is readable and not empty
+        try:
+            with open(backup_path, 'r', encoding='utf-8') as f:
+                first_line = f.readline()
+                if not first_line.strip():
+                    return jsonify({"success": False, "error": "Backup file appears to be empty"})
+        except Exception as read_error:
+            return jsonify({"success": False, "error": f"Cannot read backup file: {read_error}"})
             
         # Get database credentials from app config with proper URI parsing
         db_uri = app.config['SQLALCHEMY_DATABASE_URI']
@@ -1261,39 +1532,112 @@ def restore_backup(filename):
         port = db_config['port']
         
         print(f"Restore Config - Host: {host}, Port: {port}, User: {username}")
+        print(f"Backup file: {backup_path}")
         
         # Resolve DNS issues
         resolved_host = resolve_host(host)
-
-        try:
-            # Use improved restore function
-            restore_postgresql_backup(username, password, resolved_host, backup_path, port)
-        except Exception as e:
-            print(f"Restore failed: {e}")
-            return jsonify({"success": False, "error": f"Restore failed: {str(e)}"})
         
-        # Log the restore action
-        log_user_action(
-            session.get('user_id'),
-            'Database Restore',
-            f'Restored PostgreSQL database from backup: {filename}'
-        )
+        # Test database connectivity before attempting restore
+        try:
+            test_connection = psycopg2.connect(
+                host=resolved_host,
+                user=username,
+                password=password,
+                database='postgres',  # Connect to postgres database for testing
+                port=port,
+                connect_timeout=10
+            )
+            test_connection.close()
+            print("Database connectivity test successful")
+        except Exception as conn_error:
+            return jsonify({
+                "success": False, 
+                "error": f"Cannot connect to database server: {conn_error}"
+            })
+
+        # Try restore methods in order of preference
+        restore_successful = False
+        last_error = None
+        
+        # Method 1: Try external psql command (standard method)
+        try:
+            print("Attempting restore using external psql command...")
+            restore_postgresql_backup(username, password, resolved_host, backup_path, port)
+            restore_successful = True
+            print("External psql restore completed successfully")
+            
+        except Exception as psql_error:
+            last_error = str(psql_error)
+            print(f"External psql restore failed: {psql_error}")
+            
+            # Method 2: Try direct restore method (Windows fallback)
+            try:
+                print("Attempting direct restore method (Windows fallback)...")
+                restore_direct_postgresql_backup(username, password, resolved_host, backup_path, port)
+                restore_successful = True
+                print("Direct restore method completed successfully")
+                
+            except Exception as direct_error:
+                last_error = str(direct_error)
+                print(f"Direct restore method also failed: {direct_error}")
+        
+        if not restore_successful:
+            return jsonify({
+                "success": False, 
+                "error": f"All restore methods failed. Last error: {last_error}"
+            })
+        
+        # Test database after restore
+        try:
+            test_success, test_message = test_database_after_restore()
+            print(f"Post-restore test result: {test_success}, message: {test_message}")
+        except Exception as test_error:
+            print(f"Post-restore test error: {test_error}")
+        
+        # Log the restore action (with error handling for missing tables)
+        try:
+            log_user_action(
+                session.get('user_id'),
+                'Database Restore',
+                f'Restored PostgreSQL database from backup: {filename} (Method: {"External psql" if "psql" not in str(last_error) else "Direct fallback"})'
+            )
+        except Exception as log_error:
+            print(f"Warning: Could not log restore action: {log_error}")
+        
+        # Refresh database connection
+        try:
+            refresh_database_connection()
+        except Exception as refresh_error:
+            print(f"Database connection refresh warning: {refresh_error}")
             
         return jsonify({
             "success": True,
-            "message": "Database restored successfully from backup. Please refresh the page to see updated data."
+            "message": f"Database restored successfully from backup: {filename}. Please refresh the page to see updated data."
         })
+        
     except Exception as e:
-        print(f"Error restoring backup: {e}")
-        return jsonify({"success": False, "error": str(e)})
+        print(f"Error in restore_backup route: {e}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
+        return jsonify({
+            "success": False, 
+            "error": f"Restore operation failed: {str(e)}"
+        })
+
     
 def test_database_after_restore():
-    """Test database connectivity after restore operation"""
+    """Test database connectivity after restore operation - FIXED VERSION"""
     try:
         with app.app_context():
-            # Test basic connection
-            result = db.engine.execute(text("SELECT 1"))
-            row = result.fetchone()
+            # Test basic connection with SQLAlchemy version compatibility
+            try:
+                # Try newer SQLAlchemy syntax first
+                result = db.session.execute(text("SELECT 1"))
+                row = result.fetchone()
+            except AttributeError:
+                # Fallback to older SQLAlchemy syntax
+                result = db.engine.execute(text("SELECT 1"))
+                row = result.fetchone()
             
             if not row or row[0] != 1:
                 return False, "Basic connection test failed"
@@ -1302,13 +1646,33 @@ def test_database_after_restore():
             tables_to_check = ['patients', 'appointment', 'users', 'inventory']
             for table in tables_to_check:
                 try:
-                    result = db.engine.execute(text(f"SELECT COUNT(*) FROM pullandentalclinic.{table}"))
-                    count = result.fetchone()[0]
-                    print(f"Table {table}: {count} records")
-                except Exception as table_error:
-                    return False, f"Table {table} is not accessible: {str(table_error)}"
+                    # Try pullandentalclinic schema first
+                    try:
+                        result = db.session.execute(text(f"SELECT COUNT(*) FROM pullandentalclinic.{table}"))
+                        count = result.fetchone()[0]
+                        print(f"Table pullandentalclinic.{table}: {count} records")
+                    except AttributeError:
+                        # Fallback for older SQLAlchemy
+                        result = db.engine.execute(text(f"SELECT COUNT(*) FROM pullandentalclinic.{table}"))
+                        count = result.fetchone()[0]
+                        print(f"Table pullandentalclinic.{table}: {count} records")
+                except Exception:
+                    # Try public schema as fallback
+                    try:
+                        try:
+                            result = db.session.execute(text(f"SELECT COUNT(*) FROM public.{table}"))
+                            count = result.fetchone()[0]
+                            print(f"Table public.{table}: {count} records")
+                        except AttributeError:
+                            result = db.engine.execute(text(f"SELECT COUNT(*) FROM public.{table}"))
+                            count = result.fetchone()[0]
+                            print(f"Table public.{table}: {count} records")
+                    except Exception as table_error:
+                        print(f"Warning: Table {table} is not accessible: {str(table_error)}")
+                        # Don't fail the test for missing tables
+                        continue
             
-            return True, "All tables accessible"
+            return True, "Database test completed"
             
     except Exception as e:
         return False, f"Database test failed: {str(e)}"

@@ -1,5 +1,5 @@
 -- Database Backup for: pullan_dental_db
--- Generated on: 2025-07-08 09:29:28
+-- Generated on: 2025-07-08 16:37:28
 -- By: Pullan Dental Clinic Management System
 -- PostgreSQL Version: 160009
 -- Host: dpg-d1er2l3e5dus739sktvg-a.oregon-postgres.render.com:5432
@@ -73,7 +73,7 @@ CREATE TABLE pullandentalclinic.dentalchart (
 INSERT INTO pullandentalclinic.dentalchart (dcID, dcpatname, dcdoctor, dcpcontact, dcdentist, dcdcontact, dcvisit, dcq1, dcq2, dcqe2, dcq3, dcqe3, dcq4, dcqe4, dcq5, dcqe5, dcq6, dcq7, dcqe7, dcq8, dcqe8, dcq9, dcqe9, is_deleted) VALUES
 (1, 'HEYY', 'Yo', '12345678901', 'Yo', '12345678901', NULL, 'Yes', 'Yes', 'das', 'Yes', 'das', 'Yes', 'das', 'Yes', 'das', 'Yes', NULL, NULL, NULL, NULL, NULL, NULL, False),
 (2, 'loe', 'yo', '09166532911', 'yo', '12345678901', NULL, 'Yes', 'Yes', '12', 'Yes', '12', 'Yes', '12', 'Yes', '12', 'Yes', NULL, NULL, NULL, NULL, NULL, NULL, False),
-(3, 'TEST', 'MARALCALR', '12345678901', 'MARACLARA', '01234567890', NULL, 'Yes', 'Yes', 'Penicilin', 'No', '', 'No', '', 'No', '', 'No', NULL, NULL, NULL, NULL, NULL, NULL, False);
+(3, 'TEST', '', '12345678901', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', False);
 
 -- Table structure for table inventory
 DROP TABLE IF EXISTS pullandentalclinic.inventory;
@@ -87,10 +87,9 @@ CREATE TABLE pullandentalclinic.inventory (
     is_deleted boolean DEFAULT false
 );
 
--- Dumping data for table inventory (2 rows)
+-- Dumping data for table inventory (1 rows)
 INSERT INTO pullandentalclinic.inventory (invid, invname, invquantity, invdoe, invtype, invremarks, is_deleted) VALUES
-(4, 'dsad', 22, NULL, 'Equipment', '', False),
-(5, 'ACID', 100, NULL, 'Equipment', '', False);
+(4, 'dsad', 22, NULL, 'Equipment', '', False);
 
 -- Table structure for table patients
 DROP TABLE IF EXISTS pullandentalclinic.patients;
@@ -210,7 +209,7 @@ CREATE TABLE pullandentalclinic.user_logs (
     details text
 );
 
--- Dumping data for table user_logs (46 rows)
+-- Dumping data for table user_logs (42 rows)
 INSERT INTO pullandentalclinic.user_logs (log_id, user_id, action, timestamp, details) VALUES
 (1, 0, 'Logout', '2025-07-01 03:12:55', 'Hardcoded admin logged out'),
 (2, 0, 'Login', '2025-07-01 03:13:25', 'Hardcoded admin logged in successfully'),
@@ -232,32 +231,28 @@ INSERT INTO pullandentalclinic.user_logs (log_id, user_id, action, timestamp, de
 (18, 1, 'Update Tooth Condition', '2025-07-01 03:27:35', 'Updated tooth #2 condition to "root-canal" for patient HEYY'),
 (19, 1, 'Update Tooth Condition', '2025-07-01 03:27:36', 'Updated tooth #7 condition to "filled" for patient HEYY'),
 (20, 1, 'Update Tooth Condition', '2025-07-01 03:27:37', 'Updated tooth #3 condition to "caries" for patient HEYY'),
-(331, 0, 'Logout', '2025-07-07 20:46:47.957270', 'Hardcoded admin logged out'),
-(332, 0, 'Login', '2025-07-07 20:46:51.333751', 'Hardcoded admin logged in successfully'),
-(333, 0, 'Login', '2025-07-07 21:00:01.983330', 'Hardcoded admin logged in successfully'),
-(334, 0, 'Logout', '2025-07-07 21:00:20.687271', 'Hardcoded admin logged out'),
-(335, 2, 'Login', '2025-07-07 21:00:48.665986', 'User 123 logged in successfully'),
-(336, 2, 'Logout', '2025-07-07 21:00:52.500498', 'User 123 logged out'),
-(337, 2, 'Login', '2025-07-07 21:02:58.693562', 'User 123 logged in successfully'),
-(338, 2, 'Logout', '2025-07-07 21:03:03.268821', 'User 123 logged out'),
-(339, 0, 'Login', '2025-07-07 23:58:14.161382', 'Hardcoded admin logged in successfully'),
-(340, 0, 'Create Inventory', '2025-07-07 23:58:51.466882', 'Added new inventory item: ACID (Quantity: 100)'),
-(341, 0, 'Deactivate Inventory', '2025-07-07 23:59:04.076238', 'Deactivated inventory item: ACID (Quantity: 100)'),
-(342, 0, 'Reactivate Inventory', '2025-07-07 23:59:15.358606', 'Reactivated inventory item: ACID (Quantity: 100)'),
-(343, 0, 'Update Dental Chart', '2025-07-08 00:00:05.938917', 'Updated complete dental chart for patient TEST'),
-(344, 0, 'View FAQ Page', '2025-07-08 00:00:10.807578', 'User accessed FAQ and support page'),
-(345, 0, 'Download User Manual', '2025-07-08 00:00:13.019197', 'User downloaded the user manual PDF from: templates/User Manual.pdf'),
-(346, NULL, 'View FAQ Page', '2025-07-08 00:00:14.754390', 'User accessed FAQ and support page'),
-(347, 0, 'Login', '2025-07-08 00:09:19.747372', 'Hardcoded admin logged in successfully'),
-(348, 0, 'View FAQ Page', '2025-07-08 00:09:22.704688', 'User accessed FAQ and support page'),
-(349, 0, 'Download User Manual', '2025-07-08 00:09:24.398228', 'User downloaded the user manual PDF from: templates/User Manual.pdf'),
-(350, 0, 'Print Patients Report', '2025-07-08 00:10:06.747322', 'Generated patients report: 3 patients (Status: Active Patients Only)'),
-(351, 0, 'Login', '2025-07-08 00:21:38.167110', 'Hardcoded admin logged in successfully'),
-(352, 0, 'Login', '2025-07-08 01:20:51.617427', 'Hardcoded admin logged in successfully'),
-(353, 0, 'Login', '2025-07-08 01:21:56.688909', 'Hardcoded admin logged in successfully'),
-(354, 0, 'View FAQ Page', '2025-07-08 01:22:55.522929', 'User accessed FAQ and support page'),
-(355, 0, 'View About Page', '2025-07-08 01:23:00.271768', 'User System Administrator viewed system about page'),
-(356, 0, 'Login', '2025-07-08 01:29:17.024502', 'Hardcoded admin logged in successfully');
+(331, 0, 'Logout', '2025-07-08 08:22:10.868501', 'Hardcoded admin logged out'),
+(332, 0, 'Login', '2025-07-08 08:22:15.966213', 'Hardcoded admin logged in successfully'),
+(333, 0, 'Delete Backup', '2025-07-08 08:22:24.359756', 'Deleted backup file: backup_20250708092925.sql'),
+(334, 0, 'Delete Backup', '2025-07-08 08:22:26.798405', 'Deleted backup file: backup_20250708091803.sql'),
+(335, 0, 'Delete Backup', '2025-07-08 08:22:28.742904', 'Deleted backup file: backup_20250708090339.sql'),
+(336, 0, 'Database Backup', '2025-07-08 08:22:35.980450', 'Created PostgreSQL database backup: backup_20250708082232.sql (0.02 MB)'),
+(337, 0, 'Deactivate Patient', '2025-07-08 08:22:40.684120', 'Deactivated patient: HEYY (ID: PAT-001)'),
+(340, 0, 'Reactivate Patient', '2025-07-08 08:23:56.179679', 'Reactivated patient: TEST (ID: PAT-003)'),
+(341, 0, 'Delete Backup', '2025-07-08 08:24:07.011200', 'Deleted backup file: backup_20250708082232.sql'),
+(342, 0, 'Login', '2025-07-08 08:28:49.590059', 'Hardcoded admin logged in successfully'),
+(343, 0, 'Delete Backup', '2025-07-08 08:28:59.562919', 'Deleted backup file: backup_20250708092925.sql'),
+(344, 0, 'Delete Backup', '2025-07-08 08:29:01.559394', 'Deleted backup file: backup_20250708091803.sql'),
+(345, 0, 'Delete Backup', '2025-07-08 08:29:03.737762', 'Deleted backup file: backup_20250708090339.sql'),
+(346, 0, 'Database Backup', '2025-07-08 08:29:15.170571', 'Created PostgreSQL database backup: backup_20250708162908.sql (0.01 MB)'),
+(347, 0, 'Deactivate Patient', '2025-07-08 08:29:22.013944', 'Deactivated patient: TEST (ID: PAT-003)'),
+(348, 0, 'Delete Backup', '2025-07-08 08:30:02.186891', 'Deleted backup file: backup_20250708162908.sql'),
+(349, 0, 'Database Backup', '2025-07-08 08:30:18.649683', 'Created PostgreSQL database backup: backup_20250708163011.sql (0.01 MB)'),
+(350, 0, 'Reactivate Patient', '2025-07-08 08:30:30.965470', 'Reactivated patient: TEST (ID: PAT-003)'),
+(351, 0, 'Login', '2025-07-08 08:37:12.184765', 'Hardcoded admin logged in successfully'),
+(352, 0, 'Delete Backup', '2025-07-08 08:37:24.212996', 'Deleted backup file: backup_20250708163011.sql'),
+(338, 0, 'Deactivate Patient', '2025-07-08 08:23:18.113583', 'Deactivated patient: loe (ID: PAT-002)'),
+(339, 0, 'Deactivate Patient', '2025-07-08 08:23:22.074104', 'Deactivated patient: TEST (ID: PAT-003)');
 
 -- Table structure for table users
 DROP TABLE IF EXISTS pullandentalclinic.users;
@@ -285,4 +280,4 @@ INSERT INTO pullandentalclinic.users (usersid, usersusername, userspassword, use
 (1, 'loe', '6c241236470212d37f015d5e4003ca0536d4f2b531361f440283c1e3aebeac5b', 'loe', 'loe@yahoo.com', 'Marikina', '1802', '09166532911', 'RC', '2001-11-06', 'Male', 23, 'Arsonist', 'admin', NULL, False),
 (2, '123', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '123', '123@yahoo.com', '#20 SAMPAGUITA, INDUSTRIAL VALLEY COMPLEX, MARIKINA CITY', '1802', '13123123123', 'RC', '2001-11-06', 'Male', 23, 'Arsonist', 'user', NULL, False);
 
--- Backup completed on 2025-07-08 09:29:32
+-- Backup completed on 2025-07-08 16:37:33
