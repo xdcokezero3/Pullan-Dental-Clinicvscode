@@ -15,6 +15,7 @@ import csv
 from io import StringIO
 from functools import wraps
 import traceback
+from urllib.parse import urlparse, parse_qs
 
 # Use the Flask app instance from the connector
 app = db_app
@@ -50,6 +51,23 @@ FAILED_ATTEMPTS_RESET_MINUTES = 1
 # =============================================================================
 # FAQ AND SUPPORT ROUTES
 # =============================================================================
+def parse_database_uri(db_uri):
+    """Properly parse PostgreSQL database URI including query parameters"""
+    try:
+        # Parse the URI using urllib.parse
+        parsed = urlparse(db_uri)
+        
+        return {
+            'username': parsed.username,
+            'password': parsed.password,
+            'host': parsed.hostname,
+            'port': parsed.port or 5432,
+            'database': parsed.path.lstrip('/'),
+            'query_params': parse_qs(parsed.query)
+        }
+    except Exception as e:
+        print(f"Error parsing database URI: {e}")
+        return None
 
 @app.route('/faq')
 def faq():
@@ -689,15 +707,16 @@ def patients():
         print(f"Error in patients route: {e}")
         return f"Error loading patients: {e}", 500
 
-# PostgreSQL-specific backup functions
 def create_postgresql_backup(username, password, host, database_name, backup_path, port=5432):
-    """Create a PostgreSQL database backup using pg_dump"""
+    """Create a PostgreSQL database backup using pg_dump - FIXED for schema"""
     try:
         # Set password environment variable for pg_dump
         env = os.environ.copy()
         env['PGPASSWORD'] = password
         
-        # Use pg_dump command
+        print(f"Creating backup with pg_dump - Database: {database_name}")
+        
+        # Use pg_dump command with schema specification
         cmd = [
             'pg_dump',
             f'--host={host}',
@@ -709,6 +728,8 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
             '--if-exists',
             '--create',
             '--format=plain',
+            '--schema=pullandentalclinic',  # Only backup our schema
+            '--schema=public',  # Include public schema too (for safety)
             f'--file={backup_path}'
         ]
         
@@ -722,12 +743,41 @@ def create_postgresql_backup(username, password, host, database_name, backup_pat
         stdout, stderr = process.communicate()
         
         if process.returncode != 0:
-            raise Exception(f"pg_dump failed: {stderr.decode('utf-8')}")
+            # If schema-specific backup fails, try without schema restriction
+            print("Schema-specific backup failed, trying full database backup...")
+            cmd_fallback = [
+                'pg_dump',
+                f'--host={host}',
+                f'--port={port}',
+                f'--username={username}',
+                f'--dbname={database_name}',
+                '--verbose',
+                '--clean',
+                '--if-exists',
+                '--create',
+                '--format=plain',
+                f'--file={backup_path}'
+            ]
+            
+            process = subprocess.Popen(
+                cmd_fallback,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env
+            )
+            
+            stdout, stderr = process.communicate()
+            
+            if process.returncode != 0:
+                error_output = stderr.decode('utf-8')
+                print(f"pg_dump stderr: {error_output}")
+                raise Exception(f"pg_dump failed: {error_output}")
         
         print(f"PostgreSQL backup completed successfully: {backup_path}")
         
     except Exception as e:
         raise Exception(f"PostgreSQL backup failed: {str(e)}")
+
 
 def restore_postgresql_backup(username, password, host, backup_path, port=5432):
     """Restore a PostgreSQL database backup using psql"""
@@ -735,6 +785,8 @@ def restore_postgresql_backup(username, password, host, backup_path, port=5432):
         # Set password environment variable for psql
         env = os.environ.copy()
         env['PGPASSWORD'] = password
+        
+        print(f"Restoring backup from: {backup_path}")
         
         # Use psql command to restore
         cmd = [
@@ -756,7 +808,9 @@ def restore_postgresql_backup(username, password, host, backup_path, port=5432):
         stdout, stderr = process.communicate()
         
         if process.returncode != 0:
-            raise Exception(f"psql restore failed: {stderr.decode('utf-8')}")
+            stderr_text = stderr.decode('utf-8')
+            print(f"psql stderr: {stderr_text}")
+            raise Exception(f"psql restore failed: {stderr_text}")
         
         print(f"PostgreSQL restore completed successfully from: {backup_path}")
         
@@ -764,9 +818,11 @@ def restore_postgresql_backup(username, password, host, backup_path, port=5432):
         raise Exception(f"PostgreSQL restore failed: {str(e)}")
 
 def create_direct_postgresql_backup(username, password, host, database_name, backup_path, port=5432):
-    """Create a PostgreSQL database backup directly using psycopg2"""
+    """Create a PostgreSQL database backup directly using psycopg2 with fixed connection"""
     connection = None
     try:
+        print(f"Creating direct backup - Database: {database_name}")
+        
         # Connect to the database with improved error handling
         try:
             connection = psycopg2.connect(
@@ -779,10 +835,13 @@ def create_direct_postgresql_backup(username, password, host, database_name, bac
             )
             print(f"Successfully connected to PostgreSQL at {host}:{port}")
         except psycopg2.OperationalError as e:
-            if "Connection refused" in str(e):
+            error_str = str(e)
+            if "Connection refused" in error_str:
                 raise Exception(f"Cannot connect to PostgreSQL server at {host}:{port}. Is PostgreSQL running? Error: {e}")
-            elif "authentication failed" in str(e):
+            elif "authentication failed" in error_str:
                 raise Exception(f"Access denied. Please check your username and password. Error: {e}")
+            elif "does not exist" in error_str:
+                raise Exception(f"Database '{database_name}' does not exist. Error: {e}")
             else:
                 raise Exception(f"Database connection failed: {e}")
         
@@ -808,16 +867,29 @@ def create_direct_postgresql_backup(username, password, host, database_name, bac
             f.write(f"CREATE DATABASE {database_name} WITH TEMPLATE = template0 ENCODING = 'UTF8';\n")
             f.write(f"\\connect {database_name};\n\n")
             
-            # Get all tables
+            # Set search path for schema
+            f.write("SET search_path = pullandentalclinic, public;\n\n")
+            
+            # Get all tables from the pullandentalclinic schema
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT tablename FROM pg_tables 
-                    WHERE schemaname = 'public'
+                    WHERE schemaname = 'pullandentalclinic'
+                    ORDER BY tablename
                 """)
                 tables = cursor.fetchall()
                 
                 if not tables:
-                    f.write("-- No tables found in database\n")
+                    f.write("-- No tables found in pullandentalclinic schema\n")
+                    # Try public schema as fallback
+                    cursor.execute("""
+                        SELECT tablename FROM pg_tables 
+                        WHERE schemaname = 'public'
+                        ORDER BY tablename
+                    """)
+                    tables = cursor.fetchall()
+                    if tables:
+                        f.write("-- Using tables from public schema as fallback\n")
                 
                 # For each table, get CREATE TABLE statement and data
                 for table_tuple in tables:
@@ -829,16 +901,20 @@ def create_direct_postgresql_backup(username, password, host, database_name, bac
                             SELECT column_name, data_type, is_nullable, column_default
                             FROM information_schema.columns
                             WHERE table_name = '{table_name}'
+                            AND table_schema IN ('pullandentalclinic', 'public')
                             ORDER BY ordinal_position
                         """)
                         columns = cursor.fetchall()
                         
+                        if not columns:
+                            continue
+                        
                         # Write the DROP TABLE and CREATE TABLE statements
                         f.write(f"-- Table structure for table {table_name}\n")
-                        f.write(f"DROP TABLE IF EXISTS {table_name};\n")
+                        f.write(f"DROP TABLE IF EXISTS pullandentalclinic.{table_name};\n")
                         
                         # Create table statement (simplified)
-                        f.write(f"CREATE TABLE {table_name} (\n")
+                        f.write(f"CREATE TABLE pullandentalclinic.{table_name} (\n")
                         col_definitions = []
                         for col in columns:
                             col_name, data_type, is_nullable, default = col
@@ -852,13 +928,13 @@ def create_direct_postgresql_backup(username, password, host, database_name, bac
                         f.write("\n);\n\n")
                         
                         # Get table data
-                        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                        cursor.execute(f"SELECT COUNT(*) FROM pullandentalclinic.{table_name}")
                         row_count = cursor.fetchone()[0]
                         
                         if row_count > 0:
                             f.write(f"-- Dumping data for table {table_name} ({row_count} rows)\n")
                             
-                            cursor.execute(f"SELECT * FROM {table_name}")
+                            cursor.execute(f"SELECT * FROM pullandentalclinic.{table_name}")
                             rows = cursor.fetchall()
                             
                             if rows:
@@ -871,7 +947,7 @@ def create_direct_postgresql_backup(username, password, host, database_name, bac
                                     batch = rows[i:i+batch_size]
                                     
                                     # Generate INSERT statement header
-                                    insert_header = f"INSERT INTO {table_name} ({', '.join(column_names)}) VALUES\n"
+                                    insert_header = f"INSERT INTO pullandentalclinic.{table_name} ({', '.join(column_names)}) VALUES\n"
                                     f.write(insert_header)
                                     
                                     # Generate values for each row
@@ -954,7 +1030,7 @@ def backup_restore():
 @app.route('/create_backup', methods=['POST'])
 @admin_required
 def create_backup():
-    """Create a backup of the PostgreSQL database"""
+    """Create a backup of the PostgreSQL database with fixed URI parsing"""
     try:
         if session.get('access_level') != 'admin':
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
@@ -963,23 +1039,21 @@ def create_backup():
         backup_filename = f"backup_{timestamp}.sql"
         backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
         
-        # Get database credentials from app config
+        # Get database credentials from app config with proper URI parsing
         db_uri = app.config['SQLALCHEMY_DATABASE_URI']
         
-        # Parse the PostgreSQL URI
-        if 'postgresql://' in db_uri:
-            parts = db_uri.replace('postgresql://', '').split('@')
-        else:
-            return jsonify({"success": False, "error": "Invalid database URI format"})
+        # Parse the PostgreSQL URI properly
+        db_config = parse_database_uri(db_uri)
+        if not db_config:
+            return jsonify({"success": False, "error": "Failed to parse database URI"})
             
-        user_pass = parts[0].split(':')
-        host_db = parts[1].split('/')
+        username = db_config['username']
+        password = db_config['password']
+        host = db_config['host']
+        port = db_config['port']
+        database = db_config['database']
         
-        username = user_pass[0]
-        password = user_pass[1]
-        host = host_db[0].split(':')[0]
-        port = int(host_db[0].split(':')[1]) if ':' in host_db[0] else 5432
-        database = host_db[1]
+        print(f"Backup Config - Host: {host}, Port: {port}, Database: {database}, User: {username}")
         
         # Resolve host DNS issues
         resolved_host = resolve_host(host)
@@ -997,10 +1071,17 @@ def create_backup():
             connection.close()
             print("PostgreSQL connection successful for backup")
         except Exception as e:
-            return jsonify({
-                "success": False, 
-                "error": f"Cannot connect to PostgreSQL server: {str(e)}. Please check that your PostgreSQL server is running."
-            })
+            error_msg = str(e)
+            if "does not exist" in error_msg:
+                return jsonify({
+                    "success": False, 
+                    "error": f"Database '{database}' does not exist. Please check your database configuration."
+                })
+            else:
+                return jsonify({
+                    "success": False, 
+                    "error": f"Cannot connect to PostgreSQL server: {error_msg}. Please check that your PostgreSQL server is running."
+                })
             
         try:
             # Try external pg_dump first
@@ -1044,7 +1125,7 @@ def create_backup():
 @app.route('/restore_backup/<filename>', methods=['POST'])
 @admin_required
 def restore_backup(filename):
-    """Restore the database from a backup file"""
+    """Restore the database from a backup file with fixed URI parsing"""
     try:
         if session.get('access_level') != 'admin':
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
@@ -1054,21 +1135,20 @@ def restore_backup(filename):
         if not os.path.exists(backup_path):
             return jsonify({"success": False, "error": "Backup file not found"})
             
-        # Get database credentials from app config
+        # Get database credentials from app config with proper URI parsing
         db_uri = app.config['SQLALCHEMY_DATABASE_URI']
         
-        if 'postgresql://' in db_uri:
-            parts = db_uri.replace('postgresql://', '').split('@')
-        else:
-            return jsonify({"success": False, "error": "Invalid database URI format"})
+        # Parse the PostgreSQL URI properly
+        db_config = parse_database_uri(db_uri)
+        if not db_config:
+            return jsonify({"success": False, "error": "Failed to parse database URI"})
             
-        user_pass = parts[0].split(':')
-        host_db = parts[1].split('/')
+        username = db_config['username']
+        password = db_config['password']
+        host = db_config['host']
+        port = db_config['port']
         
-        username = user_pass[0]
-        password = user_pass[1]
-        host = host_db[0].split(':')[0]
-        port = int(host_db[0].split(':')[1]) if ':' in host_db[0] else 5432
+        print(f"Restore Config - Host: {host}, Port: {port}, User: {username}")
         
         # Resolve DNS issues
         resolved_host = resolve_host(host)
