@@ -171,16 +171,97 @@
             background-color: #f57c00;
         }
         
-        /* Filter controls styling */
+        /* Filter controls styling - IMPROVED */
         .filter-controls {
             background: #f8f9fa;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
             display: flex;
-            gap: 15px;
-            align-items: center;
+            gap: 20px;
+            align-items: flex-end;
             flex-wrap: wrap;
+            border: 1px solid #e9ecef;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 180px;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 14px;
+        }
+
+        .filter-group input {
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .filter-group input:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.25);
+        }
+
+        .helper-text {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+            font-style: italic;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        /* Filter button improvements */
+        .filter-button {
+            padding: 10px 18px;
+            background-color: #2196f3;
+            color: white;
+            border: 1px solid #2196f3;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+            height: fit-content;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .filter-button:hover {
+            background-color: #1976d2;
+            border-color: #1976d2;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        }
+
+        .filter-button:active {
+            transform: translateY(0);
+        }
+
+        .filter-button.clear-btn {
+            background-color: #f44336;
+            border-color: #f44336;
+        }
+
+        .filter-button.clear-btn:hover {
+            background-color: #d32f2f;
+            border-color: #d32f2f;
         }
         
         .appointments-header {
@@ -203,334 +284,311 @@
             align-items: center;
             gap: 5px;
         }
+
         .notification-popup {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px 20px;
-    border-radius: 5px;
-    color: white;
-    font-weight: 500;
-    z-index: 10000;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-    max-width: 300px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
 
-.notification-popup.show {
-    transform: translateX(0);
-}
+        .notification-popup.show {
+            transform: translateX(0);
+        }
 
-.notification-popup.success {
-    background-color: #4caf50;
-}
+        .notification-popup.success {
+            background-color: #4caf50;
+        }
 
-.notification-popup.error {
-    background-color: #f44336;
-}
+        .notification-popup.error {
+            background-color: #f44336;
+        }
 
-.notification-popup.info {
-    background-color: #2196f3;
-}
+        .notification-popup.info {
+            background-color: #2196f3;
+        }
 
-.notification-popup.warning {
-    background-color: #ff9800;
-}
+        .notification-popup.warning {
+            background-color: #ff9800;
+        }
 
-/* Date validation styles */
-.form-group.invalid input {
-    border-color: #f44336;
-    background-color: #ffebee;
-}
+        /* Date validation styles */
+        .form-group.invalid input {
+            border-color: #f44336;
+            background-color: #ffebee;
+        }
 
-.form-group .error-message {
-    color: #f44336;
-    font-size: 12px;
-    margin-top: 4px;
-    display: none;
-}
+        .form-group .error-message {
+            color: #f44336;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
 
-.form-group.invalid .error-message {
-    display: block;
-}
+        .form-group.invalid .error-message {
+            display: block;
+        }
 
-.form-group .helper-text {
-    color: #666;
-    font-size: 12px;
-    margin-top: 4px;
-    font-style: italic;
-}
+        .form-group .helper-text {
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
+            font-style: italic;
+        }
 
-/* Disabled submit button when invalid */
-.btn.submit-btn:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
+        /* Disabled submit button when invalid */
+        .btn.submit-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
 
-/* Status Badge Responsive */
-@media (max-width: 768px) {
-    .status-badge {
-        font-size: 10px;
-        padding: 2px 6px;
-    }
-    
-    .status-filters {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .status-filter-btn {
-        justify-content: center;
-        margin-bottom: 5px;
-    }
-    
-    .appointments-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 15px;
-    }
-    
-    .header-actions {
-        flex-direction: column;
-        width: 100%;
-    }
-    
-    .print-report-button,
-    .add-button {
-        width: 100%;
-        justify-content: center;
-        padding: 14px 20px;
-    }
-    
-    .appointments-stats {
-        order: -1;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    
-    .stat-item {
-        flex: 1;
-        min-width: 120px;
-    }
-}
+        /* Status Badge Responsive */
+        @media (max-width: 768px) {
+            .status-badge {
+                font-size: 10px;
+                padding: 2px 6px;
+            }
+            
+            .status-filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .status-filter-btn {
+                justify-content: center;
+                margin-bottom: 5px;
+            }
+            
+            .appointments-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            .header-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .print-report-button,
+            .add-button {
+                width: 100%;
+                justify-content: center;
+                padding: 14px 20px;
+            }
+            
+            .appointments-stats {
+                order: -1;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .stat-item {
+                flex: 1;
+                min-width: 120px;
+            }
 
-@media (max-width: 480px) {
-    .header-actions {
-        gap: 8px;
-    }
-    
-    .print-report-button,
-    .add-button {
-        font-size: 13px;
-        padding: 12px 16px;
-    }
-    
-    .appointments-stats {
-        flex-direction: column;
-        gap: 8px;
-    }
-}
+            /* Responsive filter controls */
+            .filter-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            .filter-group {
+                min-width: unset;
+            }
+            
+            .filter-actions {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .filter-button {
+                width: 100%;
+            }
+        }
 
-/* Action Button Improvements */
-.action-button {
-    margin: 0 2px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 12px;
-    min-width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
+        @media (max-width: 480px) {
+            .header-actions {
+                gap: 8px;
+            }
+            
+            .print-report-button,
+            .add-button {
+                font-size: 13px;
+                padding: 12px 16px;
+            }
+            
+            .appointments-stats {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
 
-.action-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
+        /* Action Button Improvements */
+        .action-button {
+            margin: 0 2px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+            min-width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-.view-button {
-    background-color: #2196f3;
-    color: white;
-}
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
 
-.edit-button {
-    background-color: #ff9800;
-    color: white;
-}
+        .view-button {
+            background-color: #2196f3;
+            color: white;
+        }
 
-.delete-button {
-    background-color: #f44336;
-    color: white;
-}
+        .edit-button {
+            background-color: #ff9800;
+            color: white;
+        }
 
-.view-button:hover {
-    background-color: #1976d2;
-}
+        .delete-button {
+            background-color: #f44336;
+            color: white;
+        }
 
-.edit-button:hover {
-    background-color: #f57c00;
-}
+        .view-button:hover {
+            background-color: #1976d2;
+        }
 
-.delete-button:hover {
-    background-color: #d32f2f;
-}
+        .edit-button:hover {
+            background-color: #f57c00;
+        }
 
-/* Text muted for completed appointments */
-.text-muted {
-    color: #666;
-    font-style: italic;
-}
+        .delete-button:hover {
+            background-color: #d32f2f;
+        }
 
-/* Improved table styling for status */
-.appointments-table table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
+        /* Text muted for completed appointments */
+        .text-muted {
+            color: #666;
+            font-style: italic;
+        }
 
-.appointments-table th {
-    background-color: #f8f9fa;
-    padding: 12px;
-    text-align: left;
-    font-weight: 600;
-    color: #333;
-    border-bottom: 2px solid #e9ecef;
-}
+        /* Improved table styling for status */
+        .appointments-table table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
 
-.appointments-table td {
-    padding: 12px;
-    border-bottom: 1px solid #e9ecef;
-    vertical-align: middle;
-}
+        .appointments-table th {
+            background-color: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e9ecef;
+        }
 
-.appointments-table tr:hover {
-    background-color: #f8f9fa;
-}
+        .appointments-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: middle;
+        }
 
-/* Status filter buttons active state */
-.status-filter-btn.active {
-    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
-}
+        .appointments-table tr:hover {
+            background-color: #f8f9fa;
+        }
 
-/* Loading state for buttons */
-.action-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
+        /* Status filter buttons active state */
+        .status-filter-btn.active {
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        }
 
-.action-button.loading {
-    position: relative;
-}
+        /* Loading state for buttons */
+        .action-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
 
-.action-button.loading::after {
-    content: '';
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border: 2px solid transparent;
-    border-top: 2px solid currentColor;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
+        .action-button.loading {
+            position: relative;
+        }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
+        .action-button.loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
 
-/* Better spacing for filter controls */
-.filter-controls {
-    gap: 20px;
-}
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
 
-.filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
+        /* Loading state for print button */
+        .print-report-button.loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
 
-.filter-group label {
-    font-weight: 500;
-    color: #555;
-    font-size: 14px;
-}
+        .print-report-button.loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 5px;
+        }
 
-.filter-group input {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-}
+        /* Print button icon animation */
+        .print-report-button i {
+            transition: transform 0.3s ease;
+        }
 
-.filter-button {
-    padding: 8px 16px;
-    background-color: #2196f3;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    transition: background-color 0.3s ease;
-    height: fit-content;
-    align-self: flex-end;
-}
+        .print-report-button:hover i {
+            transform: scale(1.1);
+        }
 
-.filter-button:hover {
-    background-color: #1976d2;
-}
-
-/* Loading state for print button */
-.print-report-button.loading {
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.print-report-button.loading::after {
-    content: '';
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border: 2px solid transparent;
-    border-top: 2px solid white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-left: 5px;
-}
-
-/* Print button icon animation */
-.print-report-button i {
-    transition: transform 0.3s ease;
-}
-
-.print-report-button:hover i {
-    transform: scale(1.1);
-}
-
-/* Improved layout for larger screens */
-@media (min-width: 1200px) {
-    .header-actions {
-        gap: 15px;
-    }
-    
-    .print-report-button,
-    .add-button {
-        padding: 14px 24px;
-        font-size: 15px;
-    }
-}
+        /* Improved layout for larger screens */
+        @media (min-width: 1200px) {
+            .header-actions {
+                gap: 15px;
+            }
+            
+            .print-report-button,
+            .add-button {
+                padding: 14px 24px;
+                font-size: 15px;
+            }
+        }
         
         .stat-item .count {
             font-weight: bold;
@@ -651,18 +709,26 @@
                 </a>
             </div>
 
+            <!-- UPDATED FILTER CONTROLS -->
             <div class="filter-controls">
                 <div class="filter-group">
                     <label for="dateFilter">Date:</label>
                     <input type="date" id="dateFilter" value="{{ today_date }}">
+                    <div class="helper-text">Select a specific date to filter appointments</div>
                 </div>
                 <div class="filter-group">
                     <label for="patientFilter">Patient:</label>
-                    <input type="text" id="patientFilter" placeholder="Filter by patient...">
+                    <input type="text" id="patientFilter" placeholder="Filter by patient name...">
+                    <div class="helper-text">Type patient name to search</div>
                 </div>
-                <button id="applyFilters" class="filter-button">
-                    <i class="fas fa-filter"></i> Apply Filters
-                </button>
+                <div class="filter-actions">
+                    <button id="applyFilters" class="filter-button">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                    <button id="clearFilters" class="filter-button clear-btn">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
             </div>
 
             <div class="appointments-table">
@@ -859,6 +925,37 @@
 
     <script>
         console.log('🔄 Loading appointments page...');
+        
+        // FIXED DATE PARSING AND FILTERING FUNCTIONS
+        function parseDisplayedDate(dateText) {
+            try {
+                // Handle different date formats that might be displayed
+                // e.g., "January 08, 2025", "January 8, 2025", "Jan 08, 2025"
+                const cleanDateText = dateText.trim();
+                
+                // Try to parse the displayed date
+                const parsedDate = new Date(cleanDateText);
+                
+                // Check if parsing was successful
+                if (isNaN(parsedDate.getTime())) {
+                    console.warn('Could not parse date:', cleanDateText);
+                    return null;
+                }
+                
+                return parsedDate;
+            } catch (error) {
+                console.error('Error parsing date:', dateText, error);
+                return null;
+            }
+        }
+
+        function formatDateForComparison(date) {
+            // Convert Date object to YYYY-MM-DD format for comparison
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
         
         // Date validation functions
         function getTodayString() {
@@ -1311,33 +1408,74 @@
             });
         });
         
-        // Filter functionality
+        // FIXED FILTER FUNCTIONALITY
         document.getElementById('applyFilters').addEventListener('click', function() {
             const dateFilter = document.getElementById('dateFilter').value;
             const patientFilter = document.getElementById('patientFilter').value.toLowerCase();
             
+            console.log('Applying filters - Date:', dateFilter, 'Patient:', patientFilter);
+            
             const table = document.getElementById('appointmentsTable');
             const rows = table.getElementsByTagName('tr');
+            let visibleCount = 0;
             
             for (let i = 1; i < rows.length; i++) {
                 const cells = rows[i].getElementsByTagName('td');
-                const dateText = cells[2].textContent.toLowerCase();
+                const dateText = cells[2].textContent; // Don't convert to lowercase for dates
                 const patientText = cells[1].textContent.toLowerCase();
                 
                 let dateMatch = true;
+                let patientMatch = true;
+                
+                // Improved date matching
                 if (dateFilter) {
-                    dateMatch = dateText.includes(dateFilter);
+                    const displayedDate = parseDisplayedDate(dateText);
+                    if (displayedDate) {
+                        const displayedDateString = formatDateForComparison(displayedDate);
+                        dateMatch = displayedDateString === dateFilter;
+                        console.log(`Comparing: ${displayedDateString} === ${dateFilter} = ${dateMatch}`);
+                    } else {
+                        // If we can't parse the date, fall back to string matching
+                        dateMatch = dateText.toLowerCase().includes(dateFilter.toLowerCase());
+                    }
                 }
                 
-                let patientMatch = true;
+                // Patient name matching (unchanged)
                 if (patientFilter) {
                     patientMatch = patientText.includes(patientFilter);
                 }
                 
-                rows[i].style.display = (dateMatch && patientMatch) ? '' : 'none';
+                const shouldShow = dateMatch && patientMatch;
+                rows[i].style.display = shouldShow ? '' : 'none';
+                
+                if (shouldShow) {
+                    visibleCount++;
+                }
             }
             
-            showNotification('Filters applied', 'info');
+            console.log(`Filter applied. ${visibleCount} appointments visible.`);
+            showNotification(`Filters applied. ${visibleCount} appointments found.`, 'info');
+        });
+
+        // Clear filters functionality
+        document.getElementById('clearFilters').addEventListener('click', function() {
+            document.getElementById('dateFilter').value = '';
+            document.getElementById('patientFilter').value = '';
+            
+            const table = document.getElementById('appointmentsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            // Show all rows
+            for (let i = 1; i < rows.length; i++) {
+                rows[i].style.display = '';
+            }
+            
+            showNotification('Filters cleared', 'info');
+            
+            // Update print button tooltip
+            if (typeof updatePrintButtonTooltip === 'function') {
+                updatePrintButtonTooltip();
+            }
         });
         
         // Modal functionality
@@ -1608,11 +1746,33 @@
             });
         }
 
+        // Test function - run this in browser console to test date parsing
+        function testDateParsing() {
+            console.log('=== TESTING DATE PARSING ===');
+            const table = document.getElementById('appointmentsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('td');
+                const dateText = cells[2].textContent.trim();
+                const parsedDate = parseDisplayedDate(dateText);
+                
+                console.log(`Original: "${dateText}"`);
+                console.log(`Parsed: ${parsedDate}`);
+                if (parsedDate) {
+                    console.log(`Formatted: ${formatDateForComparison(parsedDate)}`);
+                }
+                console.log('---');
+            }
+        }
+
         console.log('✅ Fixed appointment cancellation script loaded');
         console.log('✅ Date validation initialized - no past dates allowed');
+        console.log('✅ FIXED date filter functionality - now properly compares dates');
         console.log('🔧 Run debugCancelButtons() in console to check button setup');
+        console.log('🔧 Run testDateParsing() in console to test date parsing');
         console.log('🖨️ Print functionality ready - Press Ctrl+P to print with filters');
         console.log('📋 Page setup complete!');
-</script>
+    </script>
 </body>
 </html>
