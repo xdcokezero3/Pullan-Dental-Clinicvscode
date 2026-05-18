@@ -320,7 +320,8 @@ def login():
     if 'failed_attempts' not in session:
         session['failed_attempts'] = 0
         session['first_failed_attempt_time'] = None
-    
+
+    attempts_remaining = MAX_FAILED_ATTEMPTS - session.get('failed_attempts', 0)
     return render_template('login.html', 
                           registration_success=registration_success,
                           redirect_message=redirect_message,
@@ -4515,5 +4516,9 @@ def settings():
         print(f"Error in settings/about route: {e}")
         return f"Error loading about page: {e}", 500
 
-if __name__ == '__main__':
+
+with app.app_context():
+    db.create_all()
+    print("Tables created successfully")
+if __name__ == "__main__":
     app.run(debug=True)

@@ -55,19 +55,22 @@
                 <div class="attempts-text">
                     <i class="fas fa-shield-alt"></i>
                     Failed attempts: {{ failed_attempts }}/{{ max_attempts }}
+
                     {% if attempts_remaining == 1 %}
                     <span class="warning-text">- Last attempt!</span>
                     {% endif %}
                 </div>
+
                 <div class="attempts-bar">
-                    <div class="attempts-progress" style="width: {{ (failed_attempts / max_attempts) * 100 }}%"></div>
+                    <div class="attempts-progress"
+                        style="width: {{ (failed_attempts / max_attempts) * 100 }}%">
+                    </div>
                 </div>
-                {% if attempts_remaining > 0 %}
+
                 <div class="attempts-help">
                     <i class="fas fa-info-circle"></i>
                     {{ attempts_remaining }} attempt(s) remaining before password reset is required
                 </div>
-                {% endif %}
             </div>
             {% endif %}
             

@@ -16,10 +16,10 @@ class DatabaseConfig:
     """Centralized PostgreSQL database configuration"""
     
     # PostgreSQL configuration - modify these to match your pgAdmin setup
-    DB_USER = 'pullan_dental_db_user'  # Default PostgreSQL username
-    DB_PASSWORD = 'HRZrgc3Zn9wJ1IhhqrOnvKTQy04f0CZH'  # Change this to your PostgreSQL password
-    DB_NAME = 'pullan_dental_db'
-    DB_HOST = 'dpg-d1er2l3e5dus739sktvg-a.oregon-postgres.render.com'
+    DB_USER = 'pullandental_user'  # Default PostgreSQL username
+    DB_PASSWORD = 'MsTaB1fHFolsW7FsJmAtXGeT2g29CiYP'  # Change this to your PostgreSQL password
+    DB_NAME = 'pullandental'
+    DB_HOST = 'dpg-d84ob5btqb8s73fhch3g-a.oregon-postgres.render.com'
     DB_PORT = 5432  # Default PostgreSQL port
     DB_SCHEMA = 'pullandentalclinic'  # Add schema specification
     
@@ -185,7 +185,7 @@ def test_database_connection():
 # Database Models (Updated with explicit schema where needed)
 class Patient(db.Model):
     __tablename__ = 'patients'
-    __table_args__ = {'schema': 'pullandentalclinic'}  # Explicitly specify schema
+    #__table_args__ = {'schema': 'pullandentalclinic'}  # Explicitly specify schema
     
     patId = db.Column(db.Integer, primary_key=True)
     patname = db.Column(db.String(255))
@@ -206,7 +206,7 @@ class Patient(db.Model):
 
 class Appointment(db.Model):
     __tablename__ = 'appointment'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     appid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     apppatient = db.Column(db.String(100))
@@ -222,7 +222,7 @@ class Appointment(db.Model):
 
 class RescheduleAppointment(db.Model):
     __tablename__ = 'rappointment'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     rappid = db.Column(db.Integer, primary_key=True)
     rapppatient = db.Column(db.String(255))
@@ -237,7 +237,7 @@ class RescheduleAppointment(db.Model):
 
 class Inventory(db.Model):
     __tablename__ = 'inventory'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     invid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     invname = db.Column(db.String(100), nullable=False)
@@ -280,7 +280,7 @@ class Inventory(db.Model):
 
 class User(db.Model):
     __tablename__ = 'users'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     usersid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     usersusername = db.Column(db.String(255), unique=True, nullable=False)
@@ -304,7 +304,7 @@ class User(db.Model):
 
 class UserLog(db.Model):
     __tablename__ = 'user_logs'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     log_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer)
@@ -321,7 +321,7 @@ class UserLog(db.Model):
 
 class DentalChart(db.Model):
     __tablename__ = 'dentalchart'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     dcID = db.Column(db.Integer, primary_key=True)
     dcpatname = db.Column(db.String(255))
@@ -353,7 +353,7 @@ class DentalChart(db.Model):
 
 class Report(db.Model):
     __tablename__ = 'reports'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     repid = db.Column(db.Integer, primary_key=True)
     reppatient = db.Column(db.String(255))
@@ -372,7 +372,7 @@ class Report(db.Model):
 
 class Teeth(db.Model):
     __tablename__ = 'teeth'
-    __table_args__ = {'schema': 'pullandentalclinic'}
+    #__table_args__ = {'schema': 'pullandentalclinic'}
     
     tID = db.Column(db.Integer, primary_key=True)
     tpatname = db.Column(db.String(255))
