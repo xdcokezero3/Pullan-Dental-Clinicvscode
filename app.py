@@ -1,6 +1,6 @@
 # app.py - PostgreSQL Ready Fixed Version with Enhanced Features
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
-from db_connector import app as db_app, db, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
+from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
 from datetime import datetime, date, timedelta
 import os
 import time
@@ -10,6 +10,7 @@ import json
 import psycopg2
 import re
 import hashlib
+import shutil
 import socket
 import csv
 from io import StringIO
@@ -68,6 +69,38 @@ def parse_database_uri(db_uri):
     except Exception as e:
         print(f"Error parsing database URI: {e}")
         return None
+
+def is_sqlite_database():
+    """Return True when the app is using the local SQLite database."""
+    return DatabaseConfig.is_sqlite_uri(app.config['SQLALCHEMY_DATABASE_URI'])
+
+def get_sqlite_database_path():
+    """Return the filesystem path for the configured SQLite database."""
+    db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+    if not db_uri.startswith('sqlite:///'):
+        return None
+    return os.path.normpath(db_uri.replace('sqlite:///', '', 1))
+
+def create_sqlite_backup(backup_path):
+    """Create a file copy backup of the local SQLite database."""
+    sqlite_path = get_sqlite_database_path()
+    if not sqlite_path or not os.path.exists(sqlite_path):
+        raise Exception("Local SQLite database file was not found")
+
+    db.session.close()
+    db.engine.dispose()
+    shutil.copy2(sqlite_path, backup_path)
+
+def restore_sqlite_backup(backup_path):
+    """Restore the local SQLite database from a file backup."""
+    sqlite_path = get_sqlite_database_path()
+    if not sqlite_path:
+        raise Exception("Local SQLite database path is not configured")
+
+    os.makedirs(os.path.dirname(sqlite_path), exist_ok=True)
+    db.session.close()
+    db.engine.dispose()
+    shutil.copy2(backup_path, sqlite_path)
 
 @app.route('/faq')
 def faq():
@@ -1125,7 +1158,10 @@ def backup_restore():
     try:
         backups = []
         if os.path.exists(BACKUP_DIRECTORY):
-            backup_files = [f for f in os.listdir(BACKUP_DIRECTORY) if f.endswith('.sql')]
+            backup_files = [
+                f for f in os.listdir(BACKUP_DIRECTORY)
+                if f.endswith(('.sql', '.sqlite', '.db'))
+            ]
             for backup_file in backup_files:
                 try:
                     timestamp_str = backup_file.split('_')[1].split('.')[0]
@@ -1163,6 +1199,36 @@ def create_backup():
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
         
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+
+        if is_sqlite_database():
+            backup_filename = f"backup_{timestamp}.sqlite"
+            backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
+
+            try:
+                create_sqlite_backup(backup_path)
+                file_size = os.path.getsize(backup_path) / (1024 * 1024)
+
+                log_user_action(
+                    session.get('user_id'),
+                    'Database Backup',
+                    f'Created local SQLite database backup: {backup_filename} ({file_size:.2f} MB)'
+                )
+
+                return jsonify({
+                    "success": True,
+                    "message": "Backup created successfully",
+                    "backup": {
+                        "filename": backup_filename,
+                        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        "size": f"{file_size:.2f} MB"
+                    }
+                })
+            except Exception as e:
+                return jsonify({
+                    "success": False,
+                    "error": f"Error creating local database backup: {str(e)}"
+                })
+
         backup_filename = f"backup_{timestamp}.sql"
         backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
         
@@ -1509,6 +1575,31 @@ def restore_backup(filename):
         
         if not os.path.exists(backup_path):
             return jsonify({"success": False, "error": "Backup file not found"})
+
+        if is_sqlite_database():
+            if not filename.endswith(('.sqlite', '.db')):
+                return jsonify({
+                    "success": False,
+                    "error": "This app is using the local SQLite database, so only .sqlite or .db backups can be restored."
+                })
+
+            try:
+                restore_sqlite_backup(backup_path)
+                refresh_database_connection()
+                log_user_action(
+                    session.get('user_id'),
+                    'Database Restore',
+                    f'Restored local SQLite database from backup: {filename}'
+                )
+                return jsonify({
+                    "success": True,
+                    "message": f"Database restored successfully from backup: {filename}. Please refresh the page to see updated data."
+                })
+            except Exception as restore_error:
+                return jsonify({
+                    "success": False,
+                    "error": f"Error restoring local database backup: {restore_error}"
+                })
         
         # Verify backup file is readable and not empty
         try:

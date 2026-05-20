@@ -1,27 +1,92 @@
-# db_connector.py - PostgreSQL Version for pgAdmin 4 with Schema Fix
+# db_connector.py - Local database configuration
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import psycopg2
 import os
 import time
 from datetime import date, datetime
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import OperationalError
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Create Flask app
 app = Flask(__name__)
 
-# Database configuration class for PostgreSQL
+# Database configuration class
 class DatabaseConfig:
-    """Centralized PostgreSQL database configuration"""
+    """Centralized database configuration.
+
+    By default the app uses a local SQLite file inside this project:
+    instance/pullan_dental_local.db
+
+    To use PostgreSQL instead, set USE_LOCAL_SQLITE=false and configure the
+    DB_* environment variables, or set DATABASE_URL to a full SQLAlchemy URI.
+    """
     
-    # PostgreSQL configuration - modify these to match your pgAdmin setup
-    DB_USER = 'pullandental_user'  # Default PostgreSQL username
-    DB_PASSWORD = 'MsTaB1fHFolsW7FsJmAtXGeT2g29CiYP'  # Change this to your PostgreSQL password
-    DB_NAME = 'pullandental'
-    DB_HOST = 'dpg-d84ob5btqb8s73fhch3g-a.oregon-postgres.render.com'
-    DB_PORT = 5432  # Default PostgreSQL port
-    DB_SCHEMA = 'pullandentalclinic'  # Add schema specification
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    LOCAL_DATABASE_DIR = os.path.join(BASE_DIR, 'instance')
+    LOCAL_SQLITE_PATH = os.path.join(LOCAL_DATABASE_DIR, 'pullan_dental_local.db')
+    USE_LOCAL_SQLITE = os.getenv('USE_LOCAL_SQLITE', 'true').lower() in ('1', 'true', 'yes', 'on')
+
+    # PostgreSQL configuration for optional local/server Postgres use.
+    DB_USER = os.getenv('DB_USER', 'postgres')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+    DB_NAME = os.getenv('DB_NAME', 'pullandental')
+    DB_HOST = os.getenv('DB_HOST', 'localhost')
+    DB_PORT = int(os.getenv('DB_PORT', '5432'))
+    DB_SCHEMA = os.getenv('DB_SCHEMA', 'pullandentalclinic')
+
+    @classmethod
+    def get_local_sqlite_uri(cls):
+        """Return the local SQLite database URI and ensure its folder exists."""
+        os.makedirs(cls.LOCAL_DATABASE_DIR, exist_ok=True)
+        sqlite_path = cls.LOCAL_SQLITE_PATH.replace('\\', '/')
+        print(f"Using local SQLite database: {cls.LOCAL_SQLITE_PATH}")
+        return f"sqlite:///{sqlite_path}"
+
+    @classmethod
+    def get_database_uri(cls):
+        """Get the configured database URI."""
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            print("Using database from DATABASE_URL environment variable")
+            return database_url
+
+        if cls.USE_LOCAL_SQLITE:
+            return cls.get_local_sqlite_uri()
+
+        return cls.get_working_uri()
+
+    @staticmethod
+    def is_sqlite_uri(uri):
+        return uri.startswith('sqlite:')
+
+    @classmethod
+    def get_engine_options(cls, uri):
+        """Return SQLAlchemy engine options for the selected database."""
+        if cls.is_sqlite_uri(uri):
+            return {
+                'connect_args': {
+                    'check_same_thread': False
+                }
+            }
+
+        return {
+            'pool_size': 10,
+            'pool_timeout': 20,
+            'pool_recycle': 3600,
+            'pool_pre_ping': True,
+            'max_overflow': 20,
+            'connect_args': {
+                'connect_timeout': 10,
+                'options': f'-csearch_path={cls.DB_SCHEMA},public'
+            }
+        }
     
     @classmethod
     def test_connection(cls, host, user, password, database, port):
@@ -59,7 +124,7 @@ class DatabaseConfig:
         if cls.test_connection(cls.DB_HOST, cls.DB_USER, cls.DB_PASSWORD, cls.DB_NAME, cls.DB_PORT):
             # Add options to set search_path to include the correct schema
             uri = f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}?options=-csearch_path%3D{cls.DB_SCHEMA}%2Cpublic"
-            print(f"✅ Successfully connected to PostgreSQL at {cls.DB_HOST}:{cls.DB_PORT}")
+            print(f"Successfully connected to PostgreSQL at {cls.DB_HOST}:{cls.DB_PORT}")
             return uri
         
         # If connection fails, try connecting to default 'postgres' database
@@ -84,12 +149,12 @@ class DatabaseConfig:
             
             connection.close()
             uri = f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}?options=-csearch_path%3D{cls.DB_SCHEMA}%2Cpublic"
-            print(f"✅ Connected to PostgreSQL server and created/used database at {cls.DB_HOST}:{cls.DB_PORT}")
+            print(f"Connected to PostgreSQL server and created/used database at {cls.DB_HOST}:{cls.DB_PORT}")
             return uri
             
         except Exception as e:
             print(f"Failed to connect to PostgreSQL server: {str(e)}")
-            print("❌ All connection attempts failed!")
+            print("All connection attempts failed!")
             print("Please check:")
             print("1. PostgreSQL service is running")
             print("2. Username and password are correct")
@@ -98,23 +163,13 @@ class DatabaseConfig:
             
             return f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}?options=-csearch_path%3D{cls.DB_SCHEMA}%2Cpublic"
 
-# Get working database URI
-database_uri = DatabaseConfig.get_working_uri()
+# Get configured database URI
+database_uri = DatabaseConfig.get_database_uri()
 
-# Configure Flask app with PostgreSQL database settings
+# Configure Flask app with database settings
 app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 10,
-    'pool_timeout': 20,
-    'pool_recycle': 3600,  # 1 hour
-    'pool_pre_ping': True,  # Verify connections before using
-    'max_overflow': 20,
-    'connect_args': {
-        'connect_timeout': 10,
-        'options': f'-csearch_path={DatabaseConfig.DB_SCHEMA},public'  # Set search_path
-    }
-}
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = DatabaseConfig.get_engine_options(database_uri)
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
@@ -123,35 +178,55 @@ db = SQLAlchemy(app)
 def test_database_connection():
     """Comprehensive database connection test"""
     print("\n" + "="*50)
-    print("TESTING POSTGRESQL DATABASE CONNECTION")
+    print("TESTING DATABASE CONNECTION")
     print("="*50)
     
     try:
+        if DatabaseConfig.is_sqlite_uri(app.config['SQLALCHEMY_DATABASE_URI']):
+            with app.app_context():
+                result = db.session.execute(text("SELECT 1"))
+                row = result.fetchone()
+                if not row or row[0] != 1:
+                    print("SQLAlchemy connection: FAILED")
+                    return False
+
+                table_names = inspect(db.engine).get_table_names()
+                if 'patients' not in table_names:
+                    print("Patients table not found")
+                    return False
+
+                result = db.session.execute(text("SELECT COUNT(*) FROM patients"))
+                count = result.fetchone()[0]
+                print(f"Local SQLite database connected. Patients table has {count} records.")
+
+            print("All database tests passed!")
+            return True
+
         # Test 1: Basic SQLAlchemy connection
         with app.app_context():
-            result = db.engine.execute(text("SELECT 1"))
+            result = db.session.execute(text("SELECT 1"))
             row = result.fetchone()
             if row[0] == 1:
-                print("✅ SQLAlchemy connection: SUCCESS")
+                print("SQLAlchemy connection: SUCCESS")
             else:
-                print("❌ SQLAlchemy connection: FAILED")
+                print("SQLAlchemy connection: FAILED")
                 return False
         
         # Test 2: Database existence
         with app.app_context():
-            result = db.engine.execute(text("SELECT current_database()"))
+            result = db.session.execute(text("SELECT current_database()"))
             db_name = result.fetchone()[0]
-            print(f"✅ Connected to database: {db_name}")
+            print(f"Connected to database: {db_name}")
         
         # Test 3: Check current schema
         with app.app_context():
-            result = db.engine.execute(text("SELECT current_schema()"))
+            result = db.session.execute(text("SELECT current_schema()"))
             schema_name = result.fetchone()[0]
-            print(f"✅ Current schema: {schema_name}")
+            print(f"Current schema: {schema_name}")
         
         # Test 4: Check if patients table exists
         with app.app_context():
-            result = db.engine.execute(text("""
+            result = db.session.execute(text("""
                 SELECT table_name, table_schema 
                 FROM information_schema.tables 
                 WHERE table_name = 'patients' 
@@ -160,26 +235,26 @@ def test_database_connection():
             tables = result.fetchall()
             if tables:
                 for table in tables:
-                    print(f"✅ Found patients table in schema: {table[1]}")
+                    print(f"Found patients table in schema: {table[1]}")
             else:
-                print("❌ Patients table not found")
+                print("Patients table not found")
                 return False
         
         # Test 5: Check if tables can be queried
         with app.app_context():
             try:
-                result = db.engine.execute(text("SELECT COUNT(*) FROM patients"))
+                result = db.session.execute(text("SELECT COUNT(*) FROM patients"))
                 count = result.fetchone()[0]
-                print(f"✅ Patients table accessible: {count} records")
+                print(f"Patients table accessible: {count} records")
             except Exception as e:
-                print(f"❌ Cannot query patients table: {e}")
+                print(f"Cannot query patients table: {e}")
                 return False
         
-        print("✅ All database tests passed!")
+        print("All database tests passed!")
         return True
         
     except Exception as e:
-        print(f"❌ Database connection failed: {str(e)}")
+        print(f"Database connection failed: {str(e)}")
         return False
 
 # Database Models (Updated with explicit schema where needed)
@@ -534,31 +609,34 @@ def init_database():
         with app.app_context():
             print("Creating database tables...")
             db.create_all()
-            print("✅ Database tables created successfully!")
+            print("Database tables created successfully!")
             return True
     except Exception as e:
-        print(f"❌ Error creating database tables: {str(e)}")
+        print(f"Error creating database tables: {str(e)}")
         return False
+
+# Create local SQLite tables automatically when the app imports this module.
+if DatabaseConfig.is_sqlite_uri(app.config['SQLALCHEMY_DATABASE_URI']):
+    init_database()
 
 # Main execution
 if __name__ == "__main__":
-    print("Pullan Dental Clinic - PostgreSQL Database Connector")
+    print("Pullan Dental Clinic - Database Connector")
     print("="*60)
     
     with app.app_context():
         # Test connection
         if test_database_connection():
-            print("\n🎉 PostgreSQL database connection successful!")
+            print("\nDatabase connection successful!")
             
             # Initialize tables
             if init_database():
-                print("🎉 Database setup complete!")
+                print("Database setup complete!")
             else:
-                print("❌ Database setup failed!")
+                print("Database setup failed!")
         else:
-            print("\n❌ PostgreSQL database connection failed!")
+            print("\nDatabase connection failed!")
             print("\nTroubleshooting steps:")
-            print("1. Check if PostgreSQL service is running")
-            print("2. Verify username and password in DatabaseConfig class")
-            print("3. Ensure database 'pullan_dental_db' exists in pgAdmin")
-            print("4. Check if port 5432 is accessible")
+            print("1. Check the configured database URI")
+            print("2. For local SQLite, ensure the instance folder is writable")
+            print("3. For PostgreSQL, verify the server, username, password, database, and port")

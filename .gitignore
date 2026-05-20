@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+
+# Local development database
+instance/
+*.sqlite
+*.db
