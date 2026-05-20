@@ -148,6 +148,20 @@
             font-weight: 500;
         }
 
+        .chart-warning {
+            align-items: flex-start;
+            background-color: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: var(--border-radius);
+            color: #92400e;
+            display: flex;
+            font-size: 13px;
+            gap: 10px;
+            line-height: 1.4;
+            margin-top: 14px;
+            padding: 11px 12px;
+        }
+
         .inventory-used {
             border-top: 1px solid #eee;
             margin-top: 18px;
@@ -280,6 +294,12 @@
         .procedure-card input:checked + .procedure-option {
             border-color: var(--primary-color);
             background-color: rgba(66, 133, 244, 0.08);
+        }
+
+        .procedure-card input:disabled + .procedure-option {
+            background-color: #f8fafc;
+            cursor: not-allowed;
+            opacity: 0.58;
         }
 
         .tooth-selection {
@@ -418,6 +438,7 @@
         }
         .procedure-tooth.root-canal { background-color: #ffccff; }
         .procedure-tooth.implant { background-color: #ccffcc; }
+        .procedure-tooth.dentures { background-color: #cce5ff; }
 
         .chart-legend {
             background-color: #f8fafc;
@@ -451,6 +472,7 @@
         .legend-color.root-canal { background-color: #ffccff; }
         .legend-color.extracted { background-color: #333333; }
         .legend-color.implant { background-color: #ccffcc; }
+        .legend-color.dentures { background-color: #cce5ff; }
 
         @media (max-width: 760px) {
             .chart-quadrants,
@@ -546,6 +568,12 @@
             background-color: rgba(234, 67, 53, 0.12);
             color: #b3261e;
             border: 1px solid rgba(234, 67, 53, 0.3);
+        }
+
+        .alert.warning {
+            background-color: rgba(245, 158, 11, 0.12);
+            color: #92400e;
+            border: 1px solid rgba(245, 158, 11, 0.35);
         }
 
         .empty-state {
@@ -768,6 +796,7 @@
                                         data-contact="{{ patient.contact }}"
                                         data-age="{{ patient.age }}"
                                         data-gender="{{ patient.gender }}"
+                                        data-chart-complete="{{ 'true' if patient.chart_complete else 'false' }}"
                                         {% if selected_patient_id == patient.raw_id %}selected{% endif %}>
                                     {{ patient.name }} - {{ patient.id }}
                                 </option>
@@ -781,6 +810,10 @@
                             <div class="summary-row"><span>Age</span><strong id="summaryAge">N/A</strong></div>
                             <div class="summary-row"><span>Gender</span><strong id="summaryGender">N/A</strong></div>
                             <div class="summary-row"><span>Contact</span><strong id="summaryContact">N/A</strong></div>
+                            <div id="chartWarning" class="chart-warning" style="display: none;">
+                                <i class="fas fa-triangle-exclamation"></i>
+                                <span>This patient's dental chart is incomplete.</span>
+                            </div>
                         </div>
 
                         <div class="inventory-used">
@@ -844,7 +877,7 @@
                                 <input type="date" id="procedure_date" name="procedure_date" class="form-control" required>
                             </div>
 
-                            <div class="procedure-grid">
+                            <div id="procedureGrid" class="procedure-grid">
                                 <label class="procedure-card">
                                     <input type="checkbox" name="cleaning" value="1">
                                     <span class="procedure-option">
@@ -937,6 +970,7 @@
                                     <div class="chart-legend-item"><span class="legend-color root-canal"></span>Root Canal</div>
                                     <div class="chart-legend-item"><span class="legend-color extracted"></span>Extracted</div>
                                     <div class="chart-legend-item"><span class="legend-color implant"></span>Implant</div>
+                                    <div class="chart-legend-item"><span class="legend-color dentures"></span>Dentures</div>
                                 </div>
                             </div>
 
@@ -1077,6 +1111,7 @@
         const messageBox = document.getElementById('messageBox');
         const saveButton = document.getElementById('saveButton');
         const procedureDate = document.getElementById('procedure_date');
+        const procedureGrid = document.getElementById('procedureGrid');
         const procedureSearch = document.getElementById('procedureSearch');
         const addProcedurePanel = document.getElementById('addProcedurePanel');
         const showAddProcedure = document.getElementById('showAddProcedure');
@@ -1128,6 +1163,25 @@
         function clearMessage() {
             messageBox.textContent = '';
             messageBox.className = 'alert';
+        }
+
+        function hasSelectedPatient() {
+            return Boolean(patientSelect && patientSelect.value);
+        }
+
+        function updateProcedureAvailability() {
+            const hasPatient = hasSelectedPatient();
+            procedureCheckboxes.forEach((checkbox) => {
+                checkbox.disabled = !hasPatient;
+                if (!hasPatient) {
+                    checkbox.checked = false;
+                }
+            });
+
+            if (!hasPatient) {
+                clearSelectedTeeth();
+                updateToothChartVisibility();
+            }
         }
 
         function openAddProcedurePanel() {
@@ -1401,9 +1455,14 @@
 
             const selected = patientSelect.options[patientSelect.selectedIndex];
             const summary = document.getElementById('patientSummary');
+            const chartWarning = document.getElementById('chartWarning');
 
             if (!selected || !selected.value) {
                 summary.style.display = 'none';
+                if (chartWarning) {
+                    chartWarning.style.display = 'none';
+                }
+                updateProcedureAvailability();
                 return;
             }
 
@@ -1412,7 +1471,11 @@
             document.getElementById('summaryAge').textContent = selected.dataset.age || 'N/A';
             document.getElementById('summaryGender').textContent = selected.dataset.gender || 'N/A';
             document.getElementById('summaryContact').textContent = selected.dataset.contact || 'N/A';
+            if (chartWarning) {
+                chartWarning.style.display = selected.dataset.chartComplete === 'true' ? 'none' : 'flex';
+            }
             summary.style.display = 'block';
+            updateProcedureAvailability();
             clearSelectedTeeth();
             renderToothCharts();
         }
@@ -1444,6 +1507,18 @@
             patientSelect.addEventListener('change', () => {
                 clearMessage();
                 updatePatientSummary();
+            });
+        }
+
+        if (procedureGrid) {
+            procedureGrid.addEventListener('click', (event) => {
+                if (hasSelectedPatient()) return;
+
+                event.preventDefault();
+                showMessage('Please choose a patient before selecting a treatment.', 'warning');
+                if (patientSelect) {
+                    patientSelect.focus();
+                }
             });
         }
 

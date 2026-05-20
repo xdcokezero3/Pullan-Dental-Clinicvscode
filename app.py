@@ -3789,6 +3789,7 @@ def procedures():
                 'gender': patient.patgender or "N/A",
                 'has_dental_chart': dental_chart is not None,
                 'has_teeth_chart': teeth_chart is not None,
+                'chart_complete': dental_chart is not None and teeth_chart is not None and is_chart_complete(dental_chart),
                 'raw_id': patient.patId
             })
 
@@ -4248,6 +4249,17 @@ def update_tooth_condition():
         patient_id = request.form.get('patient_id')
         tooth_number = request.form.get('tooth_number')
         condition = request.form.get('condition')
+
+        try:
+            tooth_number = int(tooth_number)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Please choose a valid tooth number."})
+
+        valid_conditions = {'healthy', 'caries', 'filled', 'crown', 'extracted', 'root-canal', 'implant', 'dentures'}
+        if tooth_number < 1 or tooth_number > 32:
+            return jsonify({"success": False, "error": "Tooth number must be between 1 and 32."})
+        if condition not in valid_conditions:
+            return jsonify({"success": False, "error": "Please choose a valid tooth condition."})
         
         patient = Patient.query.get_or_404(patient_id)
         
@@ -4307,7 +4319,7 @@ def add_procedure():
             {'key': 'extraction', 'label': 'Extraction', 'selected': extraction, 'condition': 'extracted', 'requires_teeth': True},
             {'key': 'root_canal', 'label': 'Root Canal', 'selected': root_canal, 'condition': 'root-canal', 'requires_teeth': True},
             {'key': 'braces', 'label': 'Braces', 'selected': braces, 'condition': None, 'requires_teeth': False},
-            {'key': 'dentures', 'label': 'Dentures', 'selected': dentures, 'condition': 'extracted', 'requires_teeth': True},
+            {'key': 'dentures', 'label': 'Dentures', 'selected': dentures, 'condition': 'dentures', 'requires_teeth': True},
             {'key': 'filling', 'label': 'Filling', 'selected': filling, 'condition': 'filled', 'requires_teeth': True},
             {'key': 'crowning', 'label': 'Crowning', 'selected': crowning, 'condition': 'crown', 'requires_teeth': True}
         ]

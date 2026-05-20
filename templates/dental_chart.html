@@ -296,6 +296,7 @@
         }
         .tooth.root-canal { background-color: #ffccff; }
         .tooth.implant { background-color: #ccffcc; }
+        .tooth.dentures { background-color: #cce5ff; }
         
         /* Teeth Legend */
         .teeth-legend {
@@ -329,6 +330,7 @@
         .legend-color.extracted { background-color: #333333; }
         .legend-color.root-canal { background-color: #ffccff; }
         .legend-color.implant { background-color: #ccffcc; }
+        .legend-color.dentures { background-color: #cce5ff; }
         
         /* Condition Selector Modal */
         .condition-modal {
@@ -384,6 +386,7 @@
         .condition-option.extracted { background-color: #333333; color: white; }
         .condition-option.root-canal { background-color: #ffccff; }
         .condition-option.implant { background-color: #ccffcc; }
+        .condition-option.dentures { background-color: #cce5ff; }
         
         /* Sidebar */
         .sidebar-section {
@@ -821,6 +824,10 @@
                                         <div class="legend-color implant"></div>
                                         <span>Implant</span>
                                     </div>
+                                    <div class="legend-item">
+                                        <div class="legend-color dentures"></div>
+                                        <span>Dentures</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -870,6 +877,9 @@
                 </div>
                 <div class="condition-option implant" onclick="setToothCondition('implant')">
                     <i class="fas fa-plus"></i><br>Implant
+                </div>
+                <div class="condition-option dentures" onclick="setToothCondition('dentures')">
+                    <i class="fas fa-teeth"></i><br>Dentures
                 </div>
             </div>
             
