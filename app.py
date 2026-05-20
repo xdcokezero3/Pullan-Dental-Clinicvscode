@@ -4877,5 +4877,41 @@ def settings():
 
 
 
+def get_lan_ip_addresses():
+    """Return possible local LAN IP addresses for showing access URLs."""
+    addresses = set()
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as lan_socket:
+            lan_socket.connect(("8.8.8.8", 80))
+            addresses.add(lan_socket.getsockname()[0])
+    except OSError:
+        pass
+
+    try:
+        hostname = socket.gethostname()
+        for ip_address in socket.gethostbyname_ex(hostname)[2]:
+            if not ip_address.startswith("127."):
+                addresses.add(ip_address)
+    except OSError:
+        pass
+
+    return sorted(addresses) or ["YOUR_COMPUTER_IP"]
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    port = int(os.getenv("APP_PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "true").lower() in ("1", "true", "yes", "on")
+
+    print("\nPullan Dental Clinic is starting...")
+    print(f"Local access: http://127.0.0.1:{port}")
+    if host == "0.0.0.0":
+        print("LAN access:")
+        for ip_address in get_lan_ip_addresses():
+            print(f"  http://{ip_address}:{port}")
+    else:
+        print(f"Configured host access: http://{host}:{port}")
+    print("Use the LAN access URL on the other computer connected to the same network.\n")
+
+    app.run(host=host, port=port, debug=debug)
