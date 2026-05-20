@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedures - Pullan Dental Clinic</title>
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        .procedures-layout {
+            display: grid;
+            grid-template-columns: minmax(260px, 360px) 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .procedures-layout.is-hidden {
+            display: none;
+        }
+
+        .add-procedure-panel {
+            margin-top: 20px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            background-color: rgba(66, 133, 244, 0.12);
+            flex: 0 0 auto;
+        }
+
+        .stat-info h3 {
+            color: var(--text-color);
+            font-size: 24px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-info p {
+            color: var(--text-light);
+            font-size: 13px;
+        }
+
+        .panel {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 22px;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-subtitle {
+            color: var(--text-light);
+            font-size: 14px;
+            margin-bottom: 18px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            color: var(--text-color);
+            font-size: 14px;
+            padding: 11px 12px;
+            transition: var(--transition);
+            background-color: var(--white);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
+        }
+
+        textarea.form-control {
+            min-height: 95px;
+            resize: vertical;
+        }
+
+        .patient-summary {
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            padding: 16px;
+            margin-top: 16px;
+            background-color: #f8fafc;
+        }
+
+        .patient-summary h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            color: var(--text-light);
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .summary-row strong {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        .inventory-used {
+            border-top: 1px solid #eee;
+            margin-top: 18px;
+            padding-top: 18px;
+        }
+
+        .inventory-used-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            align-items: center;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: inline-flex;
+            height: 34px;
+            justify-content: center;
+            width: 34px;
+            transition: var(--transition);
+        }
+
+        .icon-btn.primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .icon-btn.secondary {
+            background-color: #eef2f7;
+            color: var(--text-color);
+        }
+
+        .icon-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .inventory-picker {
+            background-color: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            display: none;
+            gap: 10px;
+            margin-bottom: 12px;
+            padding: 12px;
+        }
+
+        .inventory-picker.show {
+            display: grid;
+        }
+
+        .inventory-picker-actions {
+            align-items: center;
+            gap: 8px;
+            display: grid;
+            grid-template-columns: 1fr 82px 34px;
+        }
+
+        .selected-inventory-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .selected-inventory-empty {
+            color: var(--text-light);
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .selected-inventory-item {
+            align-items: center;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr auto;
+            padding: 10px 12px;
+        }
+
+        .selected-inventory-name {
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .selected-inventory-meta {
+            color: var(--text-light);
+            display: block;
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .procedure-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .procedure-card {
+            position: relative;
+        }
+
+        .procedure-card input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .procedure-option {
+            display: flex;
+            min-height: 118px;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            padding: 16px;
+            cursor: pointer;
+            transition: var(--transition);
+            background-color: var(--white);
+        }
+
+        .procedure-option:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 14px rgba(66, 133, 244, 0.12);
+        }
+
+        .procedure-card input:checked + .procedure-option {
+            border-color: var(--primary-color);
+            background-color: rgba(66, 133, 244, 0.08);
+        }
+
+        .tooth-selection {
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            padding: 16px;
+        }
+
+        .tooth-selection.is-hidden {
+            display: none;
+        }
+
+        .tooth-selection-header {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .tooth-selection-title {
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .tooth-selection-note {
+            color: var(--text-light);
+            font-size: 12px;
+        }
+
+        .chart-picker-title {
+            color: var(--text-color);
+            font-weight: 600;
+            margin-bottom: 14px;
+            text-align: center;
+        }
+
+        .procedure-tooth-charts {
+            display: grid;
+            gap: 16px;
+        }
+
+        .procedure-chart-card {
+            border-top: 1px solid #eef2f7;
+            padding-top: 16px;
+        }
+
+        .procedure-chart-card:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
+
+        .procedure-chart-card.locked .procedure-tooth {
+            cursor: default;
+            opacity: 0.82;
+        }
+
+        .procedure-chart-actions {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
+        .chart-status {
+            color: var(--text-light);
+            font-size: 12px;
+            margin-right: auto;
+        }
+
+        .procedure-chart-card.locked .chart-status {
+            color: #1f7a38;
+            font-weight: 600;
+        }
+
+        .chart-quadrants {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .chart-quadrant {
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius);
+            padding: 14px;
+        }
+
+        .chart-quadrant-title {
+            color: var(--primary-color);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .chart-teeth-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, 1fr);
+            justify-items: center;
+        }
+
+        .procedure-tooth {
+            align-items: center;
+            background-color: #fff;
+            border: 2px solid #333;
+            border-radius: 3px;
+            color: var(--text-color);
+            cursor: pointer;
+            display: flex;
+            font-size: 11px;
+            font-weight: 600;
+            height: 45px;
+            justify-content: center;
+            transition: var(--transition);
+            width: 45px;
+        }
+
+        .procedure-tooth:hover,
+        .procedure-tooth.selected {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 2px;
+            transform: scale(1.05);
+        }
+
+        .procedure-tooth.healthy { background-color: #ffffff; }
+        .procedure-tooth.caries { background-color: #ffcccc; }
+        .procedure-tooth.filled { background-color: #cccccc; }
+        .procedure-tooth.crown { background-color: #ffffcc; }
+        .procedure-tooth.extracted {
+            background-color: #333333;
+            color: white;
+        }
+        .procedure-tooth.root-canal { background-color: #ffccff; }
+        .procedure-tooth.implant { background-color: #ccffcc; }
+
+        .chart-legend {
+            background-color: #f8fafc;
+            border-radius: var(--border-radius);
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, 1fr);
+            margin-top: 14px;
+            padding: 12px;
+        }
+
+        .chart-legend-item {
+            align-items: center;
+            color: var(--text-color);
+            display: flex;
+            font-size: 12px;
+            gap: 8px;
+        }
+
+        .legend-color {
+            border: 1px solid #333;
+            border-radius: 2px;
+            height: 20px;
+            width: 20px;
+        }
+
+        .legend-color.healthy { background-color: #ffffff; }
+        .legend-color.caries { background-color: #ffcccc; }
+        .legend-color.filled { background-color: #cccccc; }
+        .legend-color.crown { background-color: #ffffcc; }
+        .legend-color.root-canal { background-color: #ffccff; }
+        .legend-color.extracted { background-color: #333333; }
+        .legend-color.implant { background-color: #ccffcc; }
+
+        @media (max-width: 760px) {
+            .chart-quadrants,
+            .chart-legend {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .procedure-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            background-color: rgba(66, 133, 244, 0.12);
+            margin-bottom: 12px;
+        }
+
+        .procedure-name {
+            font-weight: 600;
+            color: var(--text-color);
+            font-size: 15px;
+        }
+
+        .procedure-note {
+            color: var(--text-light);
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            border-top: 1px solid #eee;
+            padding-top: 18px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 11px 18px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #3367d6;
+        }
+
+        .btn-secondary {
+            background-color: #eef2f7;
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e2e8f0;
+        }
+
+        .alert {
+            border-radius: var(--border-radius);
+            display: none;
+            margin-bottom: 18px;
+            padding: 13px 15px;
+            font-size: 14px;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert.success {
+            background-color: rgba(52, 168, 83, 0.12);
+            color: #1f7a38;
+            border: 1px solid rgba(52, 168, 83, 0.3);
+        }
+
+        .alert.error {
+            background-color: rgba(234, 67, 53, 0.12);
+            color: #b3261e;
+            border: 1px solid rgba(234, 67, 53, 0.3);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-light);
+            padding: 28px 16px;
+        }
+
+        .empty-state i {
+            font-size: 34px;
+            color: var(--text-xlight);
+            margin-bottom: 12px;
+        }
+
+        .history-panel {
+            margin-top: 20px;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .history-tools {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .history-search {
+            min-width: 240px;
+        }
+
+        .procedures-table-wrap {
+            overflow-x: auto;
+        }
+
+        .procedures-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 850px;
+        }
+
+        .procedures-table th,
+        .procedures-table td {
+            border-bottom: 1px solid #eee;
+            padding: 13px 12px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 14px;
+        }
+
+        .procedures-table th {
+            color: var(--text-light);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background-color: #f8fafc;
+        }
+
+        .procedure-id {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .muted {
+            color: var(--text-light);
+            font-size: 12px;
+        }
+
+        .action-links {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .action-link {
+            align-items: center;
+            border-radius: 6px;
+            display: inline-flex;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 7px 10px;
+            text-decoration: none;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .action-link.print {
+            background-color: rgba(66, 133, 244, 0.1);
+            color: var(--primary-color);
+        }
+
+        .action-link.history {
+            background-color: #eef2f7;
+            color: var(--text-color);
+        }
+
+        .action-link:hover {
+            transform: translateY(-1px);
+        }
+
+        .no-results {
+            display: none;
+            text-align: center;
+            color: var(--text-light);
+            padding: 24px;
+        }
+
+        @media (max-width: 1000px) {
+            .procedures-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .form-actions {
+                flex-direction: column-reverse;
+            }
+
+            .btn {
+                justify-content: center;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li class="active"><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
+                <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('faq') }}"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> About</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="patientSearch" placeholder="Search patient...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="user">
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-overview">
+                <h1><i class="fas fa-notes-medical"></i> Procedure History</h1>
+                <p class="date">{{ current_date }}</p>
+
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <span class="stat-icon"><i class="fas fa-clipboard-list"></i></span>
+                        <div class="stat-info">
+                            <h3>{{ total_procedures or 0 }}</h3>
+                            <p>Total Procedures</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-icon"><i class="fas fa-calendar-day"></i></span>
+                        <div class="stat-info">
+                            <h3>{{ today_procedures or 0 }}</h3>
+                            <p>Recorded Today</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-icon"><i class="fas fa-user-injured"></i></span>
+                        <div class="stat-info">
+                            <h3>{{ total_patients or 0 }}</h3>
+                            <p>Active Patients</p>
+                        </div>
+                    </div>
+                </div>
+
+                {% if patients and patients|length > 0 %}
+                <div id="addProcedurePanel" class="procedures-layout add-procedure-panel{% if not selected_patient_id %} is-hidden{% endif %}">
+                    <aside class="panel">
+                        <div class="panel-title">
+                            <i class="fas fa-user-check"></i>
+                            Select Patient
+                        </div>
+                        <p class="panel-subtitle">Choose the patient currently undergoing treatment.</p>
+
+                        <div class="form-group">
+                            <label class="form-label" for="patient_id">Patient Name</label>
+                            <select id="patient_id" name="patient_id" class="form-control" required>
+                                <option value="">Select patient</option>
+                                {% for patient in patients %}
+                                <option value="{{ patient.raw_id }}"
+                                        data-name="{{ patient.name }}"
+                                        data-id="{{ patient.id }}"
+                                        data-contact="{{ patient.contact }}"
+                                        data-age="{{ patient.age }}"
+                                        data-gender="{{ patient.gender }}"
+                                        {% if selected_patient_id == patient.raw_id %}selected{% endif %}>
+                                    {{ patient.name }} - {{ patient.id }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div id="patientSummary" class="patient-summary" style="display: none;">
+                            <h3 id="summaryName">Patient Name</h3>
+                            <div class="summary-row"><span>Patient ID</span><strong id="summaryId">N/A</strong></div>
+                            <div class="summary-row"><span>Age</span><strong id="summaryAge">N/A</strong></div>
+                            <div class="summary-row"><span>Gender</span><strong id="summaryGender">N/A</strong></div>
+                            <div class="summary-row"><span>Contact</span><strong id="summaryContact">N/A</strong></div>
+                        </div>
+
+                        <div class="inventory-used">
+                            <div class="inventory-used-header">
+                                <div class="panel-title">
+                                    <i class="fas fa-box-open"></i>
+                                    Items Used
+                                </div>
+                                {% if inventory_items and inventory_items|length > 0 %}
+                                <button type="button" id="showInventoryPicker" class="icon-btn primary" title="Add inventory item">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                            <p class="panel-subtitle">Add inventory items used during this procedure.</p>
+
+                            {% if inventory_items and inventory_items|length > 0 %}
+                            <div id="inventoryPicker" class="inventory-picker">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="inventoryPickerSelect">Inventory Item</label>
+                                    <select id="inventoryPickerSelect" class="form-control">
+                                        <option value="">Select item</option>
+                                        {% for item in inventory_items %}
+                                        <option value="{{ item.raw_id }}">{{ item.name }} - Stock: {{ item.quantity }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="inventory-picker-actions">
+                                    <input type="number" id="inventoryPickerQuantity" class="form-control" min="1" value="1" aria-label="Quantity used">
+                                    <button type="button" id="addInventoryItem" class="icon-btn primary" title="Add selected item">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" id="hideInventoryPicker" class="icon-btn secondary" title="Cancel">
+                                        <i class="fas fa-xmark"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="selectedInventoryList" class="selected-inventory-list"></div>
+                            <p id="selectedInventoryEmpty" class="selected-inventory-empty">No inventory items added.</p>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-box-open"></i>
+                                <p>No available inventory items found.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </aside>
+
+                    <main class="panel">
+                        <div class="panel-title">
+                            <i class="fas fa-clipboard-list"></i>
+                            Select Treatment
+                        </div>
+                        <p class="panel-subtitle">Select one or more procedures and save the treatment to the patient's record.</p>
+
+                        <div id="messageBox" class="alert"></div>
+
+                        <form id="procedureForm">
+                            <div class="form-group">
+                                <label class="form-label" for="procedure_date">Procedure Date</label>
+                                <input type="date" id="procedure_date" name="procedure_date" class="form-control" required>
+                            </div>
+
+                            <div class="procedure-grid">
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="cleaning" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-broom"></i></span>
+                                            <span class="procedure-name">Cleaning</span>
+                                            <span class="procedure-note">Oral prophylaxis and plaque removal</span>
+                                        </span>
+                                    </span>
+                                </label>
+
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="extraction" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-tooth"></i></span>
+                                            <span class="procedure-name">Extraction</span>
+                                            <span class="procedure-note">Tooth removal procedure</span>
+                                        </span>
+                                    </span>
+                                </label>
+
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="root_canal" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-file-medical"></i></span>
+                                            <span class="procedure-name">Root Canal</span>
+                                            <span class="procedure-note">Endodontic treatment</span>
+                                        </span>
+                                    </span>
+                                </label>
+
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="braces" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-grip-lines"></i></span>
+                                            <span class="procedure-name">Braces</span>
+                                            <span class="procedure-note">Orthodontic adjustment or placement</span>
+                                        </span>
+                                    </span>
+                                </label>
+
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="dentures" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-teeth"></i></span>
+                                            <span class="procedure-name">Dentures</span>
+                                            <span class="procedure-note">Denture fitting or adjustment</span>
+                                        </span>
+                                    </span>
+                                </label>
+
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="filling" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-fill-drip"></i></span>
+                                            <span class="procedure-name">Filling</span>
+                                            <span class="procedure-note">Restoration for cavities or damaged tooth areas</span>
+                                        </span>
+                                    </span>
+                                </label>
+
+                                <label class="procedure-card">
+                                    <input type="checkbox" name="crowning" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-crown"></i></span>
+                                            <span class="procedure-name">Crowning</span>
+                                            <span class="procedure-note">Dental crown placement or restoration</span>
+                                        </span>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div id="toothSelection" class="tooth-selection is-hidden">
+                                <div class="tooth-selection-header">
+                                    <span class="tooth-selection-title">Affected Teeth</span>
+                                    <span class="tooth-selection-note">Each selected procedure has its own chart</span>
+                                </div>
+                                <div id="procedureToothCharts" class="procedure-tooth-charts"></div>
+                                <div class="chart-legend">
+                                    <div class="chart-legend-item"><span class="legend-color healthy"></span>Healthy</div>
+                                    <div class="chart-legend-item"><span class="legend-color caries"></span>Caries</div>
+                                    <div class="chart-legend-item"><span class="legend-color filled"></span>Filled</div>
+                                    <div class="chart-legend-item"><span class="legend-color crown"></span>Crown</div>
+                                    <div class="chart-legend-item"><span class="legend-color root-canal"></span>Root Canal</div>
+                                    <div class="chart-legend-item"><span class="legend-color extracted"></span>Extracted</div>
+                                    <div class="chart-legend-item"><span class="legend-color implant"></span>Implant</div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="dentist">Dentist</label>
+                                <input type="text" id="dentist" name="dentist" class="form-control" placeholder="Enter dentist name" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="prescription">Prescription</label>
+                                <textarea id="prescription" name="prescription" class="form-control" placeholder="Medicine, dosage, or post-treatment instructions"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="notes">Other Procedure / Notes</label>
+                                <textarea id="notes" name="notes" class="form-control" placeholder="Use this for procedures not listed above or additional clinical notes"></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" id="cancelAddProcedure" class="btn btn-secondary">
+                                    <i class="fas fa-xmark"></i>
+                                    Cancel
+                                </button>
+                                <button type="reset" class="btn btn-secondary">
+                                    <i class="fas fa-rotate-left"></i>
+                                    Clear
+                                </button>
+                                <button type="submit" id="saveButton" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    Save Procedure
+                                </button>
+                            </div>
+                        </form>
+                    </main>
+                </div>
+                {% else %}
+                <div class="panel empty-state">
+                    <i class="fas fa-user-injured"></i>
+                    <h3>No active patients found</h3>
+                    <p>Add an active patient before recording a procedure.</p>
+                    <a href="{{ url_for('patients') }}" class="btn btn-primary" style="margin-top: 16px;">
+                        <i class="fas fa-user-plus"></i>
+                        Go to Patients
+                    </a>
+                </div>
+                {% endif %}
+
+                <section class="panel history-panel">
+                    <div class="history-header">
+                        <div>
+                            <div class="panel-title">
+                                <i class="fas fa-clock-rotate-left"></i>
+                                Procedure History
+                            </div>
+                            <p class="panel-subtitle">Saved records from the procedure database.</p>
+                        </div>
+                        <div class="history-tools">
+                            <input type="text" id="procedureSearch" class="form-control history-search" placeholder="Search procedure, patient, dentist...">
+                            {% if patients and patients|length > 0 %}
+                            <button type="button" id="showAddProcedure" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                                Add Procedure
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if recent_procedures and recent_procedures|length > 0 %}
+                    <div class="procedures-table-wrap">
+                        <table class="procedures-table">
+                            <thead>
+                                <tr>
+                                    <th>Procedure ID</th>
+                                    <th>Patient</th>
+                                    <th>Date</th>
+                                    <th>Procedure</th>
+                                    <th>Dentist</th>
+                                    <th>Prescription</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="procedureRows">
+                                {% for procedure in recent_procedures %}
+                                <tr data-search="{{ procedure.id }} {{ procedure.patient_name }} {{ procedure.patient_id }} {{ procedure.date }} {{ procedure.procedures }} {{ procedure.dentist }} {{ procedure.prescription }}">
+                                    <td><span class="procedure-id">{{ procedure.id }}</span></td>
+                                    <td>
+                                        <strong>{{ procedure.patient_name }}</strong>
+                                        <div class="muted">{{ procedure.patient_id }}</div>
+                                    </td>
+                                    <td>
+                                        {{ procedure.date }}
+                                        {% if procedure.date_iso %}
+                                        <div class="muted">{{ procedure.date_iso }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ procedure.procedures }}</td>
+                                    <td>{{ procedure.dentist }}</td>
+                                    <td>{{ procedure.prescription }}</td>
+                                    <td>
+                                        <div class="action-links">
+                                            <a class="action-link print" href="{{ url_for('print_procedure', procedure_id=procedure.raw_id) }}" target="_blank">
+                                                <i class="fas fa-print"></i>
+                                                Print
+                                            </a>
+                                            {% if procedure.patient_raw_id %}
+                                            <a class="action-link history" href="{{ url_for('procedure_history', patient_id=procedure.patient_raw_id) }}">
+                                                <i class="fas fa-folder-open"></i>
+                                                History
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noProcedureResults" class="no-results">
+                        <i class="fas fa-search"></i>
+                        <p>No procedure records match your search.</p>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard"></i>
+                        <h3>No procedures recorded yet</h3>
+                        <p>Saved procedure records will appear here.</p>
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const patientSelect = document.getElementById('patient_id');
+        const patientSearch = document.getElementById('patientSearch');
+        const procedureForm = document.getElementById('procedureForm');
+        const messageBox = document.getElementById('messageBox');
+        const saveButton = document.getElementById('saveButton');
+        const procedureDate = document.getElementById('procedure_date');
+        const procedureSearch = document.getElementById('procedureSearch');
+        const addProcedurePanel = document.getElementById('addProcedurePanel');
+        const showAddProcedure = document.getElementById('showAddProcedure');
+        const cancelAddProcedure = document.getElementById('cancelAddProcedure');
+        const showInventoryPicker = document.getElementById('showInventoryPicker');
+        const hideInventoryPicker = document.getElementById('hideInventoryPicker');
+        const inventoryPicker = document.getElementById('inventoryPicker');
+        const inventoryPickerSelect = document.getElementById('inventoryPickerSelect');
+        const inventoryPickerQuantity = document.getElementById('inventoryPickerQuantity');
+        const addInventoryItem = document.getElementById('addInventoryItem');
+        const selectedInventoryList = document.getElementById('selectedInventoryList');
+        const selectedInventoryEmpty = document.getElementById('selectedInventoryEmpty');
+        const inventoryItems = {{ (inventory_items or [])|tojson }};
+        const patientTeethMap = {{ (patient_teeth_map or {})|tojson }};
+        const selectedInventory = new Map();
+        const procedureCheckboxes = Array.from(document.querySelectorAll('.procedure-card input[type="checkbox"]'));
+        const toothSelection = document.getElementById('toothSelection');
+        const procedureToothCharts = document.getElementById('procedureToothCharts');
+        const selectedTeethByProcedure = new Map();
+        const lockedToothProcedures = new Set();
+        const procedureLabels = {
+            cleaning: 'Cleaning',
+            extraction: 'Extraction',
+            root_canal: 'Root Canal',
+            braces: 'Braces',
+            dentures: 'Dentures',
+            filling: 'Filling',
+            crowning: 'Crowning'
+        };
+        const toothSpecificProcedures = ['extraction', 'root_canal', 'dentures', 'filling', 'crowning'];
+
+        function setTodayDate() {
+            if (!procedureDate) return;
+            const today = new Date();
+            const offset = today.getTimezoneOffset();
+            const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+            const todayValue = localDate.toISOString().split('T')[0];
+            procedureDate.min = todayValue;
+            if (!procedureDate.value || procedureDate.value < todayValue) {
+                procedureDate.value = todayValue;
+            }
+        }
+
+        function showMessage(message, type) {
+            messageBox.textContent = message;
+            messageBox.className = `alert ${type} show`;
+        }
+
+        function clearMessage() {
+            messageBox.textContent = '';
+            messageBox.className = 'alert';
+        }
+
+        function openAddProcedurePanel() {
+            if (!addProcedurePanel) return;
+            addProcedurePanel.classList.remove('is-hidden');
+            setTodayDate();
+            updatePatientSummary();
+            addProcedurePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (patientSelect && !patientSelect.value) {
+                patientSelect.focus();
+            }
+        }
+
+        function closeAddProcedurePanel() {
+            if (!addProcedurePanel) return;
+            clearMessage();
+            addProcedurePanel.classList.add('is-hidden');
+            if (procedureForm) {
+                procedureForm.reset();
+            }
+            setTodayDate();
+            clearSelectedInventory();
+            clearSelectedTeeth();
+            updateToothChartVisibility();
+            updatePatientSummary();
+        }
+
+        function getInventoryItem(itemId) {
+            return inventoryItems.find((item) => Number(item.raw_id) === Number(itemId));
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderSelectedInventory() {
+            if (!selectedInventoryList || !selectedInventoryEmpty) return;
+
+            selectedInventoryList.innerHTML = '';
+            selectedInventoryEmpty.style.display = selectedInventory.size ? 'none' : 'block';
+
+            selectedInventory.forEach((selection, itemId) => {
+                const row = document.createElement('div');
+                row.className = 'selected-inventory-item';
+                row.innerHTML = `
+                    <div>
+                        <span class="selected-inventory-name">${escapeHtml(selection.name)} x${selection.quantity}</span>
+                        <span class="selected-inventory-meta">${escapeHtml(selection.id)} | ${escapeHtml(selection.type)} | Stock: ${selection.stock}</span>
+                        <input type="hidden" name="inventory_item_id" value="${itemId}" form="procedureForm">
+                        <input type="hidden" name="inventory_quantity_${itemId}" value="${selection.quantity}" form="procedureForm">
+                    </div>
+                    <button type="button" class="icon-btn secondary" data-remove-inventory="${itemId}" title="Remove item">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                `;
+                selectedInventoryList.appendChild(row);
+            });
+        }
+
+        function clearSelectedInventory() {
+            selectedInventory.clear();
+            renderSelectedInventory();
+            if (inventoryPicker) {
+                inventoryPicker.classList.remove('show');
+            }
+            if (inventoryPickerSelect) {
+                inventoryPickerSelect.value = '';
+            }
+            if (inventoryPickerQuantity) {
+                inventoryPickerQuantity.value = '1';
+                inventoryPickerQuantity.removeAttribute('max');
+            }
+        }
+
+        function updateInventoryPickerLimit() {
+            if (!inventoryPickerSelect || !inventoryPickerQuantity) return;
+
+            const item = getInventoryItem(inventoryPickerSelect.value);
+            if (!item) {
+                inventoryPickerQuantity.removeAttribute('max');
+                inventoryPickerQuantity.value = '1';
+                return;
+            }
+
+            inventoryPickerQuantity.max = item.quantity;
+            if (Number(inventoryPickerQuantity.value) > Number(item.quantity)) {
+                inventoryPickerQuantity.value = item.quantity;
+            }
+        }
+
+        function addSelectedInventoryItem() {
+            if (!inventoryPickerSelect || !inventoryPickerQuantity) return;
+
+            const item = getInventoryItem(inventoryPickerSelect.value);
+            if (!item) {
+                showMessage('Please choose an inventory item.', 'error');
+                return;
+            }
+
+            const quantity = Number(inventoryPickerQuantity.value);
+            const stock = Number(item.quantity);
+            if (!Number.isInteger(quantity) || quantity < 1 || quantity > stock) {
+                showMessage(`Please enter a quantity from 1 to ${stock} for ${item.name}.`, 'error');
+                return;
+            }
+
+            selectedInventory.set(Number(item.raw_id), {
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                stock,
+                quantity
+            });
+
+            renderSelectedInventory();
+            clearMessage();
+            inventoryPickerSelect.value = '';
+            inventoryPickerQuantity.value = '1';
+            inventoryPickerQuantity.removeAttribute('max');
+            inventoryPicker.classList.remove('show');
+        }
+
+        function clearSelectedTeeth() {
+            selectedTeethByProcedure.clear();
+            lockedToothProcedures.clear();
+            renderToothCharts();
+        }
+
+        function getSelectedProcedureKeys() {
+            return procedureCheckboxes
+                .filter((checkbox) => checkbox.checked)
+                .map((checkbox) => checkbox.name);
+        }
+
+        function getSelectedToothProcedureKeys() {
+            return getSelectedProcedureKeys().filter((procedureKey) => toothSpecificProcedures.includes(procedureKey));
+        }
+
+        function getPatientTeethData() {
+            const patientId = patientSelect ? patientSelect.value : '';
+            return patientTeethMap[patientId] || Array.from({ length: 32 }, (_, index) => {
+                const toothNumber = index + 1;
+                return {
+                    number: toothNumber,
+                    condition: 'healthy',
+                    quadrant: toothNumber <= 8 ? 1 : toothNumber <= 16 ? 2 : toothNumber <= 24 ? 3 : 4
+                };
+            });
+        }
+
+        function createProcedureChart(procedureKey) {
+            const card = document.createElement('div');
+            const isLocked = lockedToothProcedures.has(procedureKey);
+            card.className = `procedure-chart-card${isLocked ? ' locked' : ''}`;
+            card.dataset.procedure = procedureKey;
+            card.innerHTML = `
+                <div class="chart-picker-title">${escapeHtml(procedureLabels[procedureKey] || procedureKey)} - Click teeth to select affected teeth</div>
+                <div class="chart-quadrants">
+                    <div class="chart-quadrant">
+                        <div class="chart-quadrant-title">Upper Right (Quadrant 1)</div>
+                        <div class="chart-teeth-grid" data-procedure="${procedureKey}" data-quadrant="1"></div>
+                    </div>
+                    <div class="chart-quadrant">
+                        <div class="chart-quadrant-title">Upper Left (Quadrant 2)</div>
+                        <div class="chart-teeth-grid" data-procedure="${procedureKey}" data-quadrant="2"></div>
+                    </div>
+                    <div class="chart-quadrant">
+                        <div class="chart-quadrant-title">Lower Right (Quadrant 4)</div>
+                        <div class="chart-teeth-grid" data-procedure="${procedureKey}" data-quadrant="4"></div>
+                    </div>
+                    <div class="chart-quadrant">
+                        <div class="chart-quadrant-title">Lower Left (Quadrant 3)</div>
+                        <div class="chart-teeth-grid" data-procedure="${procedureKey}" data-quadrant="3"></div>
+                    </div>
+                </div>
+                <div class="selected-tooth-inputs" data-procedure-inputs="${procedureKey}"></div>
+                <div class="procedure-chart-actions">
+                    <span class="chart-status">${isLocked ? 'Teeth selection saved' : 'Choose teeth, then save this selection'}</span>
+                    <button type="button" class="btn ${isLocked ? 'btn-secondary' : 'btn-primary'}" data-chart-action="${isLocked ? 'edit' : 'save'}" data-procedure="${procedureKey}">
+                        <i class="fas ${isLocked ? 'fa-pen' : 'fa-save'}"></i>
+                        ${isLocked ? 'Edit Teeth' : 'Save Teeth'}
+                    </button>
+                </div>
+            `;
+            return card;
+        }
+
+        function renderSelectedToothInputs(procedureKey) {
+            const inputContainer = document.querySelector(`[data-procedure-inputs="${procedureKey}"]`);
+            if (!inputContainer) return;
+
+            inputContainer.innerHTML = '';
+            const selectedTeeth = selectedTeethByProcedure.get(procedureKey) || new Set();
+            selectedTeeth.forEach((toothNumber) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = `affected_teeth_${procedureKey}`;
+                input.value = toothNumber;
+                inputContainer.appendChild(input);
+            });
+        }
+
+        function renderToothCharts() {
+            if (!toothSelection || !procedureToothCharts) return;
+
+            const selectedProcedureKeys = getSelectedToothProcedureKeys();
+            Array.from(selectedTeethByProcedure.keys()).forEach((procedureKey) => {
+                if (!selectedProcedureKeys.includes(procedureKey)) {
+                    selectedTeethByProcedure.delete(procedureKey);
+                    lockedToothProcedures.delete(procedureKey);
+                }
+            });
+
+            procedureToothCharts.innerHTML = '';
+            if (selectedProcedureKeys.length === 0) return;
+
+            const teethData = getPatientTeethData();
+            selectedProcedureKeys.forEach((procedureKey) => {
+                if (!selectedTeethByProcedure.has(procedureKey)) {
+                    selectedTeethByProcedure.set(procedureKey, new Set());
+                }
+
+                const chart = createProcedureChart(procedureKey);
+                procedureToothCharts.appendChild(chart);
+                const selectedTeeth = selectedTeethByProcedure.get(procedureKey);
+
+                teethData.forEach((tooth) => {
+                    const grid = chart.querySelector(`.chart-teeth-grid[data-quadrant="${tooth.quadrant}"]`);
+                    if (!grid) return;
+
+                    const toothButton = document.createElement('button');
+                    toothButton.type = 'button';
+                    toothButton.className = `procedure-tooth ${tooth.condition || 'healthy'}`;
+                    toothButton.dataset.procedure = procedureKey;
+                    toothButton.dataset.tooth = tooth.number;
+                    toothButton.textContent = tooth.number;
+                    toothButton.disabled = lockedToothProcedures.has(procedureKey);
+                    if (selectedTeeth.has(Number(tooth.number))) {
+                        toothButton.classList.add('selected');
+                    }
+                    grid.appendChild(toothButton);
+                });
+
+                renderSelectedToothInputs(procedureKey);
+            });
+        }
+
+        function hasAnySelectedProcedure() {
+            return getSelectedToothProcedureKeys().length > 0;
+        }
+
+        function updateToothChartVisibility() {
+            if (!toothSelection) return;
+
+            if (hasAnySelectedProcedure()) {
+                toothSelection.classList.remove('is-hidden');
+                renderToothCharts();
+            } else {
+                toothSelection.classList.add('is-hidden');
+                clearSelectedTeeth();
+            }
+        }
+
+        function updatePatientSummary() {
+            if (!patientSelect) return;
+
+            const selected = patientSelect.options[patientSelect.selectedIndex];
+            const summary = document.getElementById('patientSummary');
+
+            if (!selected || !selected.value) {
+                summary.style.display = 'none';
+                return;
+            }
+
+            document.getElementById('summaryName').textContent = selected.dataset.name || 'Patient Name';
+            document.getElementById('summaryId').textContent = selected.dataset.id || 'N/A';
+            document.getElementById('summaryAge').textContent = selected.dataset.age || 'N/A';
+            document.getElementById('summaryGender').textContent = selected.dataset.gender || 'N/A';
+            document.getElementById('summaryContact').textContent = selected.dataset.contact || 'N/A';
+            summary.style.display = 'block';
+            clearSelectedTeeth();
+            renderToothCharts();
+        }
+
+        function filterPatients() {
+            if (!patientSearch || !patientSelect) return;
+
+            const keyword = patientSearch.value.toLowerCase();
+            Array.from(patientSelect.options).forEach((option) => {
+                if (!option.value) return;
+                const text = option.textContent.toLowerCase();
+                option.hidden = !text.includes(keyword);
+            });
+        }
+
+        function hasSelectedProcedure(formData) {
+            return ['cleaning', 'extraction', 'root_canal', 'braces', 'dentures', 'filling', 'crowning'].some((name) => formData.has(name)) ||
+                (formData.get('notes') || '').trim().length > 0;
+        }
+
+        function getMissingToothSelections(formData) {
+            return getSelectedToothProcedureKeys().filter((procedureKey) => {
+                if (!formData.has(procedureKey)) return false;
+                return formData.getAll(`affected_teeth_${procedureKey}`).length === 0 || !lockedToothProcedures.has(procedureKey);
+            });
+        }
+
+        if (patientSelect) {
+            patientSelect.addEventListener('change', () => {
+                clearMessage();
+                updatePatientSummary();
+            });
+        }
+
+        if (patientSearch) {
+            patientSearch.addEventListener('input', filterPatients);
+        }
+
+        procedureCheckboxes.forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                checkbox.blur();
+                updateToothChartVisibility();
+            });
+        });
+
+        if (toothSelection) {
+            toothSelection.addEventListener('click', (event) => {
+                const chartAction = event.target.closest('[data-chart-action]');
+                if (chartAction) {
+                    const procedureKey = chartAction.dataset.procedure;
+                    const selectedTeeth = selectedTeethByProcedure.get(procedureKey) || new Set();
+
+                    if (chartAction.dataset.chartAction === 'save') {
+                        if (selectedTeeth.size === 0) {
+                            showMessage(`Please select at least one tooth for ${procedureLabels[procedureKey]}.`, 'error');
+                            return;
+                        }
+
+                        lockedToothProcedures.add(procedureKey);
+                        clearMessage();
+                    } else {
+                        lockedToothProcedures.delete(procedureKey);
+                    }
+
+                    renderToothCharts();
+                    return;
+                }
+
+                const toothButton = event.target.closest('.procedure-tooth');
+                if (!toothButton) return;
+
+                const procedureKey = toothButton.dataset.procedure;
+                if (lockedToothProcedures.has(procedureKey)) return;
+
+                const toothNumber = Number(toothButton.dataset.tooth);
+                if (!selectedTeethByProcedure.has(procedureKey)) {
+                    selectedTeethByProcedure.set(procedureKey, new Set());
+                }
+                const selectedTeeth = selectedTeethByProcedure.get(procedureKey);
+                if (selectedTeeth.has(toothNumber)) {
+                    selectedTeeth.delete(toothNumber);
+                    toothButton.classList.remove('selected');
+                } else {
+                    selectedTeeth.add(toothNumber);
+                    toothButton.classList.add('selected');
+                }
+                renderSelectedToothInputs(procedureKey);
+            });
+        }
+
+        if (procedureForm) {
+            procedureForm.addEventListener('reset', () => {
+                setTimeout(() => {
+                    setTodayDate();
+                    updatePatientSummary();
+                    clearSelectedInventory();
+                    clearSelectedTeeth();
+                    updateToothChartVisibility();
+                    clearMessage();
+                }, 0);
+            });
+
+            procedureForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                clearMessage();
+
+                const formData = new FormData(procedureForm);
+                formData.append('patient_id', patientSelect.value);
+
+                if (!patientSelect.value) {
+                    showMessage('Please choose a patient.', 'error');
+                    patientSelect.focus();
+                    return;
+                }
+
+                if (procedureDate && procedureDate.value < procedureDate.min) {
+                    showMessage('Procedure date cannot be in the past.', 'error');
+                    procedureDate.focus();
+                    return;
+                }
+
+                if (!hasSelectedProcedure(formData)) {
+                    showMessage('Please select a procedure or enter notes for another procedure.', 'error');
+                    return;
+                }
+
+                const missingToothSelections = getMissingToothSelections(formData);
+                if (missingToothSelections.length > 0) {
+                    const missingNames = missingToothSelections.map((procedureKey) => procedureLabels[procedureKey] || procedureKey).join(', ');
+                    showMessage(`Please select and save affected teeth for: ${missingNames}.`, 'error');
+                    return;
+                }
+
+                saveButton.disabled = true;
+                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+                try {
+                    const response = await fetch('{{ url_for("add_procedure") }}', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        showMessage(result.message || 'Procedure saved successfully.', 'success');
+                        setTimeout(() => {
+                            window.location.href = `{{ url_for('procedures') }}`;
+                        }, 700);
+                    } else {
+                        showMessage(result.error || 'Unable to save procedure.', 'error');
+                    }
+                } catch (error) {
+                    showMessage('Unable to save procedure. Please try again.', 'error');
+                } finally {
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = '<i class="fas fa-save"></i> Save Procedure';
+                }
+            });
+        }
+
+        if (showAddProcedure) {
+            showAddProcedure.addEventListener('click', openAddProcedurePanel);
+        }
+
+        if (cancelAddProcedure) {
+            cancelAddProcedure.addEventListener('click', closeAddProcedurePanel);
+        }
+
+        if (showInventoryPicker && inventoryPicker) {
+            showInventoryPicker.addEventListener('click', () => {
+                inventoryPicker.classList.add('show');
+                if (inventoryPickerSelect) {
+                    inventoryPickerSelect.focus();
+                }
+            });
+        }
+
+        if (hideInventoryPicker && inventoryPicker) {
+            hideInventoryPicker.addEventListener('click', () => {
+                inventoryPicker.classList.remove('show');
+                if (inventoryPickerSelect) {
+                    inventoryPickerSelect.value = '';
+                }
+                if (inventoryPickerQuantity) {
+                    inventoryPickerQuantity.value = '1';
+                    inventoryPickerQuantity.removeAttribute('max');
+                }
+                clearMessage();
+            });
+        }
+
+        if (inventoryPickerSelect) {
+            inventoryPickerSelect.addEventListener('change', updateInventoryPickerLimit);
+        }
+
+        if (inventoryPickerQuantity) {
+            inventoryPickerQuantity.addEventListener('input', () => {
+                const maxQuantity = Number(inventoryPickerQuantity.max);
+                const quantity = Number(inventoryPickerQuantity.value);
+
+                if (maxQuantity && quantity > maxQuantity) {
+                    inventoryPickerQuantity.value = maxQuantity;
+                } else if (quantity < 1 && inventoryPickerQuantity.value !== '') {
+                    inventoryPickerQuantity.value = 1;
+                }
+            });
+        }
+
+        if (addInventoryItem) {
+            addInventoryItem.addEventListener('click', addSelectedInventoryItem);
+        }
+
+        if (selectedInventoryList) {
+            selectedInventoryList.addEventListener('click', (event) => {
+                const removeButton = event.target.closest('[data-remove-inventory]');
+                if (!removeButton) return;
+
+                selectedInventory.delete(Number(removeButton.dataset.removeInventory));
+                renderSelectedInventory();
+            });
+        }
+
+        if (procedureSearch) {
+            procedureSearch.addEventListener('input', () => {
+                const keyword = procedureSearch.value.toLowerCase().trim();
+                const rows = Array.from(document.querySelectorAll('#procedureRows tr'));
+                let visibleCount = 0;
+
+                rows.forEach((row) => {
+                    const text = (row.dataset.search || '').toLowerCase();
+                    const isVisible = text.includes(keyword);
+                    row.style.display = isVisible ? '' : 'none';
+                    if (isVisible) visibleCount += 1;
+                });
+
+                const noResults = document.getElementById('noProcedureResults');
+                if (noResults) {
+                    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+                }
+            });
+        }
+
+        setTodayDate();
+        renderSelectedInventory();
+        updatePatientSummary();
+        updateToothChartVisibility();
+        if (addProcedurePanel && !addProcedurePanel.classList.contains('is-hidden')) {
+            updatePatientSummary();
+        }
+    </script>
+</body>
+</html>

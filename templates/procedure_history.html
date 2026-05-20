@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedure History - {{ patient.patname }} - Pullan Dental Clinic</title>
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        .panel {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-top: 20px;
+        }
+
+        .page-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 16px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #eef2f7;
+            color: var(--text-color);
+        }
+
+        .patient-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            background-color: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            padding: 18px;
+            margin-top: 14px;
+        }
+
+        .detail-label {
+            color: var(--text-light);
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            color: var(--text-color);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .history-table-wrap {
+            overflow-x: auto;
+            margin-top: 18px;
+        }
+
+        table {
+            border-collapse: collapse;
+            min-width: 820px;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+            padding: 13px 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: var(--text-light);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .procedure-id {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .print-link {
+            background-color: rgba(66, 133, 244, 0.1);
+            border-radius: 6px;
+            color: var(--primary-color);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 7px 10px;
+            text-decoration: none;
+        }
+
+        .empty-state {
+            color: var(--text-light);
+            padding: 32px 16px;
+            text-align: center;
+        }
+
+        .empty-state i {
+            color: var(--text-xlight);
+            font-size: 34px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li class="active"><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
+                <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('faq') }}"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> About</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="historySearch" placeholder="Search this patient's procedures...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="user">
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-overview">
+                <h1><i class="fas fa-folder-open"></i> Procedure History</h1>
+                <p class="date">{{ current_date }}</p>
+
+                <div class="panel">
+                    <h2>{{ patient.patname }}</h2>
+                    <div class="patient-card">
+                        <div>
+                            <span class="detail-label">Patient ID</span>
+                            <span class="detail-value">PAT-{{ "%03d"|format(patient.patId) }}</span>
+                        </div>
+                        <div>
+                            <span class="detail-label">Age</span>
+                            <span class="detail-value">{{ patient.patage or "N/A" }}</span>
+                        </div>
+                        <div>
+                            <span class="detail-label">Gender</span>
+                            <span class="detail-value">{{ patient.patgender or "N/A" }}</span>
+                        </div>
+                        <div>
+                            <span class="detail-label">Contact</span>
+                            <span class="detail-value">{{ patient.patcontact or "N/A" }}</span>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <a href="{{ url_for('procedures', patient_id=patient.patId) }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Add Procedure
+                        </a>
+                        <a href="{{ url_for('procedures') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i>
+                            Back to Procedures
+                        </a>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Past Procedures</h2>
+                    {% if procedures and procedures|length > 0 %}
+                    <div class="history-table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Procedure ID</th>
+                                    <th>Date</th>
+                                    <th>Procedure</th>
+                                    <th>Dentist</th>
+                                    <th>Prescription</th>
+                                    <th>Notes</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyRows">
+                                {% for procedure in procedures %}
+                                <tr data-search="{{ procedure.id }} {{ procedure.date }} {{ procedure.procedures }} {{ procedure.dentist }} {{ procedure.prescription }} {{ procedure.notes }}">
+                                    <td><span class="procedure-id">{{ procedure.id }}</span></td>
+                                    <td>{{ procedure.date }}</td>
+                                    <td>{{ procedure.procedures }}</td>
+                                    <td>{{ procedure.dentist }}</td>
+                                    <td>{{ procedure.prescription }}</td>
+                                    <td>{{ procedure.notes }}</td>
+                                    <td>
+                                        <a href="{{ url_for('print_procedure', procedure_id=procedure.raw_id) }}" class="print-link" target="_blank">
+                                            <i class="fas fa-print"></i>
+                                            Print
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noHistoryResults" class="empty-state" style="display: none;">
+                        <i class="fas fa-search"></i>
+                        <p>No procedure records match your search.</p>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard"></i>
+                        <h3>No procedures found</h3>
+                        <p>This patient does not have recorded procedures yet.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const historySearch = document.getElementById('historySearch');
+
+        if (historySearch) {
+            historySearch.addEventListener('input', () => {
+                const keyword = historySearch.value.toLowerCase().trim();
+                const rows = Array.from(document.querySelectorAll('#historyRows tr'));
+                let visibleCount = 0;
+
+                rows.forEach((row) => {
+                    const isVisible = (row.dataset.search || '').toLowerCase().includes(keyword);
+                    row.style.display = isVisible ? '' : 'none';
+                    if (isVisible) visibleCount += 1;
+                });
+
+                const noResults = document.getElementById('noHistoryResults');
+                if (noResults) {
+                    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

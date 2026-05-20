@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ procedure.id }} - Procedure Record</title>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { margin: 0; }
+        }
+
+        body {
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 24px;
+        }
+
+        .print-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-bottom: 18px;
+        }
+
+        .btn {
+            align-items: center;
+            background: #4285f4;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 14px;
+            font-weight: 600;
+            gap: 8px;
+            padding: 10px 16px;
+            text-decoration: none;
+        }
+
+        .btn.secondary {
+            background: #6c757d;
+        }
+
+        .header {
+            border-bottom: 3px solid #4285f4;
+            margin-bottom: 28px;
+            padding-bottom: 18px;
+            text-align: center;
+        }
+
+        .clinic-name {
+            color: #4285f4;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .clinic-subtitle {
+            color: #666;
+            font-size: 15px;
+        }
+
+        .report-title {
+            color: #333;
+            font-size: 23px;
+            font-weight: 700;
+            margin-top: 16px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            border: 1px solid #e6e8eb;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .info-card h3 {
+            color: #4285f4;
+            font-size: 16px;
+            margin: 0 0 12px 0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            border-bottom: 1px solid #eceff3;
+            padding: 8px 0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .value {
+            color: #333;
+            text-align: right;
+        }
+
+        .treatment-box {
+            border: 2px solid #4285f4;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            padding: 20px;
+        }
+
+        .treatment-box h3 {
+            color: #4285f4;
+            margin: 0 0 12px 0;
+        }
+
+        .procedure-name {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .notes-section {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .note-card {
+            background: #fff;
+            border: 1px solid #e6e8eb;
+            border-radius: 8px;
+            min-height: 110px;
+            padding: 16px;
+        }
+
+        .note-card h3 {
+            color: #4285f4;
+            font-size: 16px;
+            margin: 0 0 10px 0;
+        }
+
+        .footer {
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 12px;
+            margin-top: 34px;
+            padding-top: 16px;
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            .info-grid,
+            .notes-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="print-actions no-print">
+        <a href="{{ url_for('procedures') }}" class="btn secondary">Back</a>
+        <button class="btn" onclick="window.print()">Print Procedure</button>
+    </div>
+
+    <div class="header">
+        <div class="clinic-name">Pullan Dental Clinic</div>
+        <div class="clinic-subtitle">Clinic Management System</div>
+        <div class="report-title">Procedure Record</div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-card">
+            <h3>Patient Information</h3>
+            <div class="info-row">
+                <span class="label">Patient</span>
+                <span class="value">{{ procedure.patient_name }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Patient ID</span>
+                <span class="value">{% if patient %}PAT-{{ "%03d"|format(patient.patId) }}{% else %}N/A{% endif %}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Age</span>
+                <span class="value">{{ patient.patage if patient else "N/A" }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Gender</span>
+                <span class="value">{{ patient.patgender if patient else "N/A" }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Contact</span>
+                <span class="value">{{ patient.patcontact if patient else "N/A" }}</span>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h3>Record Information</h3>
+            <div class="info-row">
+                <span class="label">Procedure ID</span>
+                <span class="value">{{ procedure.id }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Procedure Date</span>
+                <span class="value">{{ procedure.date }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Dentist</span>
+                <span class="value">{{ procedure.dentist }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Printed By</span>
+                <span class="value">{{ current_user }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Printed On</span>
+                <span class="value">{{ print_date }} {{ print_time }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="treatment-box">
+        <h3>Procedure Performed</h3>
+        <div class="procedure-name">{{ procedure.procedures }}</div>
+    </div>
+
+    <div class="notes-section">
+        <div class="note-card">
+            <h3>Prescription</h3>
+            <p>{{ procedure.prescription }}</p>
+        </div>
+        <div class="note-card">
+            <h3>Other Procedure / Notes</h3>
+            <p>{{ procedure.notes }}</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        Procedure record generated on {{ print_datetime }} by {{ current_user }}<br>
+        This document contains confidential patient information.
+    </div>
+</body>
+</html>

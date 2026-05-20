@@ -4,7 +4,7 @@ from db_connector import app as db_app, db, Patient, Appointment, DentalChart, I
 from datetime import datetime, date, timedelta
 import os
 import time
-from sqlalchemy import text
+from sqlalchemy import text, or_
 import subprocess
 import json
 import psycopg2
@@ -3746,13 +3746,20 @@ def clear_failed_attempts():
 @app.route('/treatments')
 def treatments():
     """Redirect to procedures page"""
-    return render_template('procedures.html')
+    return redirect(url_for('procedures'))
 
 @app.route('/procedures')
 def procedures():
     """Main procedures page showing all patients and recent procedures"""
     try:
-        patients_list = Patient.query.filter_by(is_deleted=False).all()
+        selected_patient_id = request.args.get('patient_id', type=int)
+        patients_list = Patient.query.filter_by(is_deleted=False).order_by(Patient.patname.asc()).all()
+        patient_by_name = {patient.patname: patient for patient in patients_list}
+        inventory_items = Inventory.query.filter(
+            Inventory.is_deleted == False,
+            Inventory.invquantity > 0,
+            or_(Inventory.invdoe.is_(None), Inventory.invdoe >= date.today())
+        ).order_by(Inventory.invname.asc()).all()
         
         recent_procedures = db.session.query(
             Report.repid,
@@ -3766,9 +3773,10 @@ def procedures():
             Report.repbraces,
             Report.repdentures,
             Report.repothers
-        ).order_by(Report.repdate.desc()).limit(10).all()
+        ).order_by(Report.repdate.desc(), Report.repid.desc()).all()
         
         formatted_patients = []
+        patient_teeth_map = {}
         for patient in patients_list:
             dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
             teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
@@ -3783,9 +3791,38 @@ def procedures():
                 'has_teeth_chart': teeth_chart is not None,
                 'raw_id': patient.patId
             })
+
+            patient_teeth_map[str(patient.patId)] = []
+            for tooth_number in range(1, 33):
+                if tooth_number <= 8:
+                    quadrant = 1
+                elif tooth_number <= 16:
+                    quadrant = 2
+                elif tooth_number <= 24:
+                    quadrant = 3
+                else:
+                    quadrant = 4
+
+                patient_teeth_map[str(patient.patId)].append({
+                    'number': tooth_number,
+                    'condition': getattr(teeth_chart, f'l{tooth_number}', 'healthy') if teeth_chart else 'healthy',
+                    'quadrant': quadrant
+                })
+
+        formatted_inventory_items = []
+        for item in inventory_items:
+            formatted_inventory_items.append({
+                'id': f"INV-{item.invid:03d}",
+                'raw_id': item.invid,
+                'name': item.invname,
+                'type': item.invtype or "N/A",
+                'quantity': item.invquantity or 0,
+                'expiry': item.invdoe.strftime('%B %d, %Y') if item.invdoe else "No Expiry"
+            })
         
         formatted_procedures = []
         for proc in recent_procedures:
+            patient = patient_by_name.get(proc.reppatient)
             procedures_done = []
             if proc.repcleaning: procedures_done.append("Cleaning")
             if proc.repextraction: procedures_done.append("Extraction")
@@ -3797,25 +3834,34 @@ def procedures():
             formatted_procedures.append({
                 'id': f"PROC-{proc.repid:03d}",
                 'patient_name': proc.reppatient,
+                'patient_id': f"PAT-{patient.patId:03d}" if patient else "N/A",
+                'patient_raw_id': patient.patId if patient else None,
                 'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
+                'date_iso': proc.repdate.strftime('%Y-%m-%d') if proc.repdate else "",
                 'dentist': proc.repdentist or "N/A",
                 'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
                 'prescription': proc.repprescription or "None",
+                'notes': proc.repothers or "None",
                 'raw_id': proc.repid
             })
         
         total_patients = len(patients_list)
         patients_with_charts = sum(1 for p in formatted_patients if p['has_dental_chart'])
         today_procedures = Report.query.filter_by(repdate=date.today()).count()
+        total_procedures = Report.query.count()
         
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
-        return render_template('procedures/procedures.html',
+        return render_template('procedures.html',
                               patients=formatted_patients,
+                              inventory_items=formatted_inventory_items,
+                              patient_teeth_map=patient_teeth_map,
                               recent_procedures=formatted_procedures,
                               total_patients=total_patients,
                               patients_with_charts=patients_with_charts,
                               today_procedures=today_procedures,
+                              total_procedures=total_procedures,
+                              selected_patient_id=selected_patient_id,
                               current_date=current_date)
     
     except Exception as e:
@@ -3852,7 +3898,7 @@ def procedure_history(patient_id):
         
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
-        return render_template('procedures/procedure_history.html',
+        return render_template('procedure_history.html',
                               patient=patient,
                               procedures=formatted_procedures,
                               current_date=current_date)
@@ -3860,6 +3906,55 @@ def procedure_history(patient_id):
     except Exception as e:
         print(f"Error in procedure_history route: {e}")
         return f"Error loading procedure history: {e}", 500
+
+@app.route('/print_procedure/<int:procedure_id>')
+def print_procedure(procedure_id):
+    """Generate a printable record for one procedure"""
+    try:
+        procedure = Report.query.get_or_404(procedure_id)
+        patient = Patient.query.filter_by(patname=procedure.reppatient).first()
+        
+        procedures_done = []
+        if procedure.repcleaning: procedures_done.append("Cleaning")
+        if procedure.repextraction: procedures_done.append("Extraction")
+        if procedure.reprootcanal: procedures_done.append("Root Canal")
+        if procedure.repbraces: procedures_done.append("Braces")
+        if procedure.repdentures: procedures_done.append("Dentures")
+        if procedure.repothers: procedures_done.append(procedure.repothers)
+        
+        procedure_record = {
+            'id': f"PROC-{procedure.repid:03d}",
+            'patient_name': procedure.reppatient,
+            'date': procedure.repdate.strftime('%B %d, %Y') if procedure.repdate else "N/A",
+            'dentist': procedure.repdentist or "N/A",
+            'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
+            'prescription': procedure.repprescription or "None",
+            'notes': procedure.repothers or "None",
+            'raw_id': procedure.repid
+        }
+        
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        print_date = datetime.now().strftime('%B %d, %Y')
+        print_time = datetime.now().strftime('%I:%M %p')
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        log_user_action(
+            session.get('user_id'),
+            'Print Procedure',
+            f'Printed procedure {procedure_record["id"]} for {procedure.reppatient}'
+        )
+        
+        return render_template('print_procedure.html',
+                              procedure=procedure_record,
+                              patient=patient,
+                              current_user=current_user,
+                              print_date=print_date,
+                              print_time=print_time,
+                              print_datetime=print_datetime)
+    
+    except Exception as e:
+        print(f"Error generating procedure printout: {e}")
+        return f"Error generating procedure printout: {e}", 500
 
 # ======================================================================
 # ENHANCED DENTAL CHART ROUTES - COMPLETE IMPLEMENTATION
@@ -4188,22 +4283,113 @@ def add_procedure():
         dentist = request.form.get('dentist')
         prescription = request.form.get('prescription')
         notes = request.form.get('notes')
+
+        try:
+            procedure_date_obj = datetime.strptime(procedure_date, '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Please choose a valid procedure date."})
+
+        if procedure_date_obj < date.today():
+            return jsonify({"success": False, "error": "Procedure date cannot be in the past."})
         
         cleaning = 1 if request.form.get('cleaning') else 0
         extraction = 1 if request.form.get('extraction') else 0
         root_canal = 1 if request.form.get('root_canal') else 0
         braces = 1 if request.form.get('braces') else 0
         dentures = 1 if request.form.get('dentures') else 0
+        filling = 1 if request.form.get('filling') else 0
+        crowning = 1 if request.form.get('crowning') else 0
         
         patient = Patient.query.get_or_404(patient_id)
+
+        procedure_configs = [
+            {'key': 'cleaning', 'label': 'Cleaning', 'selected': cleaning, 'condition': None, 'requires_teeth': False},
+            {'key': 'extraction', 'label': 'Extraction', 'selected': extraction, 'condition': 'extracted', 'requires_teeth': True},
+            {'key': 'root_canal', 'label': 'Root Canal', 'selected': root_canal, 'condition': 'root-canal', 'requires_teeth': True},
+            {'key': 'braces', 'label': 'Braces', 'selected': braces, 'condition': None, 'requires_teeth': False},
+            {'key': 'dentures', 'label': 'Dentures', 'selected': dentures, 'condition': 'extracted', 'requires_teeth': True},
+            {'key': 'filling', 'label': 'Filling', 'selected': filling, 'condition': 'filled', 'requires_teeth': True},
+            {'key': 'crowning', 'label': 'Crowning', 'selected': crowning, 'condition': 'crown', 'requires_teeth': True}
+        ]
+
+        procedure_teeth = {}
+        for procedure_config in procedure_configs:
+            if not procedure_config['selected']:
+                continue
+
+            selected_teeth = []
+            for raw_tooth_number in request.form.getlist(f"affected_teeth_{procedure_config['key']}"):
+                try:
+                    tooth_number = int(raw_tooth_number)
+                except (TypeError, ValueError):
+                    return jsonify({"success": False, "error": f"Please choose valid teeth for {procedure_config['label']}."})
+
+                if tooth_number < 1 or tooth_number > 32:
+                    return jsonify({"success": False, "error": "Affected tooth number must be between 1 and 32."})
+
+                if tooth_number not in selected_teeth:
+                    selected_teeth.append(tooth_number)
+
+            if procedure_config['requires_teeth'] and not selected_teeth:
+                return jsonify({"success": False, "error": f"Please select affected teeth for {procedure_config['label']}."})
+
+            procedure_teeth[procedure_config['key']] = selected_teeth
+
+        inventory_usage_by_id = {}
+        inventory_item_ids = request.form.getlist('inventory_item_id')
+        for raw_item_id in inventory_item_ids:
+            try:
+                item_id = int(raw_item_id)
+                used_quantity = int(request.form.get(f'inventory_quantity_{item_id}', 0))
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Please enter a valid quantity for each inventory item used."})
+
+            if used_quantity <= 0:
+                return jsonify({"success": False, "error": "Inventory quantity used must be at least 1."})
+
+            inventory_usage_by_id[item_id] = inventory_usage_by_id.get(item_id, 0) + used_quantity
+
+        inventory_usage = []
+        for item_id, used_quantity in inventory_usage_by_id.items():
+            inventory_item = Inventory.query.filter_by(invid=item_id, is_deleted=False).first()
+            if not inventory_item:
+                return jsonify({"success": False, "error": "One selected inventory item was not found or is inactive."})
+
+            if inventory_item.invdoe and inventory_item.invdoe < date.today():
+                return jsonify({"success": False, "error": f"{inventory_item.invname} is expired and cannot be used."})
+
+            current_quantity = inventory_item.invquantity or 0
+            if used_quantity > current_quantity:
+                return jsonify({
+                    "success": False,
+                    "error": f"Not enough stock for {inventory_item.invname}. Available: {current_quantity}, requested: {used_quantity}."
+                })
+
+            inventory_usage.append((inventory_item, used_quantity))
         
         max_id = db.session.query(db.func.max(Report.repid)).first()[0]
         next_id = 1 if max_id is None else max_id + 1
         
+        other_entries = []
+        tooth_selection_entries = []
+        for procedure_config in procedure_configs:
+            if not procedure_config['selected']:
+                continue
+
+            selected_teeth = procedure_teeth.get(procedure_config['key'], [])
+            teeth_summary = ", ".join(f"#{tooth}" for tooth in selected_teeth)
+            tooth_selection_entries.append(f"{procedure_config['label']}: {teeth_summary}")
+
+        if tooth_selection_entries:
+            other_entries.append(f"Teeth Selections - {'; '.join(tooth_selection_entries)}")
+        if notes:
+            other_entries.append(notes)
+        other_procedure_notes = ", ".join(other_entries)
+
         new_procedure = Report(
             repid=next_id,
             reppatient=patient.patname,
-            repdate=datetime.strptime(procedure_date, '%Y-%m-%d').date(),
+            repdate=procedure_date_obj,
             repprescription=prescription,
             repcleaning=cleaning,
             repextraction=extraction,
@@ -4211,24 +4397,93 @@ def add_procedure():
             repbraces=braces,
             repdentures=dentures,
             repdentist=dentist,
-            repothers=notes
+            repothers=other_procedure_notes
         )
         
         db.session.add(new_procedure)
-        db.session.commit()
+
+        used_inventory_summary = []
+        for inventory_item, used_quantity in inventory_usage:
+            inventory_item.invquantity = (inventory_item.invquantity or 0) - used_quantity
+            used_inventory_summary.append(f"{inventory_item.invname} x{used_quantity}")
         
         procedures_done = []
-        if cleaning: procedures_done.append("Cleaning")
-        if extraction: procedures_done.append("Extraction")
-        if root_canal: procedures_done.append("Root Canal")
-        if braces: procedures_done.append("Braces")
-        if dentures: procedures_done.append("Dentures")
+        for procedure_config in procedure_configs:
+            if not procedure_config['selected']:
+                continue
+
+            selected_teeth = procedure_teeth.get(procedure_config['key'], [])
+            teeth_summary = ", ".join(f"#{tooth}" for tooth in selected_teeth)
+            procedures_done.append(f"{procedure_config['label']} ({teeth_summary})" if teeth_summary else procedure_config['label'])
         if notes: procedures_done.append(notes)
+
+        procedure_summary = ", ".join(procedures_done) if procedures_done else "General Visit"
+        dental_chart = DentalChart.query.filter_by(dcpatname=patient.patname, is_deleted=False).first()
+        if not dental_chart:
+            max_dental_id = db.session.query(db.func.max(DentalChart.dcID)).scalar() or 0
+            dental_chart = DentalChart(
+                dcID=max_dental_id + 1,
+                dcpatname=patient.patname,
+                dcpcontact=patient.patcontact or "",
+                dcdoctor="",
+                dcdcontact="",
+                dcq1="",
+                dcq2="",
+                dcqe2="",
+                dcq3="",
+                dcqe3="",
+                dcq4="",
+                dcqe4="",
+                dcq5="",
+                dcqe5="",
+                dcq6="",
+                dcq7="",
+                dcqe7="",
+                dcq8="",
+                dcqe8="",
+                dcq9="",
+                dcqe9="",
+                is_deleted=False
+            )
+            db.session.add(dental_chart)
+
+        dental_chart.dcdentist = dentist
+        dental_chart.dcpcontact = patient.patcontact or dental_chart.dcpcontact
+        dental_chart.dcvisit = f"{procedure_date_obj.strftime('%B %d, %Y')} - {procedure_summary}"[:255]
+
+        updated_teeth_summary = []
+        tooth_updates = [
+            (procedure_config, procedure_teeth.get(procedure_config['key'], []))
+            for procedure_config in procedure_configs
+            if procedure_config['selected'] and procedure_config['condition']
+        ]
+        if tooth_updates:
+            teeth_chart = Teeth.query.filter_by(tpatname=patient.patname, is_deleted=False).first()
+            if not teeth_chart:
+                max_teeth_id = db.session.query(db.func.max(Teeth.tID)).scalar() or 0
+                teeth_data = {f'l{i}': 'healthy' for i in range(1, 33)}
+                teeth_chart = Teeth(
+                    tID=max_teeth_id + 1,
+                    tpatname=patient.patname,
+                    is_deleted=False,
+                    **teeth_data
+                )
+                db.session.add(teeth_chart)
+
+            for procedure_config, selected_teeth in tooth_updates:
+                for tooth_number in selected_teeth:
+                    setattr(teeth_chart, f'l{tooth_number}', procedure_config['condition'])
+                teeth_summary = ", ".join(f"#{tooth_number}" for tooth_number in selected_teeth)
+                updated_teeth_summary.append(f"{procedure_config['label']}: {teeth_summary} to {procedure_config['condition']}")
+
+        db.session.commit()
         
         log_user_action(
             session.get('user_id'),
             'Add Procedure',
-            f'Added procedure for {patient.patname}: {", ".join(procedures_done) if procedures_done else "General Visit"}'
+            f'Added procedure for {patient.patname}: {procedure_summary}'
+            + (f' | Inventory used: {", ".join(used_inventory_summary)}' if used_inventory_summary else '')
+            + (f' | Updated teeth: {"; ".join(updated_teeth_summary)}' if updated_teeth_summary else '')
         )
         
         return jsonify({
@@ -4238,7 +4493,7 @@ def add_procedure():
                 "id": f"PROC-{new_procedure.repid:03d}",
                 "patient": patient.patname,
                 "date": new_procedure.repdate.strftime('%B %d, %Y'),
-                "procedures": ", ".join(procedures_done) if procedures_done else "General Visit"
+                "procedures": procedure_summary
             }
         })
     
@@ -4287,7 +4542,8 @@ def update_dental_chart():
         dental_chart.dcdoctor = request.form.get('doctor')
         dental_chart.dcdentist = request.form.get('dentist')
         dental_chart.dcdcontact = request.form.get('dentist_contact')
-        dental_chart.dcvisit = request.form.get('visit_reason')
+        dental_chart.dcpcontact = request.form.get('patient_contact') or dental_chart.dcpcontact
+        dental_chart.dcvisit = request.form.get('visit_reason') or dental_chart.dcvisit
         
         dental_chart.dcq1 = request.form.get('q1')
         dental_chart.dcq2 = request.form.get('q2')
@@ -4517,8 +4773,6 @@ def settings():
         return f"Error loading about page: {e}", 500
 
 
-with app.app_context():
-    db.create_all()
-    print("Tables created successfully")
+
 if __name__ == "__main__":
     app.run(debug=True)
