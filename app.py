@@ -2331,8 +2331,10 @@ def create_or_update_sms_reminder(appointment, patient):
 
 def send_sms_via_provider(to_number, message):
     """Send SMS through the configured provider. Console mode logs instead of sending."""
+    provider_number = to_number[1:] if SMS_PROVIDER == 'semaphore' and to_number.startswith('+') else to_number
+
     if SMS_PROVIDER == 'console':
-        print(f"[SMS console] To {to_number}: {message}")
+        print(f"[SMS console] To {provider_number}: {message}")
         return {'provider_message_id': f'console-{int(time.time())}'}
 
     if SMS_PROVIDER == 'twilio':
@@ -2343,7 +2345,7 @@ def send_sms_via_provider(to_number, message):
             raise RuntimeError('Twilio SMS is not fully configured.')
 
         payload = urllib.parse.urlencode({
-            'To': to_number,
+            'To': provider_number,
             'From': from_number,
             'Body': message
         }).encode('utf-8')
@@ -2363,7 +2365,7 @@ def send_sms_via_provider(to_number, message):
 
         payload = urllib.parse.urlencode({
             'apikey': api_key,
-            'number': to_number,
+            'number': provider_number,
             'message': message,
             'sendername': sender_name
         }).encode('utf-8')
@@ -2436,6 +2438,64 @@ def start_sms_reminder_worker():
     app._sms_reminder_worker_started = True
     worker = threading.Thread(target=sms_reminder_worker, daemon=True)
     worker.start()
+
+@app.route('/sms_reminders')
+@admin_required
+def sms_reminders():
+    """Admin view for SMS reminder status and failures."""
+    try:
+        ensure_sms_reminders_table()
+        reminders = SMSReminder.query.order_by(SMSReminder.scheduled_for.desc(), SMSReminder.reminder_id.desc()).limit(300).all()
+        formatted_reminders = []
+
+        for reminder in reminders:
+            formatted_reminders.append({
+                'id': f"SMS-{reminder.reminder_id:03d}",
+                'appointment_id': f"APT-{reminder.appointment_id:03d}",
+                'patient_name': reminder.patient_name,
+                'mobile_number': reminder.mobile_number,
+                'scheduled_for': reminder.scheduled_for.strftime('%B %d, %Y %I:%M %p') if reminder.scheduled_for else 'N/A',
+                'status': reminder.status,
+                'provider': reminder.provider or SMS_PROVIDER,
+                'sent_at': reminder.sent_at.strftime('%B %d, %Y %I:%M %p') if reminder.sent_at else 'Not sent',
+                'error_message': reminder.error_message or '',
+                'message': reminder.message,
+                'status_class': (reminder.status or '').lower()
+            })
+
+        pending_count = SMSReminder.query.filter_by(status='Pending').count()
+        sent_count = SMSReminder.query.filter_by(status='Sent').count()
+        failed_count = SMSReminder.query.filter_by(status='Failed').count()
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+
+        return render_template(
+            'appointments/sms_reminders.html',
+            reminders=formatted_reminders,
+            pending_count=pending_count,
+            sent_count=sent_count,
+            failed_count=failed_count,
+            provider=SMS_PROVIDER,
+            current_date=current_date
+        )
+    except Exception as e:
+        print(f"Error loading SMS reminders: {e}")
+        return f"Error loading SMS reminders: {e}", 500
+
+@app.route('/send_due_sms_reminders', methods=['POST'])
+@admin_required
+def send_due_sms_reminders():
+    """Manually run the due SMS reminder sender."""
+    try:
+        process_due_sms_reminders()
+        log_user_action(
+            session.get('user_id'),
+            'Process SMS Reminders',
+            'Admin manually processed due SMS reminders'
+        )
+        return redirect(url_for('sms_reminders'))
+    except Exception as e:
+        print(f"Error processing due SMS reminders: {e}")
+        return f"Error processing due SMS reminders: {e}", 500
 
 def _time_to_minutes(time_value):
     """Convert an HH:MM string to minutes after midnight."""

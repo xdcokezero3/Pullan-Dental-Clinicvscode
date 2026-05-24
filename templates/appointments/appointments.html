@@ -627,6 +627,11 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    {% if session.get('access_level') == 'admin' %}
+                    <a class="print-report-button" href="{{ url_for('sms_reminders') }}" title="View SMS reminders">
+                        <i class="fas fa-comment-sms"></i> SMS Reminders
+                    </a>
+                    {% endif %}
                     <button class="print-report-button" id="printAppointmentsReport" title="Print appointments report">
                         <i class="fas fa-print"></i> Print Report
                     </button>

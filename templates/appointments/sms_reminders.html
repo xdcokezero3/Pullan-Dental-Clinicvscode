@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Reminders - Pullan Dental Clinic</title>
+    <link rel="stylesheet" href="../../static/css/dashboard.css">
+    <link rel="stylesheet" href="../../static/css/appointments.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        .sms-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            align-items: center;
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            gap: 14px;
+            padding: 18px;
+        }
+
+        .stat-icon {
+            align-items: center;
+            background-color: rgba(66, 133, 244, 0.12);
+            border-radius: 50%;
+            color: var(--primary-color);
+            display: inline-flex;
+            height: 42px;
+            justify-content: center;
+            width: 42px;
+        }
+
+        .panel {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 22px;
+        }
+
+        .sms-table-wrap {
+            overflow-x: auto;
+        }
+
+        .sms-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .sms-table th {
+            background-color: #f8fafc;
+            color: var(--text-light);
+            font-size: 12px;
+            padding: 12px;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .sms-table td {
+            border-bottom: 1px solid #edf0f3;
+            font-size: 14px;
+            padding: 13px 12px;
+            vertical-align: top;
+        }
+
+        .status-pill {
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 10px;
+        }
+
+        .status-pill.pending {
+            background-color: rgba(251, 188, 5, 0.16);
+            color: #946200;
+        }
+
+        .status-pill.sent {
+            background-color: rgba(52, 168, 83, 0.12);
+            color: #188038;
+        }
+
+        .status-pill.failed {
+            background-color: rgba(234, 67, 53, 0.12);
+            color: #b3261e;
+        }
+
+        .muted {
+            color: var(--text-light);
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .btn {
+            align-items: center;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 14px;
+            font-weight: 600;
+            gap: 8px;
+            justify-content: center;
+            padding: 11px 16px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #eef2f7;
+            color: var(--text-color);
+        }
+
+        .empty-state {
+            color: var(--text-light);
+            padding: 36px 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <div class="brand">
+                <h2>Pullan Dental</h2>
+                <p>Clinic Management System</p>
+            </div>
+            <ul class="nav-menu">
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('backup_restore') }}"><i class="fas fa-database"></i> Backup & Restore</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
+                <li class="active"><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
+                <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
+                <li><a href="{{ url_for('payments') }}"><i class="fas fa-receipt"></i> Payments</a></li>
+                <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                {% if session.get('access_level') == 'admin' %}
+                <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('faq') }}"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> About</a></li>
+            </ul>
+            <div class="logout">
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="smsSearch" placeholder="Search SMS reminders...">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="user-info">
+                    <div class="user">
+                        <span>{{ session.get('real_name', session.get('username', 'User')) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sms-header">
+                <div>
+                    <h1>SMS Reminders</h1>
+                    <p class="date">{{ current_date }} | Provider: {{ provider }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('appointments') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Appointments</a>
+                    <form action="{{ url_for('send_due_sms_reminders') }}" method="POST" style="display: inline;">
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send Due Now</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <span class="stat-icon"><i class="fas fa-clock"></i></span>
+                    <div>
+                        <h3>{{ pending_count }}</h3>
+                        <p>Pending</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon"><i class="fas fa-check"></i></span>
+                    <div>
+                        <h3>{{ sent_count }}</h3>
+                        <p>Sent</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon"><i class="fas fa-triangle-exclamation"></i></span>
+                    <div>
+                        <h3>{{ failed_count }}</h3>
+                        <p>Failed</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                {% if reminders and reminders|length > 0 %}
+                <div class="sms-table-wrap">
+                    <table class="sms-table">
+                        <thead>
+                            <tr>
+                                <th>Reminder</th>
+                                <th>Patient</th>
+                                <th>Mobile</th>
+                                <th>Scheduled</th>
+                                <th>Status</th>
+                                <th>Message / Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="smsRows">
+                            {% for reminder in reminders %}
+                            <tr data-search="{{ reminder.id }} {{ reminder.appointment_id }} {{ reminder.patient_name }} {{ reminder.mobile_number }} {{ reminder.status }} {{ reminder.message }} {{ reminder.error_message }}">
+                                <td>
+                                    <strong>{{ reminder.id }}</strong>
+                                    <div class="muted">{{ reminder.appointment_id }}</div>
+                                    <div class="muted">{{ reminder.provider }}</div>
+                                </td>
+                                <td>{{ reminder.patient_name }}</td>
+                                <td>{{ reminder.mobile_number }}</td>
+                                <td>
+                                    {{ reminder.scheduled_for }}
+                                    <div class="muted">Sent: {{ reminder.sent_at }}</div>
+                                </td>
+                                <td><span class="status-pill {{ reminder.status_class }}">{{ reminder.status }}</span></td>
+                                <td>
+                                    {{ reminder.message }}
+                                    {% if reminder.error_message %}
+                                    <div class="muted">{{ reminder.error_message }}</div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-comment-sms"></i>
+                    <h3>No SMS reminders yet</h3>
+                    <p>Scheduling an appointment with a valid Philippine mobile number will create a reminder.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const smsSearch = document.getElementById('smsSearch');
+        if (smsSearch) {
+            smsSearch.addEventListener('input', () => {
+                const keyword = smsSearch.value.toLowerCase().trim();
+                document.querySelectorAll('#smsRows tr').forEach((row) => {
+                    row.style.display = row.dataset.search.toLowerCase().includes(keyword) ? '' : 'none';
+                });
+            });
+        }
+    </script>
+</body>
+</html>

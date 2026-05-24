@@ -94,21 +94,13 @@ echo Creating launchers...
 (
     echo @echo off
     echo cd /d "%%~dp0"
-    echo set APP_HOST=127.0.0.1
-    echo set APP_PORT=5000
-    echo set FLASK_DEBUG=false
-    echo call ".venv\Scripts\python.exe" app.py
-    echo pause
+    echo powershell -NoProfile -ExecutionPolicy Bypass -File "%%~dp0installer\launch_local.ps1"
 ) > "Run Pullan Dental Clinic.bat"
 
 (
     echo @echo off
     echo cd /d "%%~dp0"
-    echo set APP_HOST=0.0.0.0
-    echo set APP_PORT=5000
-    echo set FLASK_DEBUG=false
-    echo call ".venv\Scripts\python.exe" app.py
-    echo pause
+    echo powershell -NoProfile -ExecutionPolicy Bypass -File "%%~dp0installer\launch_lan.ps1"
 ) > "Run Pullan Dental Clinic LAN.bat"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -117,13 +109,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$shortcut=$shell.CreateShortcut((Join-Path $desktop 'Pullan Dental Clinic.lnk')); " ^
   "$shortcut.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic.bat'); " ^
   "$shortcut.WorkingDirectory='%APP_DIR%'; " ^
+  "$shortcut.WindowStyle=7; " ^
   "$shortcut.Save(); " ^
   "$startMenu=Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\Pullan Dental Clinic'; " ^
   "New-Item -ItemType Directory -Path $startMenu -Force | Out-Null; " ^
   "$shortcut2=$shell.CreateShortcut((Join-Path $startMenu 'Pullan Dental Clinic.lnk')); " ^
   "$shortcut2.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic.bat'); " ^
   "$shortcut2.WorkingDirectory='%APP_DIR%'; " ^
-  "$shortcut2.Save();"
+  "$shortcut2.WindowStyle=7; " ^
+  "$shortcut2.Save(); " ^
+  "$shortcut3=$shell.CreateShortcut((Join-Path $startMenu 'Pullan Dental Clinic LAN.lnk')); " ^
+  "$shortcut3.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic LAN.bat'); " ^
+  "$shortcut3.WorkingDirectory='%APP_DIR%'; " ^
+  "$shortcut3.WindowStyle=7; " ^
+  "$shortcut3.Save();"
 
 echo.
 echo Installation complete.
