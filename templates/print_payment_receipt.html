@@ -19,6 +19,7 @@
 
         .print-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             justify-content: flex-end;
             margin-bottom: 18px;
@@ -41,6 +42,35 @@
 
         .btn.secondary {
             background: #6c757d;
+        }
+
+        .add-payment-panel {
+            background: #f8fafc;
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            margin: 0 auto 18px;
+            max-width: 860px;
+            padding: 16px;
+        }
+
+        .add-payment-panel h3 {
+            color: #333;
+            font-size: 16px;
+            margin: 0 0 12px 0;
+        }
+
+        .add-payment-form {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+
+        .form-control {
+            border: 1px solid #cfd6e2;
+            border-radius: 6px;
+            font-size: 13px;
+            padding: 9px 10px;
+            width: 100%;
         }
 
         .receipt-shell {
@@ -204,6 +234,20 @@
             margin: 0 0 8px 0;
         }
 
+        .history-list {
+            border-top: 1px solid #e6e8eb;
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+        }
+
+        .history-item {
+            display: flex;
+            gap: 14px;
+            justify-content: space-between;
+        }
+
         .signature-row {
             display: grid;
             gap: 24px;
@@ -230,7 +274,8 @@
 
         @media (max-width: 720px) {
             .header,
-            .info-grid {
+            .info-grid,
+            .add-payment-form {
                 grid-template-columns: 1fr;
             }
 
@@ -249,8 +294,29 @@
 <body>
     <div class="print-actions no-print">
         <a href="{{ url_for('payments') }}" class="btn secondary">Back to Payments</a>
+        {% if receipt.can_add_payment %}
+        <a href="#addPaymentPanel" class="btn secondary">Add Payment</a>
+        {% endif %}
         <button class="btn" onclick="window.print()">Print Receipt</button>
     </div>
+
+    {% if receipt.can_add_payment %}
+    <div class="add-payment-panel no-print" id="addPaymentPanel">
+        <h3>Add Payment To {{ receipt.original_receipt_id }}</h3>
+        <form class="add-payment-form" action="{{ url_for('add_payment_to_receipt', payment_id=receipt.raw_id if receipt.raw_id is defined else 0) }}" method="POST">
+            <input type="number" name="amount_paid" class="form-control" min="0.01" max="{{ receipt.remaining_balance_raw }}" step="0.01" placeholder="Amount" required>
+            <select name="payment_method" class="form-control" required>
+                <option value="cash">Cash</option>
+                <option value="gcash">GCash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+            </select>
+            <input type="text" name="reference_number" class="form-control" placeholder="Reference no.">
+            <input type="date" name="payment_date" class="form-control">
+            <input type="text" name="notes" class="form-control" placeholder="Notes">
+            <button class="btn" type="submit">Issue New Receipt</button>
+        </form>
+    </div>
+    {% endif %}
 
     <div class="receipt-shell">
         <div class="header">
@@ -266,6 +332,9 @@
             <div>
                 <div class="receipt-title">Official Receipt</div>
                 <div class="receipt-id">{{ receipt.id }}</div>
+                {% if not receipt.is_original_receipt %}
+                <div class="receipt-id">Applied to {{ receipt.original_receipt_id }}</div>
+                {% endif %}
                 <div class="official-meta">
                     TIN: {{ clinic.tin if clinic.tin else "__________________" }}<br>
                     BIR Permit: {{ clinic.bir_permit if clinic.bir_permit else "__________________" }}<br>
@@ -318,6 +387,10 @@
                     <span class="value">{{ receipt.reference_number }}</span>
                 </div>
                 <div class="info-row">
+                    <span class="label">Original Receipt</span>
+                    <span class="value">{{ receipt.original_receipt_id }}</span>
+                </div>
+                <div class="info-row">
                     <span class="label">Received By</span>
                     <span class="value">{{ receipt.received_by }}</span>
                 </div>
@@ -365,15 +438,28 @@
                 <strong>{{ receipt.total_paid_to_date }}</strong>
             </div>
             <div class="total-row">
-                <span>Remaining Balance</span>
+                <span>Receipt Balance After Payment</span>
                 <strong>{{ receipt.balance_after }}</strong>
+            </div>
+            <div class="total-row">
+                <span>Current Transaction Balance</span>
+                <strong>{{ receipt.current_balance }}</strong>
             </div>
         </div>
 
         <div class="status-box">
-            <h3>{{ receipt.status }}</h3>
+            <h3>{{ receipt.current_status }}</h3>
             <p>This receipt confirms the payment received by Pullan Dental Clinic for the service shown above.</p>
             <p><strong>Notes:</strong> {{ receipt.notes }}</p>
+            <div class="history-list">
+                <strong>Payment History</strong>
+                {% for payment in receipt.payment_history %}
+                <div class="history-item">
+                    <span>{{ payment.id }} | {{ payment.date }} | {{ payment.method }}</span>
+                    <strong>{{ payment.amount }}</strong>
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
         <div class="signature-row">

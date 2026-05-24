@@ -449,6 +449,7 @@ class Payment(db.Model):
     __tablename__ = 'payments'
 
     payment_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    original_payment_id = db.Column(db.Integer)
     patient_id = db.Column(db.Integer)
     patient_name = db.Column(db.String(255), nullable=False)
     report_id = db.Column(db.Integer)
@@ -487,6 +488,27 @@ class ServicePrice(db.Model):
 
     def __repr__(self):
         return f"<ServicePrice {self.service_key}: {self.price}>"
+
+class SMSReminder(db.Model):
+    __tablename__ = 'sms_reminders'
+
+    reminder_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    appointment_id = db.Column(db.Integer, unique=True, nullable=False)
+    patient_id = db.Column(db.Integer)
+    patient_name = db.Column(db.String(255), nullable=False)
+    mobile_number = db.Column(db.String(20), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    scheduled_for = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default='Pending', nullable=False)
+    provider = db.Column(db.String(50))
+    provider_message_id = db.Column(db.String(120))
+    error_message = db.Column(db.Text)
+    sent_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<SMSReminder {self.reminder_id}: appointment {self.appointment_id} - {self.status}>"
 
 class Teeth(db.Model):
     __tablename__ = 'teeth'

@@ -5,3 +5,6 @@ __pycache__/
 instance/
 *.sqlite
 *.db
+
+# Installer build output
+dist/

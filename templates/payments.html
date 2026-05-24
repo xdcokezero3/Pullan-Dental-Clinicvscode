@@ -614,6 +614,9 @@
                                     <tr data-search="{{ payment.id }} {{ payment.patient }} {{ payment.description }} {{ payment.method }} {{ payment.type }} {{ payment.amount }} {{ payment.date }}">
                                         <td>
                                             <strong>{{ payment.id }}</strong>
+                                            {% if payment.id != payment.original_id %}
+                                            <div class="muted">Original: {{ payment.original_id }}</div>
+                                            {% endif %}
                                             <div class="muted">{{ payment.date }}</div>
                                         </td>
                                         <td>{{ payment.patient }}</td>
@@ -628,6 +631,11 @@
                                             <a class="receipt-link" href="{{ url_for('payment_receipt', payment_id=payment.raw_id) }}" target="_blank">
                                                 <i class="fas fa-print"></i> Receipt
                                             </a>
+                                            {% if payment.can_add_payment %}
+                                            <a class="receipt-link" href="{{ url_for('payment_receipt', payment_id=payment.root_id) }}">
+                                                <i class="fas fa-plus-circle"></i> Add Payment
+                                            </a>
+                                            {% endif %}
                                         </td>
                                     </tr>
                                     {% endfor %}

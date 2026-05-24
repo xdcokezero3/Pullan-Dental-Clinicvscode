@@ -1,6 +1,6 @@
 # app.py - PostgreSQL Ready Fixed Version with Enhanced Features
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
-from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, ServicePrice, User, UserLog, Teeth, log_user_action
+from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, ServicePrice, SMSReminder, User, UserLog, Teeth, log_user_action
 from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 import os
@@ -14,6 +14,10 @@ import hashlib
 import shutil
 import socket
 import csv
+import threading
+import urllib.parse
+import urllib.request
+import base64
 from io import StringIO
 from functools import wraps
 import traceback
@@ -1923,12 +1927,16 @@ def patient_details(patient_id):
 def add_patient():
     """Add a new patient via AJAX"""
     try:
+        contact_number = request.form.get('contact')
+        if contact_number and not is_valid_ph_mobile_number(contact_number):
+            return jsonify({"success": False, "error": "Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX)."})
+
         new_patient = Patient(
             patname=request.form.get('name'),
             patemail=request.form.get('email'),
             pataddress=request.form.get('address'),
             patcityzipcode=request.form.get('cityzipcode'),
-            patcontact=request.form.get('contact'),
+            patcontact=contact_number,
             patreligion=request.form.get('religion'),
             patgender=request.form.get('gender'),
             patage=request.form.get('age', type=int),
@@ -2036,7 +2044,10 @@ def update_patient(patient_id):
         
         patient.patname = request.form.get('name')
         patient.patemail = request.form.get('email')
-        patient.patcontact = request.form.get('contact')
+        contact_number = request.form.get('contact')
+        if contact_number and not is_valid_ph_mobile_number(contact_number):
+            return jsonify({'success': False, 'error': 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).'})
+        patient.patcontact = contact_number
         
         dob_str = request.form.get('dob')
         if dob_str:
@@ -2194,6 +2205,237 @@ def print_patients_report():
 # ======================================================================
 # APPOINTMENTS ROUTES - COMPLETE IMPLEMENTATION
 # ======================================================================
+
+SMS_PROVIDER = os.getenv('SMS_PROVIDER', 'console').lower()
+SMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME', 'PullanDental')
+SMS_WORKER_INTERVAL_SECONDS = int(os.getenv('SMS_WORKER_INTERVAL_SECONDS', '60'))
+
+def ensure_sms_reminders_table():
+    SMSReminder.__table__.create(bind=db.engine, checkfirst=True)
+
+def normalize_ph_mobile_number(raw_number):
+    """Normalize Philippine mobile numbers to +639XXXXXXXXX."""
+    digits = re.sub(r'\D', '', raw_number or '')
+    if digits.startswith('09') and len(digits) == 11:
+        return '+63' + digits[1:]
+    if digits.startswith('639') and len(digits) == 12:
+        return '+' + digits
+    if digits.startswith('9') and len(digits) == 10:
+        return '+63' + digits
+    return None
+
+def is_valid_ph_mobile_number(raw_number):
+    return normalize_ph_mobile_number(raw_number) is not None
+
+def appointment_start_datetime(appointment):
+    if not appointment.appdate or not appointment.apptime:
+        return None
+
+    try:
+        start_minutes, _ = _appointment_time_bounds(appointment.apptime)
+    except ValueError:
+        return None
+
+    if start_minutes is None:
+        return None
+
+    hours = start_minutes // 60
+    minutes = start_minutes % 60
+    return datetime.combine(appointment.appdate, datetime.min.time()) + timedelta(hours=hours, minutes=minutes)
+
+def build_sms_reminder_message(patient_name, appointment_date, appointment_time):
+    clinic_name = os.getenv('CLINIC_NAME', 'Pullan Dental Clinic')
+    formatted_date = appointment_date.strftime('%B %d, %Y') if appointment_date else 'your scheduled date'
+    return (
+        f"Hello {patient_name}, this is a reminder for your dental appointment at "
+        f"{clinic_name} on {formatted_date} at {appointment_time}. "
+        "Please arrive on time. Thank you."
+    )
+
+def create_or_update_sms_reminder(appointment, patient):
+    """Create one pending reminder per appointment when the patient has a valid PH mobile number."""
+    try:
+        ensure_sms_reminders_table()
+        if not appointment or not patient:
+            return None
+
+        normalized_number = normalize_ph_mobile_number(patient.patcontact)
+        appointment_start = appointment_start_datetime(appointment)
+        existing_reminder = SMSReminder.query.filter_by(appointment_id=appointment.appid).first()
+
+        if not normalized_number:
+            error_message = f"Invalid Philippine mobile number for patient {patient.patname}: {patient.patcontact or 'blank'}"
+            if existing_reminder:
+                existing_reminder.status = 'Failed'
+                existing_reminder.error_message = error_message
+                existing_reminder.updated_at = datetime.utcnow()
+            else:
+                existing_reminder = SMSReminder(
+                    appointment_id=appointment.appid,
+                    patient_id=patient.patId,
+                    patient_name=patient.patname,
+                    mobile_number=patient.patcontact or '',
+                    message=error_message,
+                    scheduled_for=datetime.utcnow(),
+                    status='Failed',
+                    provider=SMS_PROVIDER,
+                    error_message=error_message,
+                    updated_at=datetime.utcnow()
+                )
+                db.session.add(existing_reminder)
+            db.session.commit()
+            log_user_action(session.get('user_id'), 'SMS Reminder Failed', error_message)
+            return existing_reminder
+
+        if not appointment_start:
+            return None
+
+        scheduled_for = appointment_start - timedelta(days=1)
+        message = build_sms_reminder_message(patient.patname, appointment.appdate, appointment.apptime)
+
+        if existing_reminder and existing_reminder.status == 'Sent':
+            return existing_reminder
+
+        if not existing_reminder:
+            existing_reminder = SMSReminder(
+                appointment_id=appointment.appid,
+                patient_id=patient.patId,
+                patient_name=patient.patname,
+                mobile_number=normalized_number,
+                message=message,
+                scheduled_for=scheduled_for,
+                status='Pending',
+                provider=SMS_PROVIDER,
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(existing_reminder)
+        else:
+            existing_reminder.patient_id = patient.patId
+            existing_reminder.patient_name = patient.patname
+            existing_reminder.mobile_number = normalized_number
+            existing_reminder.message = message
+            existing_reminder.scheduled_for = scheduled_for
+            existing_reminder.status = 'Pending'
+            existing_reminder.provider = SMS_PROVIDER
+            existing_reminder.error_message = None
+            existing_reminder.updated_at = datetime.utcnow()
+
+        db.session.commit()
+        return existing_reminder
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating SMS reminder: {e}")
+        log_user_action(session.get('user_id'), 'SMS Reminder Error', str(e))
+        return None
+
+def send_sms_via_provider(to_number, message):
+    """Send SMS through the configured provider. Console mode logs instead of sending."""
+    if SMS_PROVIDER == 'console':
+        print(f"[SMS console] To {to_number}: {message}")
+        return {'provider_message_id': f'console-{int(time.time())}'}
+
+    if SMS_PROVIDER == 'twilio':
+        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        from_number = os.getenv('TWILIO_FROM_NUMBER') or SMS_SENDER_NAME
+        if not account_sid or not auth_token or not from_number:
+            raise RuntimeError('Twilio SMS is not fully configured.')
+
+        payload = urllib.parse.urlencode({
+            'To': to_number,
+            'From': from_number,
+            'Body': message
+        }).encode('utf-8')
+        request_url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
+        request_obj = urllib.request.Request(request_url, data=payload, method='POST')
+        auth_header = base64.b64encode(f'{account_sid}:{auth_token}'.encode('utf-8')).decode('ascii')
+        request_obj.add_header('Authorization', f'Basic {auth_header}')
+        with urllib.request.urlopen(request_obj, timeout=20) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+        return {'provider_message_id': response_data.get('sid')}
+
+    if SMS_PROVIDER == 'semaphore':
+        api_key = os.getenv('SEMAPHORE_API_KEY')
+        sender_name = os.getenv('SEMAPHORE_SENDER_NAME', SMS_SENDER_NAME)
+        if not api_key:
+            raise RuntimeError('Semaphore SMS is not fully configured.')
+
+        payload = urllib.parse.urlencode({
+            'apikey': api_key,
+            'number': to_number,
+            'message': message,
+            'sendername': sender_name
+        }).encode('utf-8')
+        request_obj = urllib.request.Request('https://api.semaphore.co/api/v4/messages', data=payload, method='POST')
+        with urllib.request.urlopen(request_obj, timeout=20) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+        if isinstance(response_data, list) and response_data:
+            return {'provider_message_id': str(response_data[0].get('message_id') or '')}
+        return {'provider_message_id': ''}
+
+    raise RuntimeError(f'Unsupported SMS provider: {SMS_PROVIDER}')
+
+def process_due_sms_reminders():
+    """Send due pending reminders; appointment_id uniqueness prevents duplicates."""
+    ensure_sms_reminders_table()
+    now = datetime.now()
+    due_reminders = SMSReminder.query.filter(
+        SMSReminder.status == 'Pending',
+        SMSReminder.scheduled_for <= now
+    ).all()
+
+    for reminder in due_reminders:
+        appointment = Appointment.query.get(reminder.appointment_id)
+        if appointment and getattr(appointment, 'status', 'active') in ('cancelled', 'completed'):
+            reminder.status = 'Failed'
+            reminder.error_message = f'Appointment is {appointment.status}; reminder not sent.'
+            reminder.updated_at = datetime.utcnow()
+            db.session.commit()
+            continue
+
+        try:
+            result = send_sms_via_provider(reminder.mobile_number, reminder.message)
+            reminder.status = 'Sent'
+            reminder.provider = SMS_PROVIDER
+            reminder.provider_message_id = result.get('provider_message_id')
+            reminder.sent_at = datetime.now()
+            reminder.error_message = None
+            reminder.updated_at = datetime.utcnow()
+            db.session.commit()
+            log_user_action(None, 'SMS Reminder Sent', f'Sent reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
+        except Exception as e:
+            db.session.rollback()
+            reminder = SMSReminder.query.get(reminder.reminder_id)
+            if reminder:
+                reminder.status = 'Failed'
+                reminder.error_message = str(e)
+                reminder.provider = SMS_PROVIDER
+                reminder.updated_at = datetime.utcnow()
+                db.session.commit()
+            log_user_action(None, 'SMS Reminder Failed', f'Appointment APT-{reminder.appointment_id:03d}: {e}')
+
+def sms_reminder_worker():
+    with app.app_context():
+        ensure_sms_reminders_table()
+
+    while True:
+        try:
+            with app.app_context():
+                process_due_sms_reminders()
+        except Exception as e:
+            print(f"SMS reminder worker error: {e}")
+        time.sleep(SMS_WORKER_INTERVAL_SECONDS)
+
+def start_sms_reminder_worker():
+    if os.getenv('SMS_REMINDER_WORKER', 'true').lower() not in ('1', 'true', 'yes', 'on'):
+        return
+    if getattr(app, '_sms_reminder_worker_started', False):
+        return
+
+    app._sms_reminder_worker_started = True
+    worker = threading.Thread(target=sms_reminder_worker, daemon=True)
+    worker.start()
 
 def _time_to_minutes(time_value):
     """Convert an HH:MM string to minutes after midnight."""
@@ -2389,6 +2631,7 @@ def add_appointment():
         
         db.session.add(new_appointment)
         db.session.commit()
+        create_or_update_sms_reminder(new_appointment, patient)
         
         log_user_action(
             session.get('user_id'),
@@ -2422,6 +2665,13 @@ def cancel_appointment(appointment_id):
             appointment.status = 'cancelled'
         else:
             return jsonify({"success": False, "error": "Status field not available."})
+
+        ensure_sms_reminders_table()
+        reminder = SMSReminder.query.filter_by(appointment_id=appointment.appid).first()
+        if reminder and reminder.status == 'Pending':
+            reminder.status = 'Failed'
+            reminder.error_message = 'Appointment was cancelled before reminder was sent.'
+            reminder.updated_at = datetime.utcnow()
         
         db.session.commit()
         
@@ -2587,6 +2837,10 @@ def reschedule_appointment():
         
         db.session.add(reschedule_record)
         db.session.commit()
+
+        patient = Patient.query.filter_by(patname=appointment.apppatient, is_deleted=False).first()
+        if patient:
+            create_or_update_sms_reminder(appointment, patient)
         
         log_user_action(
             session.get('user_id'),
@@ -4985,6 +5239,9 @@ def ensure_payments_table():
     if 'service_items' not in columns:
         db.session.execute(text('ALTER TABLE payments ADD COLUMN service_items TEXT'))
         db.session.commit()
+    if 'original_payment_id' not in columns:
+        db.session.execute(text('ALTER TABLE payments ADD COLUMN original_payment_id INTEGER'))
+        db.session.commit()
 
     seed_service_prices()
 
@@ -5110,6 +5367,34 @@ def procedure_service_items_from_report(procedure, service_prices):
 
 def total_from_service_items(service_items):
     return sum((decimal_money(item.get('line_total') or 0) for item in service_items), Decimal('0.00')).quantize(MONEY_QUANT)
+
+def payment_root_id(payment_record):
+    return payment_record.original_payment_id or payment_record.payment_id
+
+def get_transaction_payments(root_payment_id):
+    return Payment.query.filter(
+        or_(
+            Payment.payment_id == root_payment_id,
+            Payment.original_payment_id == root_payment_id
+        )
+    ).order_by(Payment.paid_at.asc(), Payment.payment_id.asc()).all()
+
+def get_payment_transaction_summary(payment_record):
+    root_id = payment_root_id(payment_record)
+    transaction_payments = get_transaction_payments(root_id)
+    total_amount = decimal_money(transaction_payments[0].total_amount if transaction_payments else payment_record.total_amount)
+    total_paid = sum((decimal_money(payment.amount_paid) for payment in transaction_payments), Decimal('0.00')).quantize(MONEY_QUANT)
+    remaining_balance = max(total_amount - total_paid, Decimal('0.00')).quantize(MONEY_QUANT)
+
+    return {
+        'root_id': root_id,
+        'original_receipt_id': f"PAY-{root_id:03d}",
+        'payments': transaction_payments,
+        'total_amount': total_amount,
+        'total_paid': total_paid,
+        'remaining_balance': remaining_balance,
+        'status': 'Fully Paid' if remaining_balance <= 0 else 'Partial Payment'
+    }
 
 def parse_service_items(raw_items, fallback_description, fallback_amount, service_prices):
     try:
@@ -5292,17 +5577,21 @@ def payments():
                 partial_count += 1
 
         for payment_record in payment_records:
+            transaction_summary = get_payment_transaction_summary(payment_record)
             formatted_payments.append({
                 'raw_id': payment_record.payment_id,
+                'root_id': transaction_summary['root_id'],
                 'id': payment_record.formatted_id(),
+                'original_id': transaction_summary['original_receipt_id'],
                 'patient': payment_record.patient_name,
                 'description': payment_record.description or 'Dental service',
                 'date': payment_record.paid_at.strftime('%B %d, %Y %I:%M %p') if payment_record.paid_at else 'N/A',
                 'method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
-                'type': PAYMENT_TYPE_LABELS.get(payment_record.payment_type, payment_record.payment_type.title()),
+                'type': transaction_summary['status'],
                 'amount': format_money(payment_record.amount_paid),
-                'balance': format_money(payment_record.balance_after),
-                'status_class': 'paid' if decimal_money(payment_record.balance_after) <= 0 else 'partial'
+                'balance': format_money(transaction_summary['remaining_balance']),
+                'can_add_payment': transaction_summary['remaining_balance'] > 0,
+                'status_class': 'paid' if transaction_summary['remaining_balance'] <= 0 else 'partial'
             })
 
         outstanding_balance = sum((summary['balance'] for summary in report_payment_summaries.values()), Decimal('0.00'))
@@ -5397,6 +5686,7 @@ def add_payment():
                 request.form.get('total_amount'),
                 service_prices
             )
+        original_payment_id = payment_root_id(prior_payments[0]) if prior_payments else None
 
         if total_amount < previous_paid:
             return "Total amount cannot be lower than the amount already paid for this procedure.", 400
@@ -5418,6 +5708,7 @@ def add_payment():
 
         current_user = session.get('real_name', session.get('username', 'Unknown User'))
         new_payment = Payment(
+            original_payment_id=original_payment_id,
             patient_id=patient.patId,
             patient_name=patient.patname,
             report_id=report_id,
@@ -5464,8 +5755,11 @@ def payment_receipt(payment_id):
         patient = Patient.query.get(payment_record.patient_id) if payment_record.patient_id else None
         procedure = Report.query.get(payment_record.report_id) if payment_record.report_id else None
         service_items = get_payment_service_items(payment_record)
+        transaction_summary = get_payment_transaction_summary(payment_record)
+        is_original_receipt = payment_record.original_payment_id is None
 
         receipt = {
+            'raw_id': payment_record.payment_id,
             'id': payment_record.formatted_id(),
             'patient_name': payment_record.patient_name,
             'patient_id': f"PAT-{payment_record.patient_id:03d}" if payment_record.patient_id else "N/A",
@@ -5475,16 +5769,32 @@ def payment_receipt(payment_id):
             'payment_time': payment_record.paid_at.strftime('%I:%M %p') if payment_record.paid_at else 'N/A',
             'payment_method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
             'payment_type': PAYMENT_TYPE_LABELS.get(payment_record.payment_type, payment_record.payment_type.title()),
+            'original_receipt_id': transaction_summary['original_receipt_id'],
+            'is_original_receipt': is_original_receipt,
             'reference_number': payment_record.reference_number or 'N/A',
             'total_amount': format_money(payment_record.total_amount),
             'balance_before': format_money(payment_record.balance_before),
             'amount_paid': format_money(payment_record.amount_paid),
-            'total_paid_to_date': format_money(decimal_money(payment_record.total_amount) - decimal_money(payment_record.balance_after)),
+            'total_paid_to_date': format_money(transaction_summary['total_paid']),
             'balance_after': format_money(payment_record.balance_after),
+            'current_balance': format_money(transaction_summary['remaining_balance']),
+            'current_status': transaction_summary['status'],
             'status': payment_record.status,
             'notes': payment_record.notes or 'None',
             'received_by': payment_record.received_by or 'Unknown User',
-            'service_items': service_items
+            'service_items': service_items,
+            'can_add_payment': transaction_summary['remaining_balance'] > 0,
+            'remaining_balance_raw': f"{transaction_summary['remaining_balance']:.2f}",
+            'payment_history': [
+                {
+                    'id': payment.formatted_id(),
+                    'date': payment.paid_at.strftime('%B %d, %Y %I:%M %p') if payment.paid_at else 'N/A',
+                    'amount': format_money(payment.amount_paid),
+                    'method': PAYMENT_METHOD_LABELS.get(payment.payment_method, payment.payment_method),
+                    'raw_id': payment.payment_id
+                }
+                for payment in transaction_summary['payments']
+            ]
         }
 
         current_user = session.get('real_name', session.get('username', 'Unknown User'))
@@ -5509,6 +5819,87 @@ def payment_receipt(payment_id):
     except Exception as e:
         print(f"Error generating payment receipt: {e}")
         return f"Error generating payment receipt: {e}", 500
+
+@app.route('/add_payment_to_receipt/<int:payment_id>', methods=['POST'])
+def add_payment_to_receipt(payment_id):
+    """Add a follow-up payment to an existing partial-payment transaction."""
+    try:
+        ensure_payments_table()
+
+        selected_payment = Payment.query.get_or_404(payment_id)
+        root_id = payment_root_id(selected_payment)
+        transaction_payments = get_transaction_payments(root_id)
+        if not transaction_payments:
+            return "Original receipt was not found.", 404
+
+        original_payment = transaction_payments[0]
+        transaction_summary = get_payment_transaction_summary(selected_payment)
+        remaining_balance = transaction_summary['remaining_balance']
+        if remaining_balance <= 0:
+            return "This transaction is already fully paid.", 400
+
+        amount_paid = parse_money(request.form.get('amount_paid'), 'payment amount')
+        if amount_paid > remaining_balance:
+            return "Payment amount cannot be greater than the remaining balance.", 400
+
+        payment_method = (request.form.get('payment_method') or '').strip()
+        reference_number = (request.form.get('reference_number') or '').strip()
+        notes = (request.form.get('notes') or '').strip()
+
+        if payment_method not in PAYMENT_METHOD_LABELS:
+            return "Please choose a valid payment method.", 400
+        if payment_method in ('gcash', 'bank_transfer') and not reference_number:
+            return "Reference number is required for GCash and bank transfer payments.", 400
+
+        paid_at = datetime.now()
+        raw_payment_date = request.form.get('payment_date')
+        if raw_payment_date:
+            try:
+                payment_date = datetime.strptime(raw_payment_date, '%Y-%m-%d').date()
+                paid_at = datetime.combine(payment_date, datetime.now().time())
+            except ValueError:
+                return "Please choose a valid payment date.", 400
+
+        balance_after = (remaining_balance - amount_paid).quantize(MONEY_QUANT)
+        computed_payment_type = 'full' if balance_after <= 0 else 'partial'
+
+        new_payment = Payment(
+            original_payment_id=root_id,
+            patient_id=original_payment.patient_id,
+            patient_name=original_payment.patient_name,
+            report_id=original_payment.report_id,
+            description=original_payment.description,
+            service_items=original_payment.service_items,
+            total_amount=decimal_money(original_payment.total_amount),
+            balance_before=remaining_balance,
+            amount_paid=amount_paid,
+            balance_after=balance_after,
+            payment_type=computed_payment_type,
+            payment_method=payment_method,
+            reference_number=reference_number or None,
+            notes=notes or None,
+            received_by=session.get('real_name', session.get('username', 'Unknown User')),
+            paid_at=paid_at
+        )
+
+        db.session.add(new_payment)
+        db.session.commit()
+
+        log_user_action(
+            session.get('user_id'),
+            'Add Payment To Receipt',
+            f'Added payment {format_money(amount_paid)} to original receipt PAY-{root_id:03d} for {original_payment.patient_name}'
+        )
+
+        return redirect(url_for('payment_receipt', payment_id=new_payment.payment_id))
+
+    except ValueError as e:
+        db.session.rollback()
+        return str(e), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error adding payment to receipt: {e}")
+        return f"Error adding payment to receipt: {e}", 500
 
 @app.route('/update_service_prices', methods=['POST'])
 @admin_required
@@ -5658,4 +6049,5 @@ if __name__ == "__main__":
         print(f"Configured host access: http://{host}:{port}")
     print("Use the LAN access URL on the other computer connected to the same network.\n")
 
+    start_sms_reminder_worker()
     app.run(host=host, port=port, debug=debug)
