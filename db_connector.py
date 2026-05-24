@@ -445,6 +445,49 @@ class Report(db.Model):
     def __repr__(self):
         return f"<Report {self.repid}: {self.reppatient} on {self.repdate}>"
 
+class Payment(db.Model):
+    __tablename__ = 'payments'
+
+    payment_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    patient_id = db.Column(db.Integer)
+    patient_name = db.Column(db.String(255), nullable=False)
+    report_id = db.Column(db.Integer)
+    description = db.Column(db.String(255))
+    service_items = db.Column(db.Text)
+    total_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    balance_before = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    amount_paid = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    balance_after = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    payment_type = db.Column(db.String(20), nullable=False, default='partial')
+    payment_method = db.Column(db.String(30), nullable=False)
+    reference_number = db.Column(db.String(120))
+    notes = db.Column(db.Text)
+    received_by = db.Column(db.String(255))
+    paid_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<Payment {self.payment_id}: {self.patient_name} {self.amount_paid}>"
+
+    def formatted_id(self):
+        return f"PAY-{self.payment_id:03d}"
+
+    @property
+    def status(self):
+        return 'Full Payment' if float(self.balance_after or 0) <= 0 else 'Partial Payment'
+
+class ServicePrice(db.Model):
+    __tablename__ = 'service_prices'
+
+    service_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    service_key = db.Column(db.String(60), unique=True, nullable=False)
+    service_name = db.Column(db.String(180), nullable=False)
+    price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<ServicePrice {self.service_key}: {self.price}>"
+
 class Teeth(db.Model):
     __tablename__ = 'teeth'
     #__table_args__ = {'schema': 'pullandentalclinic'}

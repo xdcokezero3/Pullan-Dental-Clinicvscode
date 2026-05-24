@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ receipt.id }} - Payment Receipt</title>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { margin: 0; }
+        }
+
+        body {
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 24px;
+        }
+
+        .print-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-bottom: 18px;
+        }
+
+        .btn {
+            align-items: center;
+            background: #4285f4;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 14px;
+            font-weight: 600;
+            gap: 8px;
+            padding: 10px 16px;
+            text-decoration: none;
+        }
+
+        .btn.secondary {
+            background: #6c757d;
+        }
+
+        .receipt-shell {
+            border: 1px solid #d9dee7;
+            margin: 0 auto;
+            max-width: 860px;
+            padding: 28px;
+        }
+
+        .header {
+            border-bottom: 3px solid #4285f4;
+            display: flex;
+            gap: 20px;
+            justify-content: space-between;
+            margin-bottom: 26px;
+            padding-bottom: 18px;
+        }
+
+        .clinic-name {
+            color: #4285f4;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .clinic-subtitle {
+            color: #666;
+            font-size: 15px;
+        }
+
+        .clinic-details {
+            color: #555;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .official-meta {
+            color: #555;
+            font-size: 12px;
+            margin-top: 8px;
+            text-align: right;
+        }
+
+        .receipt-title {
+            color: #333;
+            font-size: 23px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .receipt-id {
+            color: #666;
+            font-size: 14px;
+            text-align: right;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            border: 1px solid #e6e8eb;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .info-card h3 {
+            color: #4285f4;
+            font-size: 16px;
+            margin: 0 0 12px 0;
+        }
+
+        .info-row {
+            border-bottom: 1px solid #eceff3;
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .value {
+            color: #333;
+            text-align: right;
+        }
+
+        .payment-table {
+            border-collapse: collapse;
+            margin: 22px 0;
+            width: 100%;
+        }
+
+        .payment-table th {
+            background: #4285f4;
+            color: white;
+            font-size: 13px;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .payment-table td {
+            border-bottom: 1px solid #e6e8eb;
+            padding: 13px 12px;
+        }
+
+        .payment-table td.amount,
+        .payment-table th.amount {
+            text-align: right;
+        }
+
+        .payment-table td.center,
+        .payment-table th.center {
+            text-align: center;
+        }
+
+        .totals {
+            display: grid;
+            gap: 8px;
+            justify-content: end;
+            margin-left: auto;
+            max-width: 360px;
+        }
+
+        .total-row {
+            display: flex;
+            gap: 24px;
+            justify-content: space-between;
+        }
+
+        .total-row.received {
+            border-top: 2px solid #4285f4;
+            color: #4285f4;
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 8px;
+            padding-top: 10px;
+        }
+
+        .status-box {
+            background: #f8fafc;
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            margin-top: 22px;
+            padding: 16px;
+        }
+
+        .status-box h3 {
+            color: #333;
+            font-size: 16px;
+            margin: 0 0 8px 0;
+        }
+
+        .signature-row {
+            display: grid;
+            gap: 24px;
+            grid-template-columns: repeat(2, 1fr);
+            margin-top: 42px;
+        }
+
+        .signature-line {
+            border-top: 1px solid #444;
+            color: #555;
+            font-size: 12px;
+            padding-top: 8px;
+            text-align: center;
+        }
+
+        .footer {
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 12px;
+            margin-top: 34px;
+            padding-top: 16px;
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            .header,
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                display: block;
+            }
+
+            .receipt-title,
+            .receipt-id {
+                margin-top: 10px;
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="print-actions no-print">
+        <a href="{{ url_for('payments') }}" class="btn secondary">Back to Payments</a>
+        <button class="btn" onclick="window.print()">Print Receipt</button>
+    </div>
+
+    <div class="receipt-shell">
+        <div class="header">
+            <div>
+                <div class="clinic-name">{{ clinic.name }}</div>
+                <div class="clinic-subtitle">{{ clinic.business_style }}</div>
+                <div class="clinic-details">
+                    {{ clinic.address }}<br>
+                    {{ clinic.city }}<br>
+                    {{ clinic.phone }}{% if clinic.email %} | {{ clinic.email }}{% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="receipt-title">Official Receipt</div>
+                <div class="receipt-id">{{ receipt.id }}</div>
+                <div class="official-meta">
+                    TIN: {{ clinic.tin if clinic.tin else "__________________" }}<br>
+                    BIR Permit: {{ clinic.bir_permit if clinic.bir_permit else "__________________" }}<br>
+                    {% if clinic.accreditation %}Accreditation: {{ clinic.accreditation }}{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>Patient Information</h3>
+                <div class="info-row">
+                    <span class="label">Patient</span>
+                    <span class="value">{{ receipt.patient_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Patient ID</span>
+                    <span class="value">{{ receipt.patient_id }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Contact</span>
+                    <span class="value">{{ patient.patcontact if patient else "N/A" }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Procedure ID</span>
+                    <span class="value">{{ receipt.procedure_id }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Address</span>
+                    <span class="value">{{ patient.pataddress if patient and patient.pataddress else "N/A" }}</span>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Payment Information</h3>
+                <div class="info-row">
+                    <span class="label">Date</span>
+                    <span class="value">{{ receipt.payment_date }} {{ receipt.payment_time }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Method</span>
+                    <span class="value">{{ receipt.payment_method }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Type</span>
+                    <span class="value">{{ receipt.payment_type }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Reference</span>
+                    <span class="value">{{ receipt.reference_number }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Received By</span>
+                    <span class="value">{{ receipt.received_by }}</span>
+                </div>
+            </div>
+        </div>
+
+        <table class="payment-table">
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th class="center">Qty</th>
+                    <th class="amount">Unit Price</th>
+                    <th class="amount">Line Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in receipt.service_items %}
+                <tr>
+                    <td>
+                        <strong>{{ item.name }}</strong>
+                    </td>
+                    <td class="center">{{ item.quantity }}</td>
+                    <td class="amount">{{ item.unit_price }}</td>
+                    <td class="amount">{{ item.line_total }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="totals">
+            <div class="total-row">
+                <span>Total Amount Due</span>
+                <strong>{{ receipt.total_amount }}</strong>
+            </div>
+            <div class="total-row">
+                <span>Balance Before Payment</span>
+                <strong>{{ receipt.balance_before }}</strong>
+            </div>
+            <div class="total-row received">
+                <span>Amount Received</span>
+                <strong>{{ receipt.amount_paid }}</strong>
+            </div>
+            <div class="total-row">
+                <span>Total Paid To Date</span>
+                <strong>{{ receipt.total_paid_to_date }}</strong>
+            </div>
+            <div class="total-row">
+                <span>Remaining Balance</span>
+                <strong>{{ receipt.balance_after }}</strong>
+            </div>
+        </div>
+
+        <div class="status-box">
+            <h3>{{ receipt.status }}</h3>
+            <p>This receipt confirms the payment received by Pullan Dental Clinic for the service shown above.</p>
+            <p><strong>Notes:</strong> {{ receipt.notes }}</p>
+        </div>
+
+        <div class="signature-row">
+            <div class="signature-line">Patient / Authorized Representative</div>
+            <div class="signature-line">Authorized Clinic Representative</div>
+        </div>
+
+        <div class="footer">
+            Receipt generated on {{ print_datetime }} by {{ current_user }}<br>
+            This system-generated receipt should use the clinic's registered tax and permit details before official issuance.
+        </div>
+    </div>
+</body>
+</html>

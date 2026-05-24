@@ -1,10 +1,11 @@
 # app.py - PostgreSQL Ready Fixed Version with Enhanced Features
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
-from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, User, UserLog, Teeth, log_user_action
+from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, ServicePrice, User, UserLog, Teeth, log_user_action
 from datetime import datetime, date, timedelta
+from decimal import Decimal, InvalidOperation
 import os
 import time
-from sqlalchemy import text, or_
+from sqlalchemy import text, or_, inspect
 import subprocess
 import json
 import psycopg2
@@ -399,7 +400,8 @@ def dashboard():
             
             if appointment_time:
                 try:
-                    apt_time_obj = datetime.strptime(appointment_time, '%H:%M').time()
+                    apt_start_minutes, _ = _appointment_time_bounds(appointment_time)
+                    apt_time_obj = datetime.strptime(_minutes_to_time(apt_start_minutes), '%H:%M').time()
                     if apt_time_obj < current_time:
                         status = 'completed'
                     else:
@@ -2193,6 +2195,91 @@ def print_patients_report():
 # APPOINTMENTS ROUTES - COMPLETE IMPLEMENTATION
 # ======================================================================
 
+def _time_to_minutes(time_value):
+    """Convert an HH:MM string to minutes after midnight."""
+    clean_time = time_value.strip()
+    if clean_time == '24:00':
+        return 24 * 60
+    parsed_time = datetime.strptime(clean_time, '%H:%M').time()
+    return parsed_time.hour * 60 + parsed_time.minute
+
+
+def _minutes_to_time(minutes):
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def _appointment_time_bounds(time_value):
+    """Return start/end minutes for old single-time values or new time ranges."""
+    if not time_value:
+        return None, None
+
+    clean_time = time_value.strip()
+    lower_time = clean_time.lower()
+
+    if ' - ' in clean_time:
+        start_time, end_time = clean_time.split(' - ', 1)
+    elif ' to ' in lower_time:
+        split_at = lower_time.index(' to ')
+        start_time = clean_time[:split_at]
+        end_time = clean_time[split_at + 4:]
+    elif '-' in clean_time:
+        start_time, end_time = clean_time.split('-', 1)
+    else:
+        start_minutes = _time_to_minutes(clean_time)
+        return start_minutes, min(start_minutes + 30, 24 * 60)
+
+    return _time_to_minutes(start_time), _time_to_minutes(end_time)
+
+
+def _format_time_range(start_time, end_time):
+    start_minutes = _time_to_minutes(start_time)
+    end_minutes = _time_to_minutes(end_time)
+
+    if end_minutes <= start_minutes:
+        raise ValueError("End time must be later than start time.")
+
+    return f"{start_time.strip()} - {end_time.strip()}"
+
+
+def _appointment_duration(time_value):
+    try:
+        start_minutes, end_minutes = _appointment_time_bounds(time_value)
+    except ValueError:
+        return "N/A"
+
+    if start_minutes is None or end_minutes is None:
+        return "N/A"
+
+    return f"{end_minutes - start_minutes} min"
+
+
+def _find_overlapping_appointment(appointment_date, start_time, end_time, exclude_id=None):
+    start_minutes = _time_to_minutes(start_time)
+    end_minutes = _time_to_minutes(end_time)
+
+    query = Appointment.query.filter(Appointment.appdate == appointment_date)
+    if exclude_id:
+        query = query.filter(Appointment.appid != exclude_id)
+
+    for appointment in query.all():
+        if getattr(appointment, 'status', 'active') == 'cancelled':
+            continue
+
+        try:
+            existing_start, existing_end = _appointment_time_bounds(appointment.apptime)
+        except ValueError:
+            continue
+
+        if existing_start is None or existing_end is None:
+            continue
+
+        if start_minutes < existing_end and existing_start < end_minutes:
+            return appointment
+
+    return None
+
 @app.route('/appointments')
 def appointments():
     """Render the appointments page with status filtering"""
@@ -2229,8 +2316,9 @@ def appointments():
                 'doctor_name': "Dr. Andrews",
                 'treatment': "General Checkup",
                 'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
+                'raw_date': appointment.appdate.strftime('%Y-%m-%d') if appointment.appdate else "",
                 'time': appointment.apptime,
-                'duration': "30 min",
+                'duration': _appointment_duration(appointment.apptime),
                 'status': status,
                 'status_class': f"status-{status}",
                 'raw_id': appointment.appid
@@ -2272,11 +2360,26 @@ def add_appointment():
         patient_id = request.form.get('patient_id')
         patient = Patient.query.get(patient_id)
         patient_name = patient.patname if patient else "Unknown Patient"
+        appointment_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        start_time = request.form.get('start_time') or request.form.get('time')
+        end_time = request.form.get('end_time')
+
+        if not start_time or not end_time:
+            return jsonify({"success": False, "error": "Start time and end time are required."})
+
+        time_range = _format_time_range(start_time, end_time)
+        overlapping_appointment = _find_overlapping_appointment(appointment_date, start_time, end_time)
+
+        if overlapping_appointment:
+            return jsonify({
+                "success": False,
+                "error": f"This time overlaps with {overlapping_appointment.apppatient}'s appointment at {overlapping_appointment.apptime}."
+            })
         
         appointment_data = {
             'apppatient': patient_name,
-            'apptime': request.form.get('time'),
-            'appdate': datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+            'apptime': time_range,
+            'appdate': appointment_date
         }
         
         if hasattr(Appointment, 'status'):
@@ -2364,6 +2467,23 @@ def reactivate_appointment(appointment_id):
         appointment = Appointment.query.get_or_404(appointment_id)
         
         if hasattr(appointment, 'status'):
+            try:
+                start_minutes, end_minutes = _appointment_time_bounds(appointment.apptime)
+            except ValueError:
+                start_minutes, end_minutes = None, None
+
+            if start_minutes is not None and end_minutes is not None:
+                overlapping_appointment = _find_overlapping_appointment(
+                    appointment.appdate,
+                    _minutes_to_time(start_minutes),
+                    _minutes_to_time(end_minutes),
+                    exclude_id=appointment.appid
+                )
+                if overlapping_appointment:
+                    return jsonify({
+                        "success": False,
+                        "error": f"This appointment overlaps with {overlapping_appointment.apppatient}'s appointment at {overlapping_appointment.apptime}."
+                    })
             appointment.status = 'active'
         
         db.session.commit()
@@ -2396,7 +2516,7 @@ def appointment_details(appointment_id):
             'treatment': "General Checkup",
             'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
             'time': appointment.apptime,
-            'duration': "30 min",
+            'duration': _appointment_duration(appointment.apptime),
             'status': "Scheduled",
             'notes': "No notes available",
             'raw_id': appointment.appid,
@@ -2421,13 +2541,28 @@ def reschedule_appointment():
     try:
         appointment_id = request.form.get('appointment_id')
         new_date = request.form.get('date')
-        new_time = request.form.get('time')
+        new_start_time = request.form.get('start_time') or request.form.get('time')
+        new_end_time = request.form.get('end_time')
         reason = request.form.get('reason', '')
         
-        if not appointment_id or not new_date or not new_time:
+        if not appointment_id or not new_date or not new_start_time or not new_end_time:
             return jsonify({"success": False, "error": "Missing required fields"})
         
         appointment = Appointment.query.get_or_404(int(appointment_id))
+        parsed_new_date = datetime.strptime(new_date, '%Y-%m-%d').date()
+        new_time = _format_time_range(new_start_time, new_end_time)
+        overlapping_appointment = _find_overlapping_appointment(
+            parsed_new_date,
+            new_start_time,
+            new_end_time,
+            exclude_id=appointment.appid
+        )
+
+        if overlapping_appointment:
+            return jsonify({
+                "success": False,
+                "error": f"This time overlaps with {overlapping_appointment.apppatient}'s appointment at {overlapping_appointment.apptime}."
+            })
         
         max_id_result = db.session.query(db.func.max(RescheduleAppointment.rappid)).first()
         next_id = 1
@@ -2440,14 +2575,14 @@ def reschedule_appointment():
             rapptime=appointment.apptime,
             rappdate=appointment.appdate,
             rappnewtime=new_time,
-            rappnewdate=datetime.strptime(new_date, '%Y-%m-%d').date(),
+            rappnewdate=parsed_new_date,
             rappreason=reason
         )
         
         old_date = appointment.appdate
         old_time = appointment.apptime
         
-        appointment.appdate = datetime.strptime(new_date, '%Y-%m-%d').date()
+        appointment.appdate = parsed_new_date
         appointment.apptime = new_time
         
         db.session.add(reschedule_record)
@@ -4806,10 +4941,619 @@ def print_dental_chart(patient_id):
 # SETTINGS AND OTHER ROUTES
 # ======================================================================
 
+PAYMENT_METHOD_LABELS = {
+    'cash': 'Cash',
+    'gcash': 'GCash',
+    'bank_transfer': 'Bank Transfer'
+}
+
+PAYMENT_TYPE_LABELS = {
+    'partial': 'Partial Payment',
+    'full': 'Full Payment'
+}
+
+SERVICE_PRICE_LIST = [
+    {'key': 'cleaning', 'label': 'Cleaning / Oral Prophylaxis', 'price': '1000.00'},
+    {'key': 'extraction', 'label': 'Tooth Extraction', 'price': '1500.00'},
+    {'key': 'root_canal', 'label': 'Root Canal Treatment', 'price': '8000.00'},
+    {'key': 'braces', 'label': 'Braces / Orthodontic Treatment', 'price': '50000.00'},
+    {'key': 'dentures', 'label': 'Dentures', 'price': '15000.00'},
+    {'key': 'filling', 'label': 'Dental Filling', 'price': '1500.00'},
+    {'key': 'crowning', 'label': 'Dental Crown', 'price': '12000.00'},
+    {'key': 'special_case', 'label': 'Special Case / Other Service', 'price': '0.00'}
+]
+
+CLINIC_RECEIPT_INFO = {
+    'name': 'Pullan Dental Clinic',
+    'address': '142 Timog Avenue, Sacred Heart',
+    'city': 'Quezon City, 1103 Metro Manila, Philippines',
+    'phone': '(02) 8123-4567 / +63 917 123 4567',
+    'email': 'info@pullandental.com.ph',
+    'tin': os.getenv('CLINIC_TIN', ''),
+    'bir_permit': os.getenv('CLINIC_BIR_PERMIT', ''),
+    'business_style': os.getenv('CLINIC_BUSINESS_STYLE', 'Dental Clinic'),
+    'accreditation': os.getenv('CLINIC_ACCREDITATION', '')
+}
+
+MONEY_QUANT = Decimal('0.01')
+
+def ensure_payments_table():
+    """Create the payments table when running without migrations."""
+    Payment.__table__.create(bind=db.engine, checkfirst=True)
+    ServicePrice.__table__.create(bind=db.engine, checkfirst=True)
+    columns = {column['name'] for column in inspect(db.engine).get_columns(Payment.__tablename__)}
+    if 'service_items' not in columns:
+        db.session.execute(text('ALTER TABLE payments ADD COLUMN service_items TEXT'))
+        db.session.commit()
+
+    seed_service_prices()
+
+def parse_money(raw_value, field_name):
+    try:
+        amount = Decimal(str(raw_value or '').replace(',', '').strip()).quantize(MONEY_QUANT)
+    except (InvalidOperation, ValueError):
+        raise ValueError(f"Please enter a valid {field_name}.")
+
+    if amount <= 0:
+        raise ValueError(f"{field_name.title()} must be greater than 0.")
+
+    return amount
+
+def decimal_money(value):
+    if value is None:
+        return Decimal('0.00')
+    return Decimal(str(value)).quantize(MONEY_QUANT)
+
+def format_money(value):
+    return f"PHP {decimal_money(value):,.2f}"
+
+def seed_service_prices():
+    existing_prices = {
+        service.service_key: service
+        for service in ServicePrice.query.all()
+    }
+    changed = False
+
+    for default_service in SERVICE_PRICE_LIST:
+        if default_service['key'] == 'special_case':
+            continue
+
+        service_record = existing_prices.get(default_service['key'])
+        if not service_record:
+            service_record = ServicePrice(
+                service_key=default_service['key'],
+                service_name=default_service['label'],
+                price=decimal_money(default_service['price']),
+                is_active=True,
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(service_record)
+            changed = True
+        elif service_record.service_name != default_service['label']:
+            service_record.service_name = default_service['label']
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+def get_service_price_list():
+    ensure_service_table_only()
+    seed_service_prices()
+    saved_prices = {
+        service.service_key: service
+        for service in ServicePrice.query.filter_by(is_active=True).all()
+    }
+
+    service_prices = []
+    for default_service in SERVICE_PRICE_LIST:
+        if default_service['key'] == 'special_case':
+            service_prices.append(default_service.copy())
+            continue
+
+        saved = saved_prices.get(default_service['key'])
+        service_prices.append({
+            'key': default_service['key'],
+            'label': saved.service_name if saved else default_service['label'],
+            'price': f"{decimal_money(saved.price if saved else default_service['price']):.2f}"
+        })
+
+    return service_prices
+
+def ensure_service_table_only():
+    ServicePrice.__table__.create(bind=db.engine, checkfirst=True)
+
+def service_price_map(service_prices):
+    return {service['key']: service for service in service_prices}
+
+def make_service_item(service_key, service_prices):
+    price_lookup = service_price_map(service_prices)
+    service = price_lookup.get(service_key)
+    if not service:
+        return None
+
+    unit_price = decimal_money(service['price'])
+    return {
+        'key': service_key,
+        'name': service['label'],
+        'quantity': '1.00',
+        'unit_price': f"{unit_price:.2f}",
+        'line_total': f"{unit_price:.2f}"
+    }
+
+def procedure_service_items_from_report(procedure, service_prices):
+    service_keys = []
+    if procedure.repcleaning:
+        service_keys.append('cleaning')
+    if procedure.repextraction:
+        service_keys.append('extraction')
+    if procedure.reprootcanal:
+        service_keys.append('root_canal')
+    if procedure.repbraces:
+        service_keys.append('braces')
+    if procedure.repdentures:
+        service_keys.append('dentures')
+
+    notes = (procedure.repothers or '').lower()
+    if 'filling:' in notes:
+        service_keys.append('filling')
+    if 'crowning:' in notes:
+        service_keys.append('crowning')
+
+    service_items = []
+    for service_key in service_keys:
+        if service_key not in [item['key'] for item in service_items]:
+            service_item = make_service_item(service_key, service_prices)
+            if service_item:
+                service_items.append(service_item)
+
+    return service_items
+
+def total_from_service_items(service_items):
+    return sum((decimal_money(item.get('line_total') or 0) for item in service_items), Decimal('0.00')).quantize(MONEY_QUANT)
+
+def parse_service_items(raw_items, fallback_description, fallback_amount, service_prices):
+    try:
+        submitted_items = json.loads(raw_items or '[]')
+    except (TypeError, json.JSONDecodeError):
+        submitted_items = []
+
+    service_items = []
+    total_from_items = Decimal('0.00')
+
+    if isinstance(submitted_items, list):
+        for item in submitted_items:
+            if not isinstance(item, dict):
+                continue
+
+            service_key = (item.get('key') or 'custom').strip()
+            price_lookup = service_price_map(service_prices)
+            configured_service = price_lookup.get(service_key)
+
+            if configured_service and service_key != 'special_case':
+                service_name = configured_service['label']
+                unit_price = decimal_money(configured_service['price'])
+            else:
+                service_key = 'special_case'
+                service_name = (item.get('name') or '').strip()
+                unit_price = parse_money(item.get('unit_price'), 'special case service price')
+
+            if not service_name:
+                continue
+
+            quantity = parse_money(item.get('quantity') or '1', 'service quantity')
+            line_total = (quantity * unit_price).quantize(MONEY_QUANT)
+
+            service_items.append({
+                'key': service_key[:60],
+                'name': service_name[:180],
+                'quantity': f"{quantity:.2f}",
+                'unit_price': f"{unit_price:.2f}",
+                'line_total': f"{line_total:.2f}"
+            })
+            total_from_items += line_total
+
+    if service_items:
+        description = ", ".join(item['name'] for item in service_items)[:255]
+        return service_items, total_from_items.quantize(MONEY_QUANT), description
+
+    fallback_total = parse_money(fallback_amount, 'total amount')
+    description = (fallback_description or 'Dental service payment').strip()[:255]
+    return [{
+        'key': 'custom',
+        'name': description,
+        'quantity': '1.00',
+        'unit_price': f"{fallback_total:.2f}",
+        'line_total': f"{fallback_total:.2f}"
+    }], fallback_total, description
+
+def get_payment_service_items(payment_record):
+    try:
+        saved_items = json.loads(payment_record.service_items or '[]')
+    except (TypeError, json.JSONDecodeError):
+        saved_items = []
+
+    if not saved_items:
+        saved_items = [{
+            'name': payment_record.description or 'Dental service payment',
+            'quantity': '1.00',
+            'unit_price': f"{decimal_money(payment_record.total_amount):.2f}",
+            'line_total': f"{decimal_money(payment_record.total_amount):.2f}"
+        }]
+
+    formatted_items = []
+    for item in saved_items:
+        formatted_items.append({
+            'name': item.get('name') or 'Dental service payment',
+            'quantity': decimal_money(item.get('quantity') or '1'),
+            'unit_price': format_money(item.get('unit_price') or 0),
+            'line_total': format_money(item.get('line_total') or 0)
+        })
+
+    return formatted_items
+
+def procedure_name_from_report(procedure):
+    procedures_done = []
+    if procedure.repcleaning:
+        procedures_done.append("Cleaning")
+    if procedure.repextraction:
+        procedures_done.append("Extraction")
+    if procedure.reprootcanal:
+        procedures_done.append("Root Canal")
+    if procedure.repbraces:
+        procedures_done.append("Braces")
+    if procedure.repdentures:
+        procedures_done.append("Dentures")
+    if procedure.repothers:
+        procedures_done.append(procedure.repothers)
+    return ", ".join(procedures_done) if procedures_done else "General Visit"
+
+def build_report_payment_summaries():
+    summaries = {}
+    payments_with_reports = Payment.query.filter(Payment.report_id.isnot(None)).order_by(Payment.paid_at.asc(), Payment.payment_id.asc()).all()
+
+    for payment_record in payments_with_reports:
+        summary = summaries.setdefault(payment_record.report_id, {
+            'total_amount': Decimal('0.00'),
+            'paid': Decimal('0.00'),
+            'balance': Decimal('0.00'),
+            'service_items': []
+        })
+        summary['total_amount'] = decimal_money(payment_record.total_amount)
+        summary['paid'] += decimal_money(payment_record.amount_paid)
+        summary['balance'] = max(summary['total_amount'] - summary['paid'], Decimal('0.00'))
+        if not summary['service_items'] and payment_record.service_items:
+            try:
+                summary['service_items'] = json.loads(payment_record.service_items)
+            except (TypeError, json.JSONDecodeError):
+                summary['service_items'] = []
+
+    return summaries
+
 @app.route('/billing')
 def billing():
-    """Placeholder for billing page"""
-    return "Billing page - Coming soon!"
+    """Keep old billing links working by opening the payments module."""
+    return redirect(url_for('payments'))
+
+@app.route('/payments')
+def payments():
+    """Record and review patient payments."""
+    try:
+        ensure_payments_table()
+
+        selected_patient_id = request.args.get('patient_id', type=int)
+        service_prices = get_service_price_list()
+        patients_list = Patient.query.filter_by(is_deleted=False).order_by(Patient.patname.asc()).all()
+        all_patients = Patient.query.all()
+        patient_by_name = {patient.patname: patient for patient in all_patients}
+
+        reports = Report.query.order_by(Report.repdate.desc(), Report.repid.desc()).all()
+        report_payment_summaries = build_report_payment_summaries()
+
+        formatted_reports = []
+        for procedure in reports:
+            patient = patient_by_name.get(procedure.reppatient)
+            summary = report_payment_summaries.get(procedure.repid, {
+                'total_amount': Decimal('0.00'),
+                'paid': Decimal('0.00'),
+                'balance': Decimal('0.00'),
+                'service_items': []
+            })
+            procedure_service_items = summary['service_items'] or procedure_service_items_from_report(procedure, service_prices)
+            default_total = total_from_service_items(procedure_service_items)
+            total_amount = summary['total_amount'] if summary['total_amount'] > 0 else default_total
+            balance = summary['balance'] if summary['total_amount'] > 0 else default_total
+            formatted_reports.append({
+                'raw_id': procedure.repid,
+                'id': f"PROC-{procedure.repid:03d}",
+                'patient_id': patient.patId if patient else '',
+                'patient_name': procedure.reppatient,
+                'date': procedure.repdate.strftime('%B %d, %Y') if procedure.repdate else 'N/A',
+                'description': procedure_name_from_report(procedure),
+                'service_items': procedure_service_items,
+                'total_amount': f"{total_amount:.2f}" if total_amount > 0 else '',
+                'paid': f"{summary['paid']:.2f}",
+                'balance': f"{balance:.2f}" if balance > 0 else '',
+                'balance_display': format_money(balance) if total_amount > 0 else 'No priced services'
+            })
+
+        all_payment_records = Payment.query.all()
+        payment_records = Payment.query.order_by(Payment.paid_at.desc(), Payment.payment_id.desc()).limit(100).all()
+        formatted_payments = []
+        total_collected = Decimal('0.00')
+        full_count = 0
+        partial_count = 0
+
+        for payment_record in all_payment_records:
+            amount_paid = decimal_money(payment_record.amount_paid)
+            total_collected += amount_paid
+            if decimal_money(payment_record.balance_after) <= 0:
+                full_count += 1
+            else:
+                partial_count += 1
+
+        for payment_record in payment_records:
+            formatted_payments.append({
+                'raw_id': payment_record.payment_id,
+                'id': payment_record.formatted_id(),
+                'patient': payment_record.patient_name,
+                'description': payment_record.description or 'Dental service',
+                'date': payment_record.paid_at.strftime('%B %d, %Y %I:%M %p') if payment_record.paid_at else 'N/A',
+                'method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
+                'type': PAYMENT_TYPE_LABELS.get(payment_record.payment_type, payment_record.payment_type.title()),
+                'amount': format_money(payment_record.amount_paid),
+                'balance': format_money(payment_record.balance_after),
+                'status_class': 'paid' if decimal_money(payment_record.balance_after) <= 0 else 'partial'
+            })
+
+        outstanding_balance = sum((summary['balance'] for summary in report_payment_summaries.values()), Decimal('0.00'))
+
+        current_date = datetime.now().strftime("%A, %B %d, %Y")
+
+        return render_template(
+            'payments.html',
+            patients=patients_list,
+            procedures=formatted_reports,
+            payments=formatted_payments,
+            payment_methods=PAYMENT_METHOD_LABELS,
+            service_prices=service_prices,
+            selected_patient_id=selected_patient_id,
+            total_collected=format_money(total_collected),
+            outstanding_balance=format_money(outstanding_balance),
+            full_count=full_count,
+            partial_count=partial_count,
+            current_date=current_date
+        )
+
+    except Exception as e:
+        print(f"Error loading payments page: {e}")
+        return f"Error loading payments page: {e}", 500
+
+@app.route('/add_payment', methods=['POST'])
+def add_payment():
+    """Save a patient payment and open its printable receipt."""
+    try:
+        ensure_payments_table()
+
+        patient_id = request.form.get('patient_id', type=int)
+        patient = Patient.query.get_or_404(patient_id)
+
+        raw_report_id = request.form.get('report_id')
+        report_id = int(raw_report_id) if raw_report_id else None
+        procedure = Report.query.get(report_id) if report_id else None
+        if report_id and not procedure:
+            return "Selected procedure was not found.", 404
+        if procedure and procedure.reppatient != patient.patname:
+            return "Selected procedure does not belong to this patient.", 400
+
+        amount_paid = parse_money(request.form.get('amount_paid'), 'payment amount')
+        payment_method = (request.form.get('payment_method') or '').strip()
+        payment_type = (request.form.get('payment_type') or '').strip()
+        reference_number = (request.form.get('reference_number') or '').strip()
+        notes = (request.form.get('notes') or '').strip()
+
+        if payment_method not in PAYMENT_METHOD_LABELS:
+            return "Please choose a valid payment method.", 400
+        if payment_type not in PAYMENT_TYPE_LABELS:
+            return "Please choose partial or full payment.", 400
+        if payment_method in ('gcash', 'bank_transfer') and not reference_number:
+            return "Reference number is required for GCash and bank transfer payments.", 400
+
+        paid_at = datetime.now()
+        raw_payment_date = request.form.get('payment_date')
+        if raw_payment_date:
+            try:
+                payment_date = datetime.strptime(raw_payment_date, '%Y-%m-%d').date()
+                paid_at = datetime.combine(payment_date, datetime.now().time())
+            except ValueError:
+                return "Please choose a valid payment date.", 400
+
+        previous_paid = Decimal('0.00')
+        prior_payments = []
+        if report_id:
+            prior_payments = Payment.query.filter_by(report_id=report_id).order_by(Payment.paid_at.asc(), Payment.payment_id.asc()).all()
+            previous_paid = sum((decimal_money(existing.amount_paid) for existing in prior_payments), Decimal('0.00'))
+
+        if prior_payments:
+            first_payment = prior_payments[0]
+            total_amount = decimal_money(first_payment.total_amount)
+            description = first_payment.description or procedure_name_from_report(procedure)
+            try:
+                service_items = json.loads(first_payment.service_items or '[]')
+            except (TypeError, json.JSONDecodeError):
+                service_items = []
+            if not service_items:
+                service_items = [{
+                    'key': 'custom',
+                    'name': description,
+                    'quantity': '1.00',
+                    'unit_price': f"{total_amount:.2f}",
+                    'line_total': f"{total_amount:.2f}"
+                }]
+        else:
+            service_prices = get_service_price_list()
+            service_items, total_amount, description = parse_service_items(
+                request.form.get('service_items'),
+                request.form.get('description'),
+                request.form.get('total_amount'),
+                service_prices
+            )
+
+        if total_amount < previous_paid:
+            return "Total amount cannot be lower than the amount already paid for this procedure.", 400
+
+        balance_before = (total_amount - previous_paid).quantize(MONEY_QUANT)
+        if balance_before <= 0:
+            return "This procedure has already been fully paid.", 400
+
+        if amount_paid > balance_before:
+            return "Payment amount cannot be greater than the remaining balance.", 400
+
+        balance_after = (balance_before - amount_paid).quantize(MONEY_QUANT)
+        if payment_type == 'full' and balance_after > 0:
+            return "Full payment must cover the full remaining balance.", 400
+
+        computed_payment_type = 'full' if balance_after <= 0 else 'partial'
+        if not description:
+            description = procedure_name_from_report(procedure) if procedure else 'Dental service payment'
+
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        new_payment = Payment(
+            patient_id=patient.patId,
+            patient_name=patient.patname,
+            report_id=report_id,
+            description=description[:255],
+            service_items=json.dumps(service_items),
+            total_amount=total_amount,
+            balance_before=balance_before,
+            amount_paid=amount_paid,
+            balance_after=balance_after,
+            payment_type=computed_payment_type,
+            payment_method=payment_method,
+            reference_number=reference_number or None,
+            notes=notes or None,
+            received_by=current_user,
+            paid_at=paid_at
+        )
+
+        db.session.add(new_payment)
+        db.session.commit()
+
+        log_user_action(
+            session.get('user_id'),
+            'Add Payment',
+            f'Recorded {PAYMENT_TYPE_LABELS[computed_payment_type]} for {patient.patname}: {format_money(amount_paid)} via {PAYMENT_METHOD_LABELS[payment_method]}'
+        )
+
+        return redirect(url_for('payment_receipt', payment_id=new_payment.payment_id))
+
+    except ValueError as e:
+        db.session.rollback()
+        return str(e), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving payment: {e}")
+        return f"Error saving payment: {e}", 500
+
+@app.route('/payment_receipt/<int:payment_id>')
+def payment_receipt(payment_id):
+    """Generate a printable payment receipt."""
+    try:
+        ensure_payments_table()
+
+        payment_record = Payment.query.get_or_404(payment_id)
+        patient = Patient.query.get(payment_record.patient_id) if payment_record.patient_id else None
+        procedure = Report.query.get(payment_record.report_id) if payment_record.report_id else None
+        service_items = get_payment_service_items(payment_record)
+
+        receipt = {
+            'id': payment_record.formatted_id(),
+            'patient_name': payment_record.patient_name,
+            'patient_id': f"PAT-{payment_record.patient_id:03d}" if payment_record.patient_id else "N/A",
+            'description': payment_record.description or 'Dental service payment',
+            'procedure_id': f"PROC-{payment_record.report_id:03d}" if payment_record.report_id else "N/A",
+            'payment_date': payment_record.paid_at.strftime('%B %d, %Y') if payment_record.paid_at else 'N/A',
+            'payment_time': payment_record.paid_at.strftime('%I:%M %p') if payment_record.paid_at else 'N/A',
+            'payment_method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
+            'payment_type': PAYMENT_TYPE_LABELS.get(payment_record.payment_type, payment_record.payment_type.title()),
+            'reference_number': payment_record.reference_number or 'N/A',
+            'total_amount': format_money(payment_record.total_amount),
+            'balance_before': format_money(payment_record.balance_before),
+            'amount_paid': format_money(payment_record.amount_paid),
+            'total_paid_to_date': format_money(decimal_money(payment_record.total_amount) - decimal_money(payment_record.balance_after)),
+            'balance_after': format_money(payment_record.balance_after),
+            'status': payment_record.status,
+            'notes': payment_record.notes or 'None',
+            'received_by': payment_record.received_by or 'Unknown User',
+            'service_items': service_items
+        }
+
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        log_user_action(
+            session.get('user_id'),
+            'Print Payment Receipt',
+            f'Opened receipt {receipt["id"]} for {payment_record.patient_name}'
+        )
+
+        return render_template(
+            'print_payment_receipt.html',
+            receipt=receipt,
+            patient=patient,
+            procedure=procedure,
+            clinic=CLINIC_RECEIPT_INFO,
+            current_user=current_user,
+            print_datetime=print_datetime
+        )
+
+    except Exception as e:
+        print(f"Error generating payment receipt: {e}")
+        return f"Error generating payment receipt: {e}", 500
+
+@app.route('/update_service_prices', methods=['POST'])
+@admin_required
+def update_service_prices():
+    """Allow admins to update the preset service price list."""
+    try:
+        ensure_payments_table()
+        updated_services = []
+
+        for default_service in SERVICE_PRICE_LIST:
+            service_key = default_service['key']
+            if service_key == 'special_case':
+                continue
+
+            price = parse_money(request.form.get(f'price_{service_key}'), f'{default_service["label"]} price')
+            service_record = ServicePrice.query.filter_by(service_key=service_key).first()
+            if not service_record:
+                service_record = ServicePrice(
+                    service_key=service_key,
+                    service_name=default_service['label'],
+                    is_active=True
+                )
+                db.session.add(service_record)
+
+            service_record.price = price
+            service_record.updated_at = datetime.utcnow()
+            updated_services.append(f'{service_record.service_name}: {format_money(price)}')
+
+        db.session.commit()
+
+        log_user_action(
+            session.get('user_id'),
+            'Update Service Prices',
+            f'Updated payment service prices: {", ".join(updated_services)}'
+        )
+
+        return redirect(url_for('payments'))
+
+    except ValueError as e:
+        db.session.rollback()
+        return str(e), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating service prices: {e}")
+        return f"Error updating service prices: {e}", 500
 
 @app.route('/settings')
 def settings():

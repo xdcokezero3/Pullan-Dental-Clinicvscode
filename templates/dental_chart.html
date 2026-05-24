@@ -494,6 +494,7 @@
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
+                <li><a href="{{ url_for('payments') }}"><i class="fas fa-receipt"></i> Payments</a></li>
                 <li class="active"><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}

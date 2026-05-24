@@ -575,6 +575,7 @@
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
+                <li><a href="{{ url_for('payments') }}"><i class="fas fa-receipt"></i> Payments</a></li>
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
@@ -698,7 +699,7 @@
                             <th>ID</th>
                             <th>Patient Name</th>
                             <th>Date</th>
-                            <th>Time</th>
+                            <th>Time Range</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -726,6 +727,7 @@
                                         data-id="{{ appointment.raw_id }}" 
                                         data-patient="{{ appointment.patient_name }}"
                                         data-date="{{ appointment.date }}"
+                                        data-raw-date="{{ appointment.raw_date }}"
                                         data-time="{{ appointment.time }}"
                                         data-status="{{ appointment.status }}"
                                         title="View Details">
@@ -822,8 +824,13 @@
                             <div class="error-message">Please select a future date. Past dates are not allowed.</div>
                         </div>
                         <div class="form-group">
-                            <label for="appointmentTime">Time*</label>
-                            <input type="time" id="appointmentTime" name="time" required>
+                            <label for="appointmentStartTime">Start Time*</label>
+                            <input type="time" id="appointmentStartTime" name="start_time" required>
+                        </div>
+                        <div class="form-group" id="appointmentEndTimeGroup">
+                            <label for="appointmentEndTime">End Time*</label>
+                            <input type="time" id="appointmentEndTime" name="end_time" required>
+                            <div class="error-message">End time must be later and must not overlap another appointment.</div>
                         </div>
                     </div>
                     
@@ -857,7 +864,7 @@
                         <div class="current-details">
                             <p><strong>Patient:</strong> <span id="currentPatient"></span></p>
                             <p><strong>Date:</strong> <span id="currentDate"></span></p>
-                            <p><strong>Time:</strong> <span id="currentTime"></span></p>
+                            <p><strong>Time Range:</strong> <span id="currentTime"></span></p>
                         </div>
                     </div>
                     
@@ -869,8 +876,13 @@
                             <div class="error-message">Please select a future date. Past dates are not allowed.</div>
                         </div>
                         <div class="form-group">
-                            <label for="newAppointmentTime">New Time*</label>
-                            <input type="time" id="newAppointmentTime" name="time" required>
+                            <label for="newAppointmentStartTime">New Start Time*</label>
+                            <input type="time" id="newAppointmentStartTime" name="start_time" required>
+                        </div>
+                        <div class="form-group" id="newAppointmentEndTimeGroup">
+                            <label for="newAppointmentEndTime">New End Time*</label>
+                            <input type="time" id="newAppointmentEndTime" name="end_time" required>
+                            <div class="error-message">End time must be later and must not overlap another appointment.</div>
                         </div>
                     </div>
                     
@@ -923,7 +935,7 @@
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">
-                            <i class="fas fa-clock"></i> Time:
+                            <i class="fas fa-clock"></i> Time Range:
                         </span>
                         <span class="detail-value" id="viewAppointmentTime">-</span>
                     </div>
@@ -957,6 +969,8 @@
         {% for patient in all_patients %}
         patientContacts['{{ patient.patname }}'] = '{{ patient.patcontact or "N/A" }}';
         {% endfor %}
+
+        const scheduledAppointments = {{ appointments | tojson | safe }};
         
         // Date validation and parsing functions
         function getTodayString() {
@@ -1059,6 +1073,118 @@
                 return true;
             }
         }
+
+        function timeToMinutes(timeValue) {
+            if (!timeValue || !timeValue.includes(':')) {
+                return null;
+            }
+
+            const parts = timeValue.split(':');
+            return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+        }
+
+        function minutesToTime(totalMinutes) {
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        }
+
+        function parseAppointmentTimeRange(timeRange) {
+            if (!timeRange) {
+                return null;
+            }
+
+            const cleanTime = timeRange.trim();
+            const lowerTime = cleanTime.toLowerCase();
+            let startTime = cleanTime;
+            let endTime = '';
+
+            if (cleanTime.includes(' - ')) {
+                [startTime, endTime] = cleanTime.split(' - ', 2);
+            } else if (lowerTime.includes(' to ')) {
+                const splitAt = lowerTime.indexOf(' to ');
+                startTime = cleanTime.slice(0, splitAt);
+                endTime = cleanTime.slice(splitAt + 4);
+            } else if (cleanTime.includes('-')) {
+                [startTime, endTime] = cleanTime.split('-', 2);
+            }
+
+            const startMinutes = timeToMinutes(startTime.trim());
+            const endMinutes = endTime ? timeToMinutes(endTime.trim()) : startMinutes + 30;
+
+            if (startMinutes === null || endMinutes === null) {
+                return null;
+            }
+
+            return {
+                start: startMinutes,
+                end: endMinutes,
+                startTime: minutesToTime(startMinutes),
+                endTime: minutesToTime(endMinutes)
+            };
+        }
+
+        function findOverlappingAppointment(dateValue, startTime, endTime, excludeId = null) {
+            const startMinutes = timeToMinutes(startTime);
+            const endMinutes = timeToMinutes(endTime);
+
+            if (!dateValue || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+                return null;
+            }
+
+            return scheduledAppointments.find(appointment => {
+                if (String(appointment.raw_id) === String(excludeId || '')) {
+                    return false;
+                }
+
+                if (appointment.status === 'cancelled' || appointment.raw_date !== dateValue) {
+                    return false;
+                }
+
+                const existingRange = parseAppointmentTimeRange(appointment.time);
+                return existingRange && startMinutes < existingRange.end && existingRange.start < endMinutes;
+            });
+        }
+
+        function validateTimeWindow(dateInput, startInput, endInput, formGroup, submitButton, excludeId = null) {
+            const startTime = startInput.value;
+            const endTime = endInput.value;
+            const errorMessage = formGroup.querySelector('.error-message');
+
+            if (!startTime || !endTime) {
+                formGroup.classList.remove('invalid');
+                return true;
+            }
+
+            if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+                if (errorMessage) {
+                    errorMessage.textContent = 'End time must be later than start time.';
+                }
+                formGroup.classList.add('invalid');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+                return false;
+            }
+
+            const overlappingAppointment = findOverlappingAppointment(dateInput.value, startTime, endTime, excludeId);
+            if (overlappingAppointment) {
+                if (errorMessage) {
+                    errorMessage.textContent = `This overlaps ${overlappingAppointment.patient_name}'s appointment at ${overlappingAppointment.time}.`;
+                }
+                formGroup.classList.add('invalid');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+                return false;
+            }
+
+            formGroup.classList.remove('invalid');
+            if (submitButton) {
+                submitButton.disabled = false;
+            }
+            return true;
+        }
         
         // Initialize date validation
         function initializeDateValidation() {
@@ -1073,8 +1199,15 @@
             appointmentDate.value = today;
             
             appointmentDate.addEventListener('change', function() {
-                validateDate(this, appointmentDateGroup, scheduleBtn);
+                if (validateDate(this, appointmentDateGroup, scheduleBtn)) {
+                    validateAddAppointmentWindow();
+                }
             });
+
+            const appointmentStartTime = document.getElementById('appointmentStartTime');
+            const appointmentEndTime = document.getElementById('appointmentEndTime');
+            appointmentStartTime.addEventListener('change', validateAddAppointmentWindow);
+            appointmentEndTime.addEventListener('change', validateAddAppointmentWindow);
             
             // Reschedule appointment modal
             const newAppointmentDate = document.getElementById('newAppointmentDate');
@@ -1084,8 +1217,36 @@
             newAppointmentDate.setAttribute('min', today);
             
             newAppointmentDate.addEventListener('change', function() {
-                validateDate(this, newAppointmentDateGroup, saveRescheduleBtn);
+                if (validateDate(this, newAppointmentDateGroup, saveRescheduleBtn)) {
+                    validateRescheduleAppointmentWindow();
+                }
             });
+
+            const newAppointmentStartTime = document.getElementById('newAppointmentStartTime');
+            const newAppointmentEndTime = document.getElementById('newAppointmentEndTime');
+            newAppointmentStartTime.addEventListener('change', validateRescheduleAppointmentWindow);
+            newAppointmentEndTime.addEventListener('change', validateRescheduleAppointmentWindow);
+        }
+
+        function validateAddAppointmentWindow() {
+            return validateTimeWindow(
+                document.getElementById('appointmentDate'),
+                document.getElementById('appointmentStartTime'),
+                document.getElementById('appointmentEndTime'),
+                document.getElementById('appointmentEndTimeGroup'),
+                document.getElementById('scheduleAppointmentBtn')
+            );
+        }
+
+        function validateRescheduleAppointmentWindow() {
+            return validateTimeWindow(
+                document.getElementById('newAppointmentDate'),
+                document.getElementById('newAppointmentStartTime'),
+                document.getElementById('newAppointmentEndTime'),
+                document.getElementById('newAppointmentEndTimeGroup'),
+                document.getElementById('saveRescheduleBtn'),
+                document.getElementById('appointmentId').value
+            );
         }
         
         // Initialize when DOM is ready
@@ -1123,7 +1284,7 @@
                 statusElement.className = `status-indicator status-${status}`;
                 
                 // Show modal
-                viewModal.style.display = 'block';
+                viewModal.style.display = 'flex';
                 document.body.classList.add('modal-open');
             });
         });
@@ -1231,7 +1392,7 @@
                                     statusElement.textContent = 'Cancelled';
                                     statusElement.className = 'status-indicator status-cancelled';
                                     
-                                    viewModal.style.display = 'block';
+                                    viewModal.style.display = 'flex';
                                     document.body.classList.add('modal-open');
                                 });
                             }
@@ -1454,7 +1615,7 @@
         const cancelBtn = document.getElementById('cancelAddAppointment');
         
         openModalBtn.addEventListener('click', function() {
-            modal.style.display = 'block';
+            modal.style.display = 'flex';
             document.body.classList.add('modal-open');
             
             const today = getTodayString();
@@ -1472,7 +1633,9 @@
             document.getElementById('addAppointmentForm').reset();
             
             const appointmentDateGroup = document.getElementById('appointmentDateGroup');
+            const appointmentEndTimeGroup = document.getElementById('appointmentEndTimeGroup');
             appointmentDateGroup.classList.remove('invalid');
+            appointmentEndTimeGroup.classList.remove('invalid');
             const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
             scheduleBtn.disabled = false;
         }
@@ -1499,6 +1662,17 @@
             e.preventDefault();
             
             const formData = new FormData(this);
+
+            const isDateValid = validateDate(
+                document.getElementById('appointmentDate'),
+                document.getElementById('appointmentDateGroup'),
+                document.getElementById('scheduleAppointmentBtn')
+            );
+
+            if (!isDateValid || !validateAddAppointmentWindow()) {
+                showNotification('Please choose a valid appointment time that does not overlap another appointment.', 'error');
+                return;
+            }
             
             fetch('/add_appointment', {
                 method: 'POST',
@@ -1543,16 +1717,17 @@
                 
                 const today = getTodayString();
                 const newAppointmentDate = document.getElementById('newAppointmentDate');
-                newAppointmentDate.value = today;
+                const currentAppointmentDate = parseAndNormalizeDate(date) || today;
+                newAppointmentDate.value = currentAppointmentDate < today ? today : currentAppointmentDate;
                 
-                let timeValue = '';
-                if (time.match(/^\d{1,2}:\d{2}/)) {
-                    timeValue = time.trim();
-                }
-                document.getElementById('newAppointmentTime').value = timeValue;
+                const timeRange = parseAppointmentTimeRange(time);
+                document.getElementById('newAppointmentStartTime').value = timeRange ? timeRange.startTime : '';
+                document.getElementById('newAppointmentEndTime').value = timeRange ? timeRange.endTime : '';
                 document.getElementById('rescheduleReason').value = '';
                 
-                rescheduleModal.style.display = 'block';
+                validateRescheduleAppointmentWindow();
+
+                rescheduleModal.style.display = 'flex';
                 document.body.classList.add('modal-open');
             });
         });
@@ -1561,6 +1736,7 @@
             rescheduleModal.style.display = 'none';
             document.body.classList.remove('modal-open');
             document.getElementById('rescheduleAppointmentForm').reset();
+            document.getElementById('newAppointmentEndTimeGroup').classList.remove('invalid');
         }
 
         closeRescheduleModalBtn.addEventListener('click', closeRescheduleModal);
@@ -1577,6 +1753,17 @@
             e.preventDefault();
             
             const formData = new FormData(this);
+
+            const isDateValid = validateDate(
+                document.getElementById('newAppointmentDate'),
+                document.getElementById('newAppointmentDateGroup'),
+                document.getElementById('saveRescheduleBtn')
+            );
+
+            if (!isDateValid || !validateRescheduleAppointmentWindow()) {
+                showNotification('Please choose a valid appointment time that does not overlap another appointment.', 'error');
+                return;
+            }
             
             fetch('/reschedule_appointment', {
                 method: 'POST',
