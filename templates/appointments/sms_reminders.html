@@ -134,6 +134,68 @@
             padding: 36px 12px;
             text-align: center;
         }
+
+        .config-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr);
+            margin-bottom: 20px;
+        }
+
+        .provider-status {
+            align-items: flex-start;
+            display: flex;
+            gap: 12px;
+        }
+
+        .provider-status .stat-icon {
+            background-color: rgba(52, 168, 83, 0.12);
+            color: #188038;
+            flex: 0 0 auto;
+        }
+
+        .provider-status.not-ready .stat-icon {
+            background-color: rgba(234, 67, 53, 0.12);
+            color: #b3261e;
+        }
+
+        .test-form {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) auto;
+        }
+
+        .test-form input {
+            border: 1px solid #d9dee7;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            padding: 11px 12px;
+            width: 100%;
+        }
+
+        .notice {
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            margin-bottom: 20px;
+            padding: 12px 14px;
+        }
+
+        .notice.success {
+            background-color: rgba(52, 168, 83, 0.12);
+            color: #188038;
+        }
+
+        .notice.error {
+            background-color: rgba(234, 67, 53, 0.12);
+            color: #b3261e;
+        }
+
+        @media (max-width: 980px) {
+            .config-grid,
+            .test-form {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -213,6 +275,38 @@
                         <h3>{{ failed_count }}</h3>
                         <p>Failed</p>
                     </div>
+                </div>
+            </div>
+
+            {% if test_result == 'sent' %}
+            <div class="notice success"><i class="fas fa-check"></i> Test SMS sent. Please check the recipient phone.</div>
+            {% elif test_result == 'failed' %}
+            <div class="notice error"><i class="fas fa-triangle-exclamation"></i> Test SMS failed{% if test_error %}: {{ test_error }}{% endif %}</div>
+            {% endif %}
+
+            <div class="config-grid">
+                <div class="panel provider-status {% if not provider_status.is_configured %}not-ready{% endif %}">
+                    <span class="stat-icon">
+                        {% if provider_status.is_configured %}
+                        <i class="fas fa-circle-check"></i>
+                        {% else %}
+                        <i class="fas fa-triangle-exclamation"></i>
+                        {% endif %}
+                    </span>
+                    <div>
+                        <h3>Provider Status</h3>
+                        <p>{{ provider_status.message }}</p>
+                        <div class="muted">Secrets are hidden for safety.</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Send Test SMS</h3>
+                    <form action="{{ url_for('send_test_sms') }}" method="POST" class="test-form">
+                        <input type="text" name="mobile_number" placeholder="09XXXXXXXXX or +639XXXXXXXXX" required>
+                        <input type="text" name="message" value="Pullan Dental Clinic SMS test. If you received this, SMS sending is working.">
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send Test</button>
+                    </form>
                 </div>
             </div>
 

@@ -94,11 +94,22 @@ To send real SMS, edit:
 
 Supported providers:
 
+- `movider`
 - `twilio`
 - `semaphore`
 - `console`
 
 Configure the matching API keys in `.env`.
+
+For Movider:
+
+```text
+SMS_PROVIDER=movider
+MOVIDER_API_KEY=your_api_key
+MOVIDER_API_SECRET=your_api_secret
+```
+
+Movider shows both the API key and API secret in its member settings under API Settings.
 
 After configuring real SMS credentials, restart the app. The reminder worker runs in the background while the system is open. Admin users can review SMS status from:
 

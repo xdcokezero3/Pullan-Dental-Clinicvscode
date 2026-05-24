@@ -15,6 +15,7 @@ import shutil
 import socket
 import csv
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 import base64
@@ -2329,9 +2330,178 @@ def create_or_update_sms_reminder(appointment, patient):
         log_user_action(session.get('user_id'), 'SMS Reminder Error', str(e))
         return None
 
+def read_sms_provider_error(error):
+    """Return a useful provider error without exposing credentials."""
+    if isinstance(error, urllib.error.HTTPError):
+        try:
+            body = error.read().decode('utf-8', errors='replace').strip()
+        except Exception:
+            body = ''
+        detail = body or getattr(error, 'reason', '') or str(error)
+        return redact_sms_secrets(f'HTTP {error.code}: {detail[:900]}')
+
+    reason = getattr(error, 'reason', None)
+    return redact_sms_secrets(str(reason or error)[:900])
+
+def redact_sms_secrets(text):
+    safe_text = str(text)
+    secret_names = (
+        'MOVIDER_API_KEY',
+        'MOVIDER_API_SECRET',
+        'api_key',
+        'api_secret',
+        'SEMAPHORE_API_KEY',
+        'TWILIO_ACCOUNT_SID',
+        'TWILIO_AUTH_TOKEN'
+    )
+    for secret_name in secret_names:
+        secret_value = os.getenv(secret_name)
+        if secret_value:
+            safe_text = safe_text.replace(secret_value, '[hidden]')
+    return safe_text
+
+def get_sms_provider_config_status():
+    provider_requirements = {
+        'twilio': [
+            ('TWILIO_ACCOUNT_SID',),
+            ('TWILIO_AUTH_TOKEN',),
+            ('TWILIO_FROM_NUMBER',)
+        ],
+        'semaphore': [
+            ('SEMAPHORE_API_KEY',)
+        ],
+        'movider': [
+            ('MOVIDER_API_KEY', 'api_key'),
+            ('MOVIDER_API_SECRET', 'api_secret')
+        ]
+    }
+
+    if SMS_PROVIDER == 'console':
+        return {
+            'is_configured': True,
+            'message': 'Console mode is enabled. SMS messages are logged only and will not be sent.'
+        }
+
+    required_groups = provider_requirements.get(SMS_PROVIDER)
+    if not required_groups:
+        return {
+            'is_configured': False,
+            'message': f'Unsupported SMS provider: {SMS_PROVIDER}'
+        }
+
+    missing_labels = []
+    for names in required_groups:
+        if not any(os.getenv(name) for name in names):
+            missing_labels.append(names[0])
+
+    if missing_labels:
+        return {
+            'is_configured': False,
+            'message': f'Missing: {", ".join(missing_labels)}'
+        }
+
+    return {
+        'is_configured': True,
+        'message': f'{SMS_PROVIDER.title()} credentials are configured.'
+    }
+
+def parse_movider_sms_response(response_data):
+    if isinstance(response_data, dict):
+        bad_numbers = response_data.get('bad_phone_number_list') or []
+        if bad_numbers:
+            bad_detail = bad_numbers[0] if isinstance(bad_numbers[0], dict) else {}
+            raise RuntimeError(bad_detail.get('msg') or 'Movider rejected the phone number.')
+
+        phone_numbers = response_data.get('phone_number_list') or []
+        if phone_numbers:
+            phone_detail = phone_numbers[0] if isinstance(phone_numbers[0], dict) else {}
+            return {'provider_message_id': str(phone_detail.get('message_id') or '')}
+
+        if response_data.get('message_id') or response_data.get('id'):
+            return {'provider_message_id': str(response_data.get('message_id') or response_data.get('id'))}
+
+        raise RuntimeError(f'Movider did not return a sent message id. Response keys: {", ".join(response_data.keys())}')
+
+    if isinstance(response_data, list) and response_data:
+        first_result = response_data[0] if isinstance(response_data[0], dict) else {}
+        return {'provider_message_id': str(first_result.get('message_id') or first_result.get('id') or '')}
+
+    return {'provider_message_id': ''}
+
+def is_movider_cloudflare_signature_block(error_detail):
+    lowered_detail = error_detail.lower()
+    return (
+        'error 1010' in lowered_detail
+        or 'browser_signature_banned' in lowered_detail
+        or 'browser signature' in lowered_detail
+    )
+
+def send_movider_sms_with_curl(api_key, api_secret, provider_number, message):
+    curl_path = shutil.which('curl.exe') or shutil.which('curl')
+    if not curl_path:
+        raise RuntimeError('Movider blocked the Python request and curl is not installed on this computer.')
+
+    command = [
+        curl_path,
+        '--silent',
+        '--show-error',
+        '--location',
+        '--max-time',
+        '20',
+        '--request',
+        'POST',
+        'https://api.movider.co/v1/sms',
+        '--header',
+        'accept: application/json',
+        '--header',
+        'content-type: application/x-www-form-urlencoded',
+        '--header',
+        f'User-Agent: {os.getenv("SMS_HTTP_USER_AGENT", "curl/8.4.0")}',
+        '--data-urlencode',
+        f'to={provider_number}',
+        '--data-urlencode',
+        f'text={message}',
+        '--data-urlencode',
+        f'api_key={api_key}',
+        '--data-urlencode',
+        f'api_secret={api_secret}',
+        '--write-out',
+        '\n%{http_code}'
+    ]
+
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=25,
+        shell=False
+    )
+    output = completed.stdout or ''
+    body, _, status_text = output.rpartition('\n')
+    status_text = status_text.strip()
+    body = body.strip()
+
+    if not status_text.isdigit():
+        body = output.strip()
+        status_code = 0
+    else:
+        status_code = int(status_text)
+
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or body or f'curl exited with code {completed.returncode}'
+        raise RuntimeError(redact_sms_secrets(detail[:900]))
+
+    if status_code >= 400:
+        raise RuntimeError(redact_sms_secrets(f'HTTP {status_code}: {body[:900]}'))
+
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f'Movider curl fallback returned an unreadable response: {redact_sms_secrets(body[:300])}') from error
+
 def send_sms_via_provider(to_number, message):
     """Send SMS through the configured provider. Console mode logs instead of sending."""
-    provider_number = to_number[1:] if SMS_PROVIDER == 'semaphore' and to_number.startswith('+') else to_number
+    provider_number = to_number[1:] if SMS_PROVIDER in ('semaphore', 'movider') and to_number.startswith('+') else to_number
 
     if SMS_PROVIDER == 'console':
         print(f"[SMS console] To {provider_number}: {message}")
@@ -2375,6 +2545,42 @@ def send_sms_via_provider(to_number, message):
         if isinstance(response_data, list) and response_data:
             return {'provider_message_id': str(response_data[0].get('message_id') or '')}
         return {'provider_message_id': ''}
+
+    if SMS_PROVIDER == 'movider':
+        api_key = os.getenv('MOVIDER_API_KEY') or os.getenv('api_key')
+        api_secret = os.getenv('MOVIDER_API_SECRET') or os.getenv('api_secret')
+        if not api_key or not api_secret:
+            raise RuntimeError('Movider SMS is not fully configured. Set MOVIDER_API_KEY and MOVIDER_API_SECRET in .env.')
+
+        payload = urllib.parse.urlencode({
+            'to': provider_number,
+            'text': message,
+            'api_key': api_key,
+            'api_secret': api_secret
+        }).encode('utf-8')
+        request_obj = urllib.request.Request('https://api.movider.co/v1/sms', data=payload, method='POST')
+        request_obj.add_header('Accept', 'application/json')
+        request_obj.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        request_obj.add_header('User-Agent', os.getenv('SMS_HTTP_USER_AGENT', 'curl/8.4.0'))
+        try:
+            with urllib.request.urlopen(request_obj, timeout=20) as response:
+                response_data = json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as error:
+            error_detail = read_sms_provider_error(error)
+            if error.code == 403 and is_movider_cloudflare_signature_block(error_detail):
+                try:
+                    response_data = send_movider_sms_with_curl(api_key, api_secret, provider_number, message)
+                except Exception as fallback_error:
+                    fallback_detail = redact_sms_secrets(str(fallback_error)[:900])
+                    raise RuntimeError(f'Movider blocked the Python request and curl fallback also failed: {fallback_detail}') from fallback_error
+            else:
+                raise RuntimeError(f'Movider rejected the request: {error_detail}') from error
+        except urllib.error.URLError as error:
+            raise RuntimeError(f'Movider connection error: {read_sms_provider_error(error)}') from error
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f'Movider returned an unreadable response: {error}') from error
+
+        return parse_movider_sms_response(response_data)
 
     raise RuntimeError(f'Unsupported SMS provider: {SMS_PROVIDER}')
 
@@ -2475,6 +2681,9 @@ def sms_reminders():
             sent_count=sent_count,
             failed_count=failed_count,
             provider=SMS_PROVIDER,
+            provider_status=get_sms_provider_config_status(),
+            test_result=request.args.get('test_result', ''),
+            test_error=request.args.get('test_error', ''),
             current_date=current_date
         )
     except Exception as e:
@@ -2496,6 +2705,44 @@ def send_due_sms_reminders():
     except Exception as e:
         print(f"Error processing due SMS reminders: {e}")
         return f"Error processing due SMS reminders: {e}", 500
+
+@app.route('/send_test_sms', methods=['POST'])
+@admin_required
+def send_test_sms():
+    """Send an admin-triggered test SMS without creating an appointment reminder."""
+    raw_number = (request.form.get('mobile_number') or '').strip()
+    message = (request.form.get('message') or '').strip()
+    normalized_number = normalize_ph_mobile_number(raw_number)
+
+    if not normalized_number:
+        return redirect(url_for(
+            'sms_reminders',
+            test_result='failed',
+            test_error='Please enter a valid Philippine mobile number, such as 09XXXXXXXXX or +639XXXXXXXXX.'
+        ))
+
+    if not message:
+        message = 'Pullan Dental Clinic SMS test. If you received this, SMS sending is working.'
+
+    if len(message) > 459:
+        message = message[:459]
+
+    try:
+        result = send_sms_via_provider(normalized_number, message)
+        log_user_action(
+            session.get('user_id'),
+            'Test SMS Sent',
+            f'Test SMS sent to {normalized_number} via {SMS_PROVIDER}. Provider ID: {result.get("provider_message_id") or "N/A"}'
+        )
+        return redirect(url_for('sms_reminders', test_result='sent'))
+    except Exception as e:
+        error_message = str(e)[:500]
+        log_user_action(
+            session.get('user_id'),
+            'Test SMS Failed',
+            f'Test SMS to {normalized_number} via {SMS_PROVIDER} failed: {error_message}'
+        )
+        return redirect(url_for('sms_reminders', test_result='failed', test_error=error_message))
 
 def _time_to_minutes(time_value):
     """Convert an HH:MM string to minutes after midnight."""
