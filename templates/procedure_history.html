@@ -93,9 +93,32 @@
         th {
             background-color: #f8fafc;
             color: var(--text-light);
+            cursor: pointer;
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
+            user-select: none;
+        }
+
+        th.sortable::after {
+            color: #9aa3af;
+            content: " \\f0dc";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            margin-left: 6px;
+        }
+
+        th.sort-asc::after {
+            content: " \\f0de";
+        }
+
+        th.sort-desc::after {
+            content: " \\f0dd";
+        }
+
+        th.select-column {
+            cursor: default;
+            width: 44px;
         }
 
         .procedure-id {
@@ -142,7 +165,7 @@
                 {% endif %}
                 <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments{% if unattended_appointment_count > 0 %}<span class="nav-alert-badge" title="Unattended appointments">{{ unattended_appointment_count }}</span>{% endif %}</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li class="active"><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
@@ -201,6 +224,12 @@
                             <i class="fas fa-plus"></i>
                             Add Procedure
                         </a>
+                        {% if procedures and procedures|length > 0 %}
+                        <button type="button" class="btn btn-secondary" id="printSelectedProcedures" disabled>
+                            <i class="fas fa-print"></i>
+                            Print Selected
+                        </button>
+                        {% endif %}
                         <a href="{{ url_for('procedures') }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i>
                             Back to Procedures
@@ -215,18 +244,20 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Procedure ID</th>
-                                    <th>Date</th>
-                                    <th>Procedure</th>
-                                    <th>Dentist</th>
-                                    <th>Prescription</th>
-                                    <th>Notes</th>
-                                    <th>Action</th>
+                                    <th class="select-column"><input type="checkbox" id="selectAllProcedures" aria-label="Select all procedures"></th>
+                                    <th class="sortable" data-sort="text">Procedure ID</th>
+                                    <th class="sortable" data-sort="date">Date</th>
+                                    <th class="sortable" data-sort="text">Procedure</th>
+                                    <th class="sortable" data-sort="text">Dentist</th>
+                                    <th class="sortable" data-sort="text">Prescription</th>
+                                    <th class="sortable" data-sort="text">Notes</th>
+                                    <th class="sortable" data-sort="text">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="historyRows">
                                 {% for procedure in procedures %}
                                 <tr data-search="{{ procedure.id }} {{ procedure.date }} {{ procedure.procedures }} {{ procedure.dentist }} {{ procedure.prescription }} {{ procedure.notes }}">
+                                    <td><input type="checkbox" class="procedure-select" value="{{ procedure.raw_id }}" aria-label="Select {{ procedure.id }}"></td>
                                     <td><span class="procedure-id">{{ procedure.id }}</span></td>
                                     <td>{{ procedure.date }}</td>
                                     <td>{{ procedure.procedures }}</td>
@@ -262,6 +293,9 @@
 
     <script>
         const historySearch = document.getElementById('historySearch');
+        const historyTable = document.querySelector('.history-table-wrap table');
+        const selectAllProcedures = document.getElementById('selectAllProcedures');
+        const printSelectedProcedures = document.getElementById('printSelectedProcedures');
 
         if (historySearch) {
             historySearch.addEventListener('input', () => {
@@ -279,8 +313,134 @@
                 if (noResults) {
                     noResults.style.display = visibleCount === 0 ? 'block' : 'none';
                 }
+                updateSelectedPrintState();
             });
         }
+
+        function selectedProcedureRows() {
+            return Array.from(document.querySelectorAll('#historyRows tr'))
+                .filter((row) => row.querySelector('.procedure-select')?.checked);
+        }
+
+        function updateSelectedPrintState() {
+            const selectedRows = selectedProcedureRows();
+            if (printSelectedProcedures) {
+                printSelectedProcedures.disabled = selectedRows.length === 0;
+                printSelectedProcedures.innerHTML = `<i class="fas fa-print"></i> Print Selected${selectedRows.length ? ` (${selectedRows.length})` : ''}`;
+            }
+            if (selectAllProcedures) {
+                const visibleCheckboxes = Array.from(document.querySelectorAll('#historyRows tr'))
+                    .filter((row) => row.style.display !== 'none')
+                    .map((row) => row.querySelector('.procedure-select'));
+                const checkedCount = visibleCheckboxes.filter((checkbox) => checkbox.checked).length;
+                selectAllProcedures.checked = visibleCheckboxes.length > 0 && checkedCount === visibleCheckboxes.length;
+                selectAllProcedures.indeterminate = checkedCount > 0 && checkedCount < visibleCheckboxes.length;
+            }
+        }
+
+        function sortHistoryTable(header) {
+            const tbody = document.getElementById('historyRows');
+            const table = header.closest('table');
+            const columnIndex = Array.from(header.parentElement.children).indexOf(header);
+            const sortType = header.dataset.sort || 'text';
+            const nextDirection = header.classList.contains('sort-asc') ? 'desc' : 'asc';
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            table.querySelectorAll('th.sortable').forEach((th) => th.classList.remove('sort-asc', 'sort-desc'));
+            header.classList.add(nextDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+            rows.sort((a, b) => {
+                const aText = (a.cells[columnIndex]?.textContent || '').trim();
+                const bText = (b.cells[columnIndex]?.textContent || '').trim();
+                let comparison;
+                if (sortType === 'date') {
+                    comparison = (Date.parse(aText) || 0) - (Date.parse(bText) || 0);
+                } else {
+                    comparison = aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' });
+                }
+                return nextDirection === 'asc' ? comparison : -comparison;
+            });
+
+            rows.forEach((row) => tbody.appendChild(row));
+            updateSelectedPrintState();
+        }
+
+        if (historyTable) {
+            historyTable.querySelectorAll('th.sortable').forEach((header) => {
+                header.addEventListener('click', () => sortHistoryTable(header));
+            });
+        }
+
+        document.querySelectorAll('.procedure-select').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateSelectedPrintState);
+        });
+
+        if (selectAllProcedures) {
+            selectAllProcedures.addEventListener('change', () => {
+                document.querySelectorAll('#historyRows tr').forEach((row) => {
+                    if (row.style.display !== 'none') {
+                        row.querySelector('.procedure-select').checked = selectAllProcedures.checked;
+                    }
+                });
+                updateSelectedPrintState();
+            });
+        }
+
+        if (printSelectedProcedures) {
+            printSelectedProcedures.addEventListener('click', () => {
+                const rows = selectedProcedureRows();
+                if (!rows.length) return;
+
+                const printableRows = rows.map((row) => {
+                    const cells = Array.from(row.cells).slice(1, 7)
+                        .map((cell) => `<td>${cell.innerHTML}</td>`)
+                        .join('');
+                    return `<tr>${cells}</tr>`;
+                }).join('');
+
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Selected Procedure History</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 24px; color: #222; }
+                            h1 { font-size: 22px; margin-bottom: 4px; }
+                            p { color: #555; margin-top: 0; }
+                            table { border-collapse: collapse; width: 100%; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+                            th { background: #f3f4f6; font-size: 12px; text-transform: uppercase; }
+                            .procedure-id { font-weight: 700; }
+                            @media print { body { padding: 0; } }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Procedure History - {{ patient.patname }}</h1>
+                        <p>Printed ${new Date().toLocaleString()}</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Procedure ID</th>
+                                    <th>Date</th>
+                                    <th>Procedure</th>
+                                    <th>Dentist</th>
+                                    <th>Prescription</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>${printableRows}</tbody>
+                        </table>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+            });
+        }
+
+        updateSelectedPrintState();
     </script>
 </body>
 </html>

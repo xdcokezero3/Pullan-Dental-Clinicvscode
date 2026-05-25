@@ -320,7 +320,7 @@
                 {% endif %}
                 <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments{% if unattended_appointment_count > 0 %}<span class="nav-alert-badge" title="Unattended appointments">{{ unattended_appointment_count }}</span>{% endif %}</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>

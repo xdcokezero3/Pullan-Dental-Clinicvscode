@@ -90,6 +90,7 @@ body {
     text-decoration: none;
     transition: var(--transition);
     white-space: nowrap;
+    gap: 0;
 }
 
 .nav-menu li a i {
@@ -101,6 +102,25 @@ body {
 
 .nav-menu li a span {
     transition: var(--transition);
+}
+
+.nav-alert-badge {
+    background-color: var(--danger-color);
+    border-radius: 999px;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    margin-left: auto;
+    min-width: 20px;
+    padding: 4px 6px;
+}
+
+.nav-menu li a .nav-alert-badge {
+    display: inline-flex;
 }
 
 .nav-menu li.active a,

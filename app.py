@@ -19,6 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import base64
+import atexit
 from io import StringIO
 from functools import wraps
 import traceback
@@ -96,6 +97,64 @@ def create_sqlite_backup(backup_path):
     db.session.close()
     db.engine.dispose()
     shutil.copy2(sqlite_path, backup_path)
+
+def create_database_backup_file(reason="manual", user_id=None):
+    """Create a timestamped database backup and return display metadata."""
+    safe_reason = re.sub(r'[^a-z0-9]+', '_', (reason or 'manual').lower()).strip('_') or 'manual'
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+
+    if is_sqlite_database():
+        backup_filename = f"backup_{timestamp}_{safe_reason}.sqlite"
+        backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
+        create_sqlite_backup(backup_path)
+    else:
+        backup_filename = f"backup_{timestamp}_{safe_reason}.sql"
+        backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
+        db_config = parse_database_uri(app.config['SQLALCHEMY_DATABASE_URI'])
+        if not db_config:
+            raise Exception("Failed to parse database URI")
+
+        username = db_config['username']
+        password = db_config['password']
+        host = resolve_host(db_config['host'])
+        port = db_config['port']
+        database = db_config['database']
+
+        try:
+            connection = psycopg2.connect(
+                host=host,
+                user=username,
+                password=password,
+                database=database,
+                port=port,
+                connect_timeout=10
+            )
+            connection.close()
+        except Exception as e:
+            error_msg = str(e)
+            if "does not exist" in error_msg:
+                raise Exception(f"Database '{database}' does not exist. Please check your database configuration.")
+            raise Exception(f"Cannot connect to PostgreSQL server: {error_msg}. Please check that your PostgreSQL server is running.")
+
+        try:
+            create_postgresql_backup(username, password, host, database, backup_path, port)
+        except Exception as pg_dump_error:
+            print(f"pg_dump failed: {pg_dump_error}")
+            print("Falling back to direct backup method...")
+            create_direct_postgresql_backup(username, password, host, database, backup_path, port)
+
+    file_size = os.path.getsize(backup_path) / (1024 * 1024)
+    log_user_action(
+        user_id,
+        'Database Backup',
+        f'Created {reason} database backup: {backup_filename} ({file_size:.2f} MB)'
+    )
+
+    return {
+        "filename": backup_filename,
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "size": f"{file_size:.2f} MB"
+    }
 
 def restore_sqlite_backup(backup_path):
     """Restore the local SQLite database from a file backup."""
@@ -248,6 +307,36 @@ def reset_failed_attempts(user_id=None, reason="Manual Reset"):
     if user_id:
         log_user_action(user_id, 'Reset Failed Attempts', reason)
 
+def clear_login_session_state(reason="Return to Login"):
+    """Clear login lock state and any active auth identity."""
+    session['failed_attempts'] = 0
+    session['first_failed_attempt_time'] = None
+    for key in ('user_id', 'username', 'access_level', 'real_name'):
+        session.pop(key, None)
+
+@app.context_processor
+def inject_sidebar_notifications():
+    """Expose unattended appointment count for sidebar badges."""
+    try:
+        now = datetime.now()
+        excluded_statuses = {'completed', 'rescheduled', 'voided', 'cancelled'}
+        appointments = Appointment.query.filter(Appointment.appdate <= now.date()).all()
+        overdue_count = 0
+
+        for appointment in appointments:
+            status = (getattr(appointment, 'status', '') or 'active').strip().lower()
+            if status in excluded_statuses:
+                continue
+
+            appointment_start = appointment_start_datetime(appointment)
+            if appointment_start and appointment_start <= now:
+                overdue_count += 1
+
+        return {'unattended_appointment_count': overdue_count}
+    except Exception as e:
+        print(f"Error calculating appointment notifications: {e}")
+        return {'unattended_appointment_count': 0}
+
 @app.route('/')
 def index():
     """Redirect to the login page"""
@@ -349,6 +438,9 @@ def login():
                               max_attempts=MAX_FAILED_ATTEMPTS,
                               redirect_countdown=REDIRECT_COUNTDOWN_SECONDS)
 
+    if request.args.get('clear_login_state') == '1':
+        clear_login_session_state("Login page reset")
+
     registration_success = request.args.get('registration_success')
     
     reason = request.args.get('reason')
@@ -367,6 +459,12 @@ def login():
                           failed_attempts=session.get('failed_attempts', 0),
                           max_attempts=MAX_FAILED_ATTEMPTS,
                           redirect_countdown=REDIRECT_COUNTDOWN_SECONDS)
+
+@app.route('/return_to_login')
+def return_to_login():
+    """Return from password recovery with a clean login form."""
+    clear_login_session_state("Returned from password recovery")
+    return redirect(url_for('login', clear_login_state='1'))
 
 @app.route('/dashboard')
 def dashboard():
@@ -1171,7 +1269,10 @@ def backup_restore():
             ]
             for backup_file in backup_files:
                 try:
-                    timestamp_str = backup_file.split('_')[1].split('.')[0]
+                    timestamp_match = re.search(r'backup_(\d{14})', backup_file)
+                    if not timestamp_match:
+                        continue
+                    timestamp_str = timestamp_match.group(1)
                     backup_time = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S')
                     
                     file_path = os.path.join(BACKUP_DIRECTORY, backup_file)
@@ -1204,116 +1305,12 @@ def create_backup():
     try:
         if session.get('access_level') != 'admin':
             return jsonify({"success": False, "error": "You don't have permission to perform this action"})
-        
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-
-        if is_sqlite_database():
-            backup_filename = f"backup_{timestamp}.sqlite"
-            backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
-
-            try:
-                create_sqlite_backup(backup_path)
-                file_size = os.path.getsize(backup_path) / (1024 * 1024)
-
-                log_user_action(
-                    session.get('user_id'),
-                    'Database Backup',
-                    f'Created local SQLite database backup: {backup_filename} ({file_size:.2f} MB)'
-                )
-
-                return jsonify({
-                    "success": True,
-                    "message": "Backup created successfully",
-                    "backup": {
-                        "filename": backup_filename,
-                        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        "size": f"{file_size:.2f} MB"
-                    }
-                })
-            except Exception as e:
-                return jsonify({
-                    "success": False,
-                    "error": f"Error creating local database backup: {str(e)}"
-                })
-
-        backup_filename = f"backup_{timestamp}.sql"
-        backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
-        
-        # Get database credentials from app config with proper URI parsing
-        db_uri = app.config['SQLALCHEMY_DATABASE_URI']
-        
-        # Parse the PostgreSQL URI properly
-        db_config = parse_database_uri(db_uri)
-        if not db_config:
-            return jsonify({"success": False, "error": "Failed to parse database URI"})
-            
-        username = db_config['username']
-        password = db_config['password']
-        host = db_config['host']
-        port = db_config['port']
-        database = db_config['database']
-        
-        print(f"Backup Config - Host: {host}, Port: {port}, Database: {database}, User: {username}")
-        
-        # Resolve host DNS issues
-        resolved_host = resolve_host(host)
-        
-        # Test the connection first
-        try:
-            connection = psycopg2.connect(
-                host=resolved_host,
-                user=username,
-                password=password,
-                database=database,
-                port=port,
-                connect_timeout=10
-            )
-            connection.close()
-            print("PostgreSQL connection successful for backup")
-        except Exception as e:
-            error_msg = str(e)
-            if "does not exist" in error_msg:
-                return jsonify({
-                    "success": False, 
-                    "error": f"Database '{database}' does not exist. Please check your database configuration."
-                })
-            else:
-                return jsonify({
-                    "success": False, 
-                    "error": f"Cannot connect to PostgreSQL server: {error_msg}. Please check that your PostgreSQL server is running."
-                })
-            
-        try:
-            # Try external pg_dump first
-            try:
-                create_postgresql_backup(username, password, resolved_host, database, backup_path, port)
-            except Exception as pg_dump_error:
-                print(f"pg_dump failed: {pg_dump_error}")
-                print("Falling back to direct backup method...")
-                create_direct_postgresql_backup(username, password, resolved_host, database, backup_path, port)
-            
-            file_size = os.path.getsize(backup_path) / (1024 * 1024)
-            
-            log_user_action(
-                session.get('user_id'),
-                'Database Backup',
-                f'Created PostgreSQL database backup: {backup_filename} ({file_size:.2f} MB)'
-            )
-            
-            return jsonify({
-                "success": True, 
-                "message": "Backup created successfully",
-                "backup": {
-                    "filename": backup_filename,
-                    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    "size": f"{file_size:.2f} MB"
-                }
-            })
-        except Exception as e:
-            return jsonify({
-                "success": False, 
-                "error": f"Error creating backup: {str(e)}"
-            })
+        backup = create_database_backup_file("manual", session.get('user_id'))
+        return jsonify({
+            "success": True,
+            "message": "Backup created successfully",
+            "backup": backup
+        })
             
     except Exception as e:
         print(f"Error in create_backup route: {e}")
@@ -1930,7 +1927,7 @@ def add_patient():
     try:
         contact_number = request.form.get('contact')
         if contact_number and not is_valid_ph_mobile_number(contact_number):
-            return jsonify({"success": False, "error": "Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX)."})
+            return jsonify({"success": False, "error": PH_MOBILE_VALIDATION_MESSAGE})
 
         new_patient = Patient(
             patname=request.form.get('name'),
@@ -2047,7 +2044,7 @@ def update_patient(patient_id):
         patient.patemail = request.form.get('email')
         contact_number = request.form.get('contact')
         if contact_number and not is_valid_ph_mobile_number(contact_number):
-            return jsonify({'success': False, 'error': 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).'})
+            return jsonify({'success': False, 'error': PH_MOBILE_VALIDATION_MESSAGE})
         patient.patcontact = contact_number
         
         dob_str = request.form.get('dob')
@@ -2215,18 +2212,16 @@ def ensure_sms_reminders_table():
     SMSReminder.__table__.create(bind=db.engine, checkfirst=True)
 
 def normalize_ph_mobile_number(raw_number):
-    """Normalize Philippine mobile numbers to +639XXXXXXXXX."""
-    digits = re.sub(r'\D', '', raw_number or '')
-    if digits.startswith('09') and len(digits) == 11:
-        return '+63' + digits[1:]
-    if digits.startswith('639') and len(digits) == 12:
-        return '+' + digits
-    if digits.startswith('9') and len(digits) == 10:
-        return '+63' + digits
-    return None
+    """Normalize valid 11-digit Philippine mobile numbers to +639XXXXXXXXX."""
+    number = (raw_number or '').strip()
+    if not re.fullmatch(r'09\d{9}', number):
+        return None
+    return '+63' + number[1:]
 
 def is_valid_ph_mobile_number(raw_number):
     return normalize_ph_mobile_number(raw_number) is not None
+
+PH_MOBILE_VALIDATION_MESSAGE = "Please enter a valid Philippine mobile number: exactly 11 digits starting with 09."
 
 def appointment_start_datetime(appointment):
     if not appointment.appdate or not appointment.apptime:
@@ -2718,7 +2713,7 @@ def send_test_sms():
         return redirect(url_for(
             'sms_reminders',
             test_result='failed',
-            test_error='Please enter a valid Philippine mobile number, such as 09XXXXXXXXX or +639XXXXXXXXX.'
+            test_error=PH_MOBILE_VALIDATION_MESSAGE
         ))
 
     if not message:
@@ -3544,6 +3539,9 @@ def add_staff():
     """Add a new staff member - Admin only"""
     try:
         password = request.form.get('password')
+        contact_number = request.form.get('contact')
+        if not is_valid_ph_mobile_number(contact_number):
+            return jsonify({"success": False, "error": PH_MOBILE_VALIDATION_MESSAGE})
         
         is_valid, error_message = validate_password(password)
         if not is_valid:
@@ -3556,7 +3554,7 @@ def add_staff():
             usersemail=request.form.get('email'),
             usershomeaddress=request.form.get('address'),
             userscityzipcode=request.form.get('cityzipcode'),
-            userscontact=request.form.get('contact'),
+            userscontact=contact_number,
             usersreligion=request.form.get('religion'),
             usersgender=request.form.get('gender'),
             usersaccess=request.form.get('access'),
@@ -3603,10 +3601,13 @@ def update_staff(staff_id):
         staff = User.query.get_or_404(staff_id)
         
         old_name = staff.usersrealname
+        contact_number = request.form.get('contact')
+        if not is_valid_ph_mobile_number(contact_number):
+            return jsonify({'success': False, 'error': PH_MOBILE_VALIDATION_MESSAGE})
         
         staff.usersrealname = request.form.get('name')
         staff.usersemail = request.form.get('email')
-        staff.userscontact = request.form.get('contact')
+        staff.userscontact = contact_number
         staff.usershomeaddress = request.form.get('address')
         staff.userscityzipcode = request.form.get('cityzipcode')
         staff.usersreligion = request.form.get('religion')
@@ -6340,11 +6341,22 @@ def get_lan_ip_addresses():
 
     return sorted(addresses) or ["YOUR_COMPUTER_IP"]
 
+def should_run_lifecycle_tasks(debug):
+    return not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+
+def create_lifecycle_backup(reason):
+    try:
+        with app.app_context():
+            backup = create_database_backup_file(reason, None)
+        print(f"Automatic {reason} backup created: {backup['filename']}")
+    except Exception as e:
+        print(f"Automatic {reason} backup failed: {e}")
 
 if __name__ == "__main__":
     host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "true").lower() in ("1", "true", "yes", "on")
+    run_lifecycle_backups = should_run_lifecycle_tasks(debug)
 
     print("\nPullan Dental Clinic is starting...")
     print(f"Local access: http://127.0.0.1:{port}")
@@ -6355,6 +6367,10 @@ if __name__ == "__main__":
     else:
         print(f"Configured host access: http://{host}:{port}")
     print("Use the LAN access URL on the other computer connected to the same network.\n")
+
+    if run_lifecycle_backups:
+        create_lifecycle_backup("startup")
+        atexit.register(create_lifecycle_backup, "shutdown")
 
     start_sms_reminder_worker()
     app.run(host=host, port=port, debug=debug)

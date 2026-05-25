@@ -213,7 +213,7 @@
                 {% endif %}
                 <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li class="active"><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments{% if unattended_appointment_count > 0 %}<span class="nav-alert-badge" title="Unattended appointments">{{ unattended_appointment_count }}</span>{% endif %}</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
@@ -280,7 +280,8 @@
                         </div>
                         <div class="form-group">
                             <label for="contact" class="required-field">Contact Number</label>
-                            <input type="tel" id="contact" name="contact" value="{{ patient.patcontact or '' }}" required>
+                            <input type="tel" id="contact" name="contact" value="{{ patient.patcontact or '' }}" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" required>
+                            <small id="contactError" style="display: none; color: #dc3545;">Enter exactly 11 digits starting with 09.</small>
                         </div>
                     </div>
                     
@@ -364,6 +365,11 @@
         // Form submission with AJAX
         document.getElementById('editPatientForm').addEventListener('submit', function(e) {
             e.preventDefault();
+
+            const contactInput = document.getElementById('contact');
+            if (!validatePhMobileInput(contactInput)) {
+                return;
+            }
             
             const formData = new FormData(this);
             
@@ -401,6 +407,28 @@
                 submitBtn.disabled = false;
             });
         });
+
+        function validatePhMobileInput(input) {
+            const error = document.getElementById('contactError');
+            const isValid = /^09\d{9}$/.test(input.value.trim());
+            input.setCustomValidity(isValid ? '' : 'Enter exactly 11 digits starting with 09.');
+            if (error) {
+                error.style.display = isValid ? 'none' : 'block';
+            }
+            if (!isValid) {
+                input.reportValidity();
+                input.focus();
+            }
+            return isValid;
+        }
+
+        const contactInput = document.getElementById('contact');
+        if (contactInput) {
+            contactInput.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '').slice(0, 11);
+                validatePhMobileInput(this);
+            });
+        }
         
         // Date of birth and age calculation
         document.getElementById('dob').addEventListener('change', function() {

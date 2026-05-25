@@ -225,6 +225,7 @@
             gap: 10px;
             justify-content: flex-end;
             margin-top: 18px;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -240,6 +241,7 @@
             padding: 11px 16px;
             text-decoration: none;
             transition: var(--transition);
+            white-space: nowrap;
         }
 
         .btn-primary {
@@ -268,11 +270,13 @@
         .payments-table th {
             background-color: #f8fafc;
             color: var(--text-light);
+            cursor: pointer;
             font-size: 12px;
             letter-spacing: 0;
             padding: 12px;
             text-align: left;
             text-transform: uppercase;
+            user-select: none;
         }
 
         .payments-table td {
@@ -383,7 +387,8 @@
             }
 
             .actions {
-                flex-direction: column;
+                display: grid;
+                grid-template-columns: 1fr;
             }
 
             .btn {
@@ -405,7 +410,7 @@
                 {% endif %}
                 <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large"></i> Dashboard</a></li>
                 <li><a href="{{ url_for('patients') }}"><i class="fas fa-user-injured"></i> Patients</a></li>
-                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments</a></li>
+                <li><a href="{{ url_for('appointments') }}"><i class="fas fa-calendar-alt"></i> Appointments{% if unattended_appointment_count > 0 %}<span class="nav-alert-badge" title="Unattended appointments">{{ unattended_appointment_count }}</span>{% endif %}</a></li>
                 <li><a href="{{ url_for('staff') }}"><i class="fas fa-user-md"></i> Staff</a></li>
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
@@ -592,21 +597,28 @@
                     </div>
 
                     <div class="panel">
-                        <h2 class="panel-title"><i class="fas fa-clock-rotate-left"></i> Recent Payments</h2>
+                        <div class="service-builder-header">
+                            <h2 class="panel-title"><i class="fas fa-clock-rotate-left"></i> Recent Payments</h2>
+                            {% if payments and payments|length > 0 %}
+                            <button type="button" class="btn btn-secondary" id="printRecentPayments">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                            {% endif %}
+                        </div>
                         <p class="panel-subtitle">Latest recorded payment transactions.</p>
 
                         {% if payments and payments|length > 0 %}
                         <div class="payments-table-wrap">
-                            <table class="payments-table">
+                            <table class="payments-table" id="recentPaymentsTable">
                                 <thead>
                                     <tr>
-                                        <th>Receipt</th>
-                                        <th>Patient</th>
-                                        <th>Service</th>
-                                        <th>Method</th>
-                                        <th>Amount</th>
-                                        <th>Status</th>
-                                        <th></th>
+                                        <th data-sort="text">Receipt</th>
+                                        <th data-sort="text">Patient</th>
+                                        <th data-sort="text">Service</th>
+                                        <th data-sort="text">Method</th>
+                                        <th data-sort="number">Amount</th>
+                                        <th data-sort="text">Status</th>
+                                        <th data-sort="text"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="paymentRows">
@@ -711,6 +723,8 @@
         const openPriceEditor = document.getElementById('openPriceEditor');
         const closePriceEditor = document.getElementById('closePriceEditor');
         const cancelPriceEditor = document.getElementById('cancelPriceEditor');
+        const printRecentPayments = document.getElementById('printRecentPayments');
+        const recentPaymentsTable = document.getElementById('recentPaymentsTable');
 
         function money(value) {
             const numberValue = Number(value || 0);
@@ -985,6 +999,80 @@
                 if (emptySearch) {
                     emptySearch.style.display = rows.length && visibleRows === 0 ? 'block' : 'none';
                 }
+            });
+        }
+
+        function sortTableByHeader(table, header, columnIndex) {
+            const tbody = table.tBodies[0];
+            const sortType = header.dataset.sort || 'text';
+            const nextDirection = header.classList.contains('sort-asc') ? 'desc' : 'asc';
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            table.querySelectorAll('th').forEach((th) => th.classList.remove('sort-asc', 'sort-desc'));
+            header.classList.add(nextDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+            rows.sort((a, b) => {
+                const aText = (a.cells[columnIndex]?.textContent || '').trim();
+                const bText = (b.cells[columnIndex]?.textContent || '').trim();
+                let comparison;
+
+                if (sortType === 'number') {
+                    const aNumber = Number(aText.replace(/[^0-9.-]/g, '')) || 0;
+                    const bNumber = Number(bText.replace(/[^0-9.-]/g, '')) || 0;
+                    comparison = aNumber - bNumber;
+                } else {
+                    comparison = aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' });
+                }
+
+                return nextDirection === 'asc' ? comparison : -comparison;
+            });
+
+            rows.forEach((row) => tbody.appendChild(row));
+        }
+
+        if (recentPaymentsTable) {
+            recentPaymentsTable.querySelectorAll('th').forEach((header, index) => {
+                header.addEventListener('click', () => sortTableByHeader(recentPaymentsTable, header, index));
+            });
+        }
+
+        if (printRecentPayments && recentPaymentsTable) {
+            printRecentPayments.addEventListener('click', () => {
+                const visibleRows = Array.from(recentPaymentsTable.tBodies[0].rows)
+                    .filter((row) => row.style.display !== 'none')
+                    .map((row) => `<tr>${row.innerHTML}</tr>`)
+                    .join('');
+                const headers = Array.from(recentPaymentsTable.tHead.rows[0].cells)
+                    .map((cell) => `<th>${cell.textContent.trim()}</th>`)
+                    .join('');
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Recent Payments</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 24px; color: #222; }
+                            h1 { font-size: 22px; margin-bottom: 4px; }
+                            p { color: #555; margin-top: 0; }
+                            table { border-collapse: collapse; width: 100%; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+                            th { background: #f3f4f6; font-size: 12px; text-transform: uppercase; }
+                            a { color: #222; text-decoration: none; }
+                            .status-pill { border: none; padding: 0; }
+                            @media print { body { padding: 0; } }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Recent Payments</h1>
+                        <p>Printed ${new Date().toLocaleString()}</p>
+                        <table><thead><tr>${headers}</tr></thead><tbody>${visibleRows}</tbody></table>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
             });
         }
 
