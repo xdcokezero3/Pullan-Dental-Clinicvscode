@@ -84,7 +84,7 @@ Then run `installer\setup_windows.bat` again.
 
 ## SMS Setup
 
-By default, SMS reminders use `SMS_PROVIDER=console`, which logs messages instead of sending real SMS.
+By default, SMS reminders are configured for Twilio. For testing without sending real SMS, set `SMS_PROVIDER=console`.
 
 To send real SMS, edit:
 
@@ -92,24 +92,17 @@ To send real SMS, edit:
 %LOCALAPPDATA%\PullanDentalClinic\.env
 ```
 
-Supported providers:
-
-- `movider`
-- `twilio`
-- `semaphore`
-- `console`
-
-Configure the matching API keys in `.env`.
-
-For Movider:
+Configure Twilio in `.env`:
 
 ```text
-SMS_PROVIDER=movider
-MOVIDER_API_KEY=your_api_key
-MOVIDER_API_SECRET=your_api_secret
+SMS_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_MESSAGING_SERVICE_SID=your_messaging_service_sid
+TWILIO_FROM_NUMBER=+12566703250
 ```
 
-Movider shows both the API key and API secret in its member settings under API Settings.
+For Philippine mobile numbers, Twilio requires a registered sender. If you create a Twilio Messaging Service with the approved sender in its sender pool, set `TWILIO_MESSAGING_SERVICE_SID` and the app will use that instead of sending directly from `TWILIO_FROM_NUMBER`.
 
 After configuring real SMS credentials, restart the app. The reminder worker runs in the background while the system is open. Admin users can review SMS status from:
 

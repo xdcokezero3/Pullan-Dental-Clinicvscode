@@ -3,7 +3,7 @@ $ErrorActionPreference = "SilentlyContinue"
 $appDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $pythonPath = Join-Path $appDir ".venv\Scripts\python.exe"
 $port = if ($env:APP_PORT) { $env:APP_PORT } else { "5000" }
-$loginUrl = "http://127.0.0.1:$port/login"
+$loginUrl = "http://127.0.0.1:$port"
 
 function Test-AppRunning {
     try {

@@ -238,6 +238,9 @@ def verify_password(password, hashed_password):
 def validate_password(password):
     """Validate password meets security requirements"""
     import re
+
+    if not password:
+        return False, "Password is required"
     
     if len(password) < 7:
         return False, "Password must be at least 7 characters long"
@@ -2223,6 +2226,35 @@ def is_valid_ph_mobile_number(raw_number):
 
 PH_MOBILE_VALIDATION_MESSAGE = "Please enter a valid Philippine mobile number: exactly 11 digits starting with 09."
 
+def normalize_twilio_number(raw_number):
+    """Normalize common phone formats to Twilio-friendly E.164 numbers."""
+    number = (raw_number or '').strip()
+    if number.startswith('+'):
+        digits = re.sub(r'\D', '', number[1:])
+        return f'+{digits}' if digits else number
+
+    digits = re.sub(r'\D', '', number)
+    if re.fullmatch(r'09\d{9}', digits):
+        return '+63' + digits[1:]
+    if len(digits) == 10:
+        return '+1' + digits
+    if len(digits) == 11 and digits.startswith('1'):
+        return '+' + digits
+    if digits.startswith('63') and len(digits) == 12:
+        return '+' + digits
+    return number
+
+def build_twilio_provider_error(error_detail):
+    """Add setup guidance for common Twilio SMS sender/destination failures."""
+    if '21612' in error_detail:
+        return (
+            f'{error_detail}. Philippine SMS delivery requires a registered Alphanumeric '
+            'Sender ID or a Twilio Messaging Service configured with an approved sender. '
+            'After approval, set TWILIO_MESSAGING_SERVICE_SID, or set TWILIO_FROM_NUMBER '
+            'to the approved sender value.'
+        )
+    return error_detail
+
 def appointment_start_datetime(appointment):
     if not appointment.appdate or not appointment.apptime:
         return None
@@ -2347,7 +2379,8 @@ def redact_sms_secrets(text):
         'api_secret',
         'SEMAPHORE_API_KEY',
         'TWILIO_ACCOUNT_SID',
-        'TWILIO_AUTH_TOKEN'
+        'TWILIO_AUTH_TOKEN',
+        'TWILIO_MESSAGING_SERVICE_SID'
     )
     for secret_name in secret_names:
         secret_value = os.getenv(secret_name)
@@ -2360,7 +2393,7 @@ def get_sms_provider_config_status():
         'twilio': [
             ('TWILIO_ACCOUNT_SID',),
             ('TWILIO_AUTH_TOKEN',),
-            ('TWILIO_FROM_NUMBER',)
+            ('TWILIO_MESSAGING_SERVICE_SID', 'TWILIO_FROM_NUMBER')
         ],
         'semaphore': [
             ('SEMAPHORE_API_KEY',)
@@ -2505,21 +2538,36 @@ def send_sms_via_provider(to_number, message):
     if SMS_PROVIDER == 'twilio':
         account_sid = os.getenv('TWILIO_ACCOUNT_SID')
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        from_number = os.getenv('TWILIO_FROM_NUMBER') or SMS_SENDER_NAME
-        if not account_sid or not auth_token or not from_number:
+        messaging_service_sid = os.getenv('TWILIO_MESSAGING_SERVICE_SID')
+        from_number = normalize_twilio_number(os.getenv('TWILIO_FROM_NUMBER') or SMS_SENDER_NAME)
+        provider_number = normalize_twilio_number(to_number)
+        if not account_sid or not auth_token or not (messaging_service_sid or from_number):
             raise RuntimeError('Twilio SMS is not fully configured.')
 
-        payload = urllib.parse.urlencode({
+        payload_fields = {
             'To': provider_number,
-            'From': from_number,
             'Body': message
-        }).encode('utf-8')
+        }
+        if messaging_service_sid:
+            payload_fields['MessagingServiceSid'] = messaging_service_sid
+        else:
+            payload_fields['From'] = from_number
+
+        payload = urllib.parse.urlencode(payload_fields).encode('utf-8')
         request_url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
         request_obj = urllib.request.Request(request_url, data=payload, method='POST')
         auth_header = base64.b64encode(f'{account_sid}:{auth_token}'.encode('utf-8')).decode('ascii')
         request_obj.add_header('Authorization', f'Basic {auth_header}')
-        with urllib.request.urlopen(request_obj, timeout=20) as response:
-            response_data = json.loads(response.read().decode('utf-8'))
+        try:
+            with urllib.request.urlopen(request_obj, timeout=20) as response:
+                response_data = json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as error:
+            error_detail = build_twilio_provider_error(read_sms_provider_error(error))
+            raise RuntimeError(f'Twilio rejected the request: {error_detail}') from error
+        except urllib.error.URLError as error:
+            raise RuntimeError(f'Twilio connection error: {read_sms_provider_error(error)}') from error
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f'Twilio returned an unreadable response: {error}') from error
         return {'provider_message_id': response_data.get('sid')}
 
     if SMS_PROVIDER == 'semaphore':
@@ -3538,27 +3586,66 @@ def staff_details(staff_id):
 def add_staff():
     """Add a new staff member - Admin only"""
     try:
-        password = request.form.get('password')
-        contact_number = request.form.get('contact')
-        if not is_valid_ph_mobile_number(contact_number):
-            return jsonify({"success": False, "error": PH_MOBILE_VALIDATION_MESSAGE})
-        
+        name = (request.form.get('name') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
+        contact_number = ''.join(filter(str.isdigit, request.form.get('contact') or ''))
+        city_zipcode = (request.form.get('cityzipcode') or '').strip()
+        zip_digits = ''.join(filter(str.isdigit, city_zipcode))
+        access_level = (request.form.get('access') or '').strip()
+        occupation = (request.form.get('occupation') or '').strip()
+
+        required_fields = {
+            'Full name': name,
+            'Email': email,
+            'Username': username,
+            'Password': password,
+            'Confirm password': confirm_password,
+            'Contact number': contact_number,
+            'City/Zip Code': city_zipcode,
+            'Access level': access_level,
+            'Occupation': occupation
+        }
+        for label, value in required_fields.items():
+            if not value:
+                return jsonify({"success": False, "error": f"{label} is required"})
+
+        if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+            return jsonify({"success": False, "error": "Please enter a valid email address"})
+
+        if password != confirm_password:
+            return jsonify({"success": False, "error": "Passwords do not match"})
+
         is_valid, error_message = validate_password(password)
         if not is_valid:
             return jsonify({"success": False, "error": error_message})
+
+        if not is_valid_ph_mobile_number(contact_number):
+            return jsonify({"success": False, "error": PH_MOBILE_VALIDATION_MESSAGE})
+
+        if len(zip_digits) != 4:
+            return jsonify({"success": False, "error": "Zipcode must be exactly 4 digits"})
+
+        if access_level not in ('admin', 'user'):
+            return jsonify({"success": False, "error": "Please select a valid access level"})
+
+        if User.query.filter_by(usersusername=username).first():
+            return jsonify({"success": False, "error": "Username already exists"})
         
         new_staff = User(
-            usersusername=request.form.get('username'),
+            usersusername=username,
             userspassword=hash_password(password),
-            usersrealname=request.form.get('name'),
-            usersemail=request.form.get('email'),
+            usersrealname=name,
+            usersemail=email,
             usershomeaddress=request.form.get('address'),
-            userscityzipcode=request.form.get('cityzipcode'),
+            userscityzipcode=city_zipcode,
             userscontact=contact_number,
             usersreligion=request.form.get('religion'),
             usersgender=request.form.get('gender'),
-            usersaccess=request.form.get('access'),
-            usersoccupation=request.form.get('occupation')
+            usersaccess=access_level,
+            usersoccupation=occupation
         )
         
         dob_str = request.form.get('dob')
@@ -3567,7 +3654,10 @@ def add_staff():
         
         age_str = request.form.get('age')
         if age_str and age_str.isdigit():
-            new_staff.usersage = int(age_str)
+            age = int(age_str)
+            if age < 18 or age > 100:
+                return jsonify({"success": False, "error": "Age must be between 18 and 100"})
+            new_staff.usersage = age
         
         db.session.add(new_staff)
         db.session.commit()
@@ -3583,7 +3673,7 @@ def add_staff():
             "staff": {
                 "id": f"STF-{new_staff.usersid:03d}",
                 "name": new_staff.usersrealname,
-                "role": request.form.get('role', 'Staff'),
+                "role": new_staff.usersoccupation or 'Staff',
                 "access_level": new_staff.usersaccess.capitalize(),
                 "raw_id": new_staff.usersid
             }
@@ -6353,7 +6443,7 @@ def create_lifecycle_backup(reason):
         print(f"Automatic {reason} backup failed: {e}")
 
 if __name__ == "__main__":
-    host = os.getenv("APP_HOST", "0.0.0.0")
+    host = os.getenv("APP_HOST", "127.0.0.1")
     port = int(os.getenv("APP_PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "true").lower() in ("1", "true", "yes", "on")
     run_lifecycle_backups = should_run_lifecycle_tasks(debug)
@@ -6364,9 +6454,10 @@ if __name__ == "__main__":
         print("LAN access:")
         for ip_address in get_lan_ip_addresses():
             print(f"  http://{ip_address}:{port}")
+        print("Use the LAN access URL on the other computer connected to the same network.\n")
     else:
         print(f"Configured host access: http://{host}:{port}")
-    print("Use the LAN access URL on the other computer connected to the same network.\n")
+        print("")
 
     if run_lifecycle_backups:
         create_lifecycle_backup("startup")

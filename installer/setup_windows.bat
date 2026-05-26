@@ -107,14 +107,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$shell=New-Object -ComObject WScript.Shell; " ^
   "$desktop=[Environment]::GetFolderPath('Desktop'); " ^
   "$shortcut=$shell.CreateShortcut((Join-Path $desktop 'Pullan Dental Clinic.lnk')); " ^
-  "$shortcut.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic LAN.bat'); " ^
+  "$shortcut.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic.bat'); " ^
   "$shortcut.WorkingDirectory='%APP_DIR%'; " ^
   "$shortcut.WindowStyle=7; " ^
   "$shortcut.Save(); " ^
   "$startMenu=Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\Pullan Dental Clinic'; " ^
   "New-Item -ItemType Directory -Path $startMenu -Force | Out-Null; " ^
   "$shortcut2=$shell.CreateShortcut((Join-Path $startMenu 'Pullan Dental Clinic.lnk')); " ^
-  "$shortcut2.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic LAN.bat'); " ^
+  "$shortcut2.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic.bat'); " ^
   "$shortcut2.WorkingDirectory='%APP_DIR%'; " ^
   "$shortcut2.WindowStyle=7; " ^
   "$shortcut2.Save(); " ^

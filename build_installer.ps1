@@ -21,6 +21,7 @@ $itemsToCopy = @(
     "app.py",
     "db_connector.py",
     "requirements.txt",
+    ".env",
     ".env.example",
     "start_lan.bat",
     "LAN_SETUP.md",

@@ -278,6 +278,63 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .form-group input.input-error {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.12);
+        }
+
+        .form-group input.input-success {
+            border-color: #28a745;
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.12);
+        }
+
+        .field-feedback,
+        .char-counter {
+            color: #6c757d;
+            display: block;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .field-feedback.error,
+        .char-counter.error {
+            color: #dc3545;
+        }
+
+        .field-feedback.success {
+            color: #28a745;
+        }
+
+        .char-counter.warning {
+            color: #9a6a00;
+        }
+
+        .password-requirements {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            display: grid;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 10px;
+        }
+
+        .password-requirement {
+            align-items: center;
+            color: #dc3545;
+            display: flex;
+            font-size: 12px;
+            gap: 8px;
+        }
+
+        .password-requirement.valid {
+            color: #28a745;
+        }
+
+        .password-requirement i {
+            width: 12px;
+        }
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -656,14 +713,41 @@
                         <div class="form-group">
                             <label for="password">Password</label>
                             <input type="password" id="password" name="password" required>
+                            <div class="password-requirements" id="staffPasswordRequirements">
+                                <div class="password-requirement" id="staff-req-length">
+                                    <i class="fas fa-times"></i>
+                                    <span>At least 7 characters</span>
+                                </div>
+                                <div class="password-requirement" id="staff-req-lowercase">
+                                    <i class="fas fa-times"></i>
+                                    <span>One lowercase letter</span>
+                                </div>
+                                <div class="password-requirement" id="staff-req-uppercase">
+                                    <i class="fas fa-times"></i>
+                                    <span>One uppercase letter</span>
+                                </div>
+                                <div class="password-requirement" id="staff-req-number">
+                                    <i class="fas fa-times"></i>
+                                    <span>One number</span>
+                                </div>
+                            </div>
+                            <small class="field-feedback" id="staffPasswordFeedback"></small>
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
+                            <label for="confirm_password">Confirm Password</label>
+                            <input type="password" id="confirm_password" name="confirm_password" required>
+                            <small class="field-feedback" id="staffConfirmPasswordFeedback"></small>
+                        </div>
+                        <div class="form-group">
                             <label for="contact">Phone Number</label>
                             <input type="tel" id="contact" name="contact" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" required>
-                            <small id="staffContactError" style="display: none; color: #dc3545;">Enter exactly 11 digits starting with 09.</small>
+                            <small class="char-counter" id="staffContactCounter">0/11 digits</small>
+                            <small class="field-feedback" id="staffContactError">Enter exactly 11 digits starting with 09.</small>
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="gender">Gender</label>
                             <select id="gender" name="gender">
@@ -680,7 +764,9 @@
                         </div>
                         <div class="form-group">
                             <label for="cityzipcode">City/Zip Code</label>
-                            <input type="text" id="cityzipcode" name="cityzipcode">
+                            <input type="text" id="cityzipcode" name="cityzipcode" required>
+                            <small class="char-counter" id="staffZipCounter">Zip code: 0/4 digits</small>
+                            <small class="field-feedback" id="staffZipFeedback"></small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -871,12 +957,22 @@
             if (isAdmin && addStaffModal) {
                 function openModal(isEdit = false) {
                     addStaffModal.style.display = 'block';
+                    const confirmPasswordField = document.getElementById('confirm_password');
+                    const passwordField = document.getElementById('password');
                     if (!isEdit) {
                         staffForm.reset();
                         document.querySelector('.modal-header h2').textContent = 'Add New Staff Member';
                         currentStaffId = null;
+                        passwordField.setAttribute('required', 'required');
+                        passwordField.placeholder = '';
+                        confirmPasswordField.setAttribute('required', 'required');
+                        confirmPasswordField.closest('.form-group').style.display = '';
+                        resetStaffValidationState();
                     } else {
                         document.querySelector('.modal-header h2').textContent = 'Edit Staff Member';
+                        resetStaffValidationState();
+                        confirmPasswordField.removeAttribute('required');
+                        confirmPasswordField.closest('.form-group').style.display = 'none';
                     }
                 }
 
@@ -910,7 +1006,34 @@
                         e.preventDefault();
 
                         const contactInput = document.getElementById('contact');
+                        const passwordInput = document.getElementById('password');
+                        const confirmPasswordInput = document.getElementById('confirm_password');
+                        const zipInput = document.getElementById('cityzipcode');
+                        const errors = [];
+
+                        if (!currentStaffId && !validateStaffPassword(passwordInput.value)) {
+                            errors.push('Password does not meet all requirements');
+                        }
+
+                        if (!currentStaffId && passwordInput.value !== confirmPasswordInput.value) {
+                            validateStaffPasswordMatch();
+                            errors.push('Passwords do not match');
+                        }
+
+                        if (currentStaffId && passwordInput.value && !validateStaffPassword(passwordInput.value)) {
+                            errors.push('Password does not meet all requirements');
+                        }
+
                         if (!validateStaffMobileInput(contactInput)) {
+                            errors.push('Contact number must be exactly 11 digits starting with 09');
+                        }
+
+                        if (!validateStaffZipInput(zipInput)) {
+                            errors.push('Zip code must be exactly 4 digits');
+                        }
+
+                        if (errors.length) {
+                            alert('Staff form failed:\n- ' + errors.join('\n- '));
                             return;
                         }
                         
@@ -939,10 +1062,19 @@
 
                 function validateStaffMobileInput(input) {
                     const error = document.getElementById('staffContactError');
-                    const isValid = /^09\d{9}$/.test(input.value.trim());
+                    const counter = document.getElementById('staffContactCounter');
+                    const value = input.value.trim();
+                    const isValid = /^09\d{9}$/.test(value);
                     input.setCustomValidity(isValid ? '' : 'Enter exactly 11 digits starting with 09.');
+                    input.classList.toggle('input-error', value.length > 0 && !isValid);
+                    input.classList.toggle('input-success', isValid);
                     if (error) {
-                        error.style.display = isValid ? 'none' : 'block';
+                        error.textContent = isValid ? 'Valid contact number' : 'Enter exactly 11 digits starting with 09.';
+                        error.className = `field-feedback ${isValid ? 'success' : 'error'}`;
+                    }
+                    if (counter) {
+                        counter.textContent = `${value.length}/11 digits`;
+                        counter.className = `char-counter ${value.length > 0 && value.length < 11 ? 'warning' : ''}`;
                     }
                     if (!isValid) {
                         input.reportValidity();
@@ -951,11 +1083,122 @@
                     return isValid;
                 }
 
+                function updateStaffPasswordRequirement(elementId, isValid) {
+                    const element = document.getElementById(elementId);
+                    if (!element) return;
+                    const icon = element.querySelector('i');
+                    element.classList.toggle('valid', isValid);
+                    icon.classList.toggle('fa-check', isValid);
+                    icon.classList.toggle('fa-times', !isValid);
+                }
+
+                function validateStaffPassword(password) {
+                    const passwordInput = document.getElementById('password');
+                    const feedback = document.getElementById('staffPasswordFeedback');
+                    const requirements = {
+                        length: password.length >= 7,
+                        lowercase: /[a-z]/.test(password),
+                        uppercase: /[A-Z]/.test(password),
+                        number: /\d/.test(password)
+                    };
+                    const isValid = Object.values(requirements).every(Boolean);
+                    updateStaffPasswordRequirement('staff-req-length', requirements.length);
+                    updateStaffPasswordRequirement('staff-req-lowercase', requirements.lowercase);
+                    updateStaffPasswordRequirement('staff-req-uppercase', requirements.uppercase);
+                    updateStaffPasswordRequirement('staff-req-number', requirements.number);
+                    passwordInput.classList.toggle('input-error', password.length > 0 && !isValid);
+                    passwordInput.classList.toggle('input-success', password.length > 0 && isValid);
+                    feedback.textContent = password.length === 0 ? '' : (isValid ? 'Password meets all requirements' : 'Password does not meet all requirements');
+                    feedback.className = `field-feedback ${password.length === 0 ? '' : (isValid ? 'success' : 'error')}`;
+                    return isValid;
+                }
+
+                function validateStaffPasswordMatch() {
+                    const passwordInput = document.getElementById('password');
+                    const confirmInput = document.getElementById('confirm_password');
+                    const feedback = document.getElementById('staffConfirmPasswordFeedback');
+                    if (!confirmInput || confirmInput.closest('.form-group').style.display === 'none') {
+                        return true;
+                    }
+                    const isValid = confirmInput.value.length > 0 && passwordInput.value === confirmInput.value;
+                    confirmInput.classList.toggle('input-error', confirmInput.value.length > 0 && !isValid);
+                    confirmInput.classList.toggle('input-success', isValid);
+                    feedback.textContent = confirmInput.value.length === 0 ? '' : (isValid ? 'Passwords match' : 'Passwords do not match');
+                    feedback.className = `field-feedback ${confirmInput.value.length === 0 ? '' : (isValid ? 'success' : 'error')}`;
+                    return isValid;
+                }
+
+                function validateStaffZipInput(input) {
+                    const feedback = document.getElementById('staffZipFeedback');
+                    const counter = document.getElementById('staffZipCounter');
+                    const digits = input.value.replace(/\D/g, '');
+                    const isValid = digits.length === 4;
+                    input.classList.toggle('input-error', input.value.length > 0 && !isValid);
+                    input.classList.toggle('input-success', isValid);
+                    if (counter) {
+                        counter.textContent = `Zip code: ${digits.length}/4 digits`;
+                        counter.className = `char-counter ${digits.length > 0 && digits.length < 4 ? 'warning' : ''}`;
+                    }
+                    if (feedback) {
+                        feedback.textContent = input.value.length === 0 ? 'City and zip code are required' : (isValid ? 'Valid zip code' : 'Zip code must contain exactly 4 digits');
+                        feedback.className = `field-feedback ${isValid ? 'success' : 'error'}`;
+                    }
+                    return isValid;
+                }
+
+                function resetStaffValidationState() {
+                    ['password', 'confirm_password', 'contact', 'cityzipcode'].forEach(id => {
+                        const input = document.getElementById(id);
+                        if (input) {
+                            input.classList.remove('input-error', 'input-success');
+                            input.setCustomValidity('');
+                        }
+                    });
+                    document.querySelectorAll('#staffForm .field-feedback').forEach(item => {
+                        item.textContent = '';
+                        item.className = 'field-feedback';
+                    });
+                    document.getElementById('staffContactError').textContent = 'Enter exactly 11 digits starting with 09.';
+                    document.getElementById('staffContactCounter').textContent = '0/11 digits';
+                    document.getElementById('staffZipCounter').textContent = 'Zip code: 0/4 digits';
+                    validateStaffPassword('');
+                }
+
                 const contactInput = document.getElementById('contact');
                 if (contactInput) {
                     contactInput.addEventListener('input', function() {
                         this.value = this.value.replace(/\D/g, '').slice(0, 11);
                         validateStaffMobileInput(this);
+                    });
+                }
+
+                const passwordInput = document.getElementById('password');
+                const confirmPasswordInput = document.getElementById('confirm_password');
+                if (passwordInput) {
+                    passwordInput.addEventListener('input', function() {
+                        validateStaffPassword(this.value);
+                        if (confirmPasswordInput.value) {
+                            validateStaffPasswordMatch();
+                        }
+                    });
+                }
+                if (confirmPasswordInput) {
+                    confirmPasswordInput.addEventListener('input', validateStaffPasswordMatch);
+                }
+
+                const zipInput = document.getElementById('cityzipcode');
+                if (zipInput) {
+                    zipInput.addEventListener('input', function() {
+                        const digits = this.value.replace(/\D/g, '');
+                        if (digits.length > 4) {
+                            let kept = 0;
+                            this.value = this.value.split('').filter(char => {
+                                if (!/\d/.test(char)) return true;
+                                kept += 1;
+                                return kept <= 4;
+                            }).join('');
+                        }
+                        validateStaffZipInput(this);
                     });
                 }
 
@@ -1025,6 +1268,8 @@
                         passwordField.removeAttribute('required');
                         
                         openModal(true);
+                        validateStaffMobileInput(document.getElementById('contact'));
+                        validateStaffZipInput(document.getElementById('cityzipcode'));
                     })
                     .catch(error => {
                         console.error('Error fetching staff details:', error);
