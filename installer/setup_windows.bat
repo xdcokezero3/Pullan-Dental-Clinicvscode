@@ -52,6 +52,17 @@ if "%PYTHON_CMD%"=="" (
     exit /b 1
 )
 
+where curl >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo curl was not found.
+    echo.
+    echo InfiniReach SMS uses curl as a fallback when Cloudflare blocks Python requests.
+    echo Please install curl or update Windows, then run this installer again.
+    pause
+    exit /b 1
+)
+
 echo Installing to:
 echo   %APP_DIR%
 echo.

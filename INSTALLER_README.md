@@ -84,7 +84,7 @@ Then run `installer\setup_windows.bat` again.
 
 ## SMS Setup
 
-By default, SMS reminders are configured for Twilio. For testing without sending real SMS, set `SMS_PROVIDER=console`.
+By default, SMS reminders are configured for InfiniReach. For testing without sending real SMS, set `SMS_PROVIDER=console`.
 
 To send real SMS, edit:
 
@@ -92,17 +92,19 @@ To send real SMS, edit:
 %LOCALAPPDATA%\PullanDentalClinic\.env
 ```
 
-Configure Twilio in `.env`:
+Configure InfiniReach in `.env`:
 
 ```text
-SMS_PROVIDER=twilio
-TWILIO_ACCOUNT_SID=your_account_sid
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_MESSAGING_SERVICE_SID=your_messaging_service_sid
-TWILIO_FROM_NUMBER=+12566703250
+SMS_PROVIDER=infinireach
+INFINIREACH_API_KEY=your_infinireach_api_key
+INFINIREACH_FROM=+639XXXXXXXXX
+INFINIREACH_DEVICE_ID=your_registered_device_uuid
+INFINIREACH_CHANNEL=sms
 ```
 
-For Philippine mobile numbers, Twilio requires a registered sender. If you create a Twilio Messaging Service with the approved sender in its sender pool, set `TWILIO_MESSAGING_SERVICE_SID` and the app will use that instead of sending directly from `TWILIO_FROM_NUMBER`.
+InfiniReach sends through your registered device. The `INFINIREACH_FROM` value must be the registered SIM phone number in E.164 format, so a Philippine number like `09604712749` becomes `+639604712749`. If you only have the device UUID, set `INFINIREACH_DEVICE_ID` and the app will look up the SIM phone number automatically.
+
+If InfiniReach blocks Python HTTP requests with Cloudflare Error 1010, the app automatically retries the same request through `curl`. The Windows installer checks for `curl` before installing so SMS remains functional on the installed PC.
 
 After configuring real SMS credentials, restart the app. The reminder worker runs in the background while the system is open. Admin users can review SMS status from:
 

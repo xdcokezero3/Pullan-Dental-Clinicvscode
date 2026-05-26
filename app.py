@@ -2244,6 +2244,36 @@ def normalize_twilio_number(raw_number):
         return '+' + digits
     return number
 
+def normalize_infinireach_number(raw_number):
+    """Normalize SMS recipients to the E.164 format expected by InfiniReach."""
+    number = (raw_number or '').strip()
+    if number.startswith('+'):
+        digits = re.sub(r'\D', '', number[1:])
+        return f'+{digits}' if digits else number
+
+    digits = re.sub(r'\D', '', number)
+    if re.fullmatch(r'09\d{9}', digits):
+        return '+63' + digits[1:]
+    if digits.startswith('63') and len(digits) == 12:
+        return '+' + digits
+    return number
+
+def is_infinireach_phone_sender(raw_sender):
+    sender = (raw_sender or '').strip()
+    normalized_sender = normalize_infinireach_number(sender)
+    return bool(
+        re.fullmatch(r'\+\d{8,15}', normalized_sender or '')
+        or re.fullmatch(r'\d{8,15}', re.sub(r'\D', '', sender))
+    )
+
+def get_infinireach_configured_sender():
+    return (
+        os.getenv('INFINIREACH_DEVICE_ID')
+        or os.getenv('INFINIREACH_FROM')
+        or os.getenv('INFINIREACH_SENDER')
+        or os.getenv('INFINIREACH_SENDER_ID')
+    )
+
 def build_twilio_provider_error(error_detail):
     """Add setup guidance for common Twilio SMS sender/destination failures."""
     if '21612' in error_detail:
@@ -2380,7 +2410,12 @@ def redact_sms_secrets(text):
         'SEMAPHORE_API_KEY',
         'TWILIO_ACCOUNT_SID',
         'TWILIO_AUTH_TOKEN',
-        'TWILIO_MESSAGING_SERVICE_SID'
+        'TWILIO_MESSAGING_SERVICE_SID',
+        'INFINIREACH_API_KEY',
+        'INFINIREACH_FROM',
+        'INFINIREACH_SENDER',
+        'INFINIREACH_SENDER_ID',
+        'INFINIREACH_DEVICE_ID'
     )
     for secret_name in secret_names:
         secret_value = os.getenv(secret_name)
@@ -2401,6 +2436,10 @@ def get_sms_provider_config_status():
         'movider': [
             ('MOVIDER_API_KEY', 'api_key'),
             ('MOVIDER_API_SECRET', 'api_secret')
+        ],
+        'infinireach': [
+            ('INFINIREACH_API_KEY',),
+            ('INFINIREACH_FROM', 'INFINIREACH_SENDER', 'INFINIREACH_SENDER_ID', 'INFINIREACH_DEVICE_ID')
         ]
     }
 
@@ -2456,13 +2495,38 @@ def parse_movider_sms_response(response_data):
 
     return {'provider_message_id': ''}
 
-def is_movider_cloudflare_signature_block(error_detail):
+def parse_infinireach_sms_response(response_data):
+    if not isinstance(response_data, dict):
+        raise RuntimeError('InfiniReach returned an unreadable response.')
+
+    if response_data.get('success') is False:
+        error_detail = (
+            response_data.get('error')
+            or response_data.get('message')
+            or response_data.get('detail')
+            or 'InfiniReach rejected the request.'
+        )
+        raise RuntimeError(redact_sms_secrets(str(error_detail)[:900]))
+
+    provider_message_id = (
+        response_data.get('messageId')
+        or response_data.get('message_id')
+        or response_data.get('id')
+        or response_data.get('jobId')
+        or ''
+    )
+    return {'provider_message_id': str(provider_message_id)}
+
+def is_cloudflare_signature_block(error_detail):
     lowered_detail = error_detail.lower()
     return (
         'error 1010' in lowered_detail
         or 'browser_signature_banned' in lowered_detail
         or 'browser signature' in lowered_detail
     )
+
+def is_movider_cloudflare_signature_block(error_detail):
+    return is_cloudflare_signature_block(error_detail)
 
 def send_movider_sms_with_curl(api_key, api_secret, provider_number, message):
     curl_path = shutil.which('curl.exe') or shutil.which('curl')
@@ -2526,6 +2590,211 @@ def send_movider_sms_with_curl(api_key, api_secret, provider_number, message):
         return json.loads(body)
     except json.JSONDecodeError as error:
         raise RuntimeError(f'Movider curl fallback returned an unreadable response: {redact_sms_secrets(body[:300])}') from error
+
+def send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel):
+    curl_path = shutil.which('curl.exe') or shutil.which('curl')
+    if not curl_path:
+        raise RuntimeError('InfiniReach blocked the Python request and curl is not installed on this computer.')
+
+    payload = json.dumps({
+        'to': provider_number,
+        'message': message,
+        'from': from_number,
+        'channel': channel
+    })
+    command = [
+        curl_path,
+        '--silent',
+        '--show-error',
+        '--location',
+        '--max-time',
+        '20',
+        '--request',
+        'POST',
+        'https://api.infinireach.io/api/v1/messages',
+        '--header',
+        'Accept: application/json',
+        '--header',
+        'Content-Type: application/json',
+        '--header',
+        f'X-API-Key: {api_key}',
+        '--header',
+        f'User-Agent: {os.getenv("SMS_HTTP_USER_AGENT", "curl/8.4.0")}',
+        '--data-binary',
+        payload,
+        '--write-out',
+        '\n%{http_code}'
+    ]
+
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=25,
+        shell=False
+    )
+    output = completed.stdout or ''
+    body, _, status_text = output.rpartition('\n')
+    status_text = status_text.strip()
+    body = body.strip()
+
+    if not status_text.isdigit():
+        body = output.strip()
+        status_code = 0
+    else:
+        status_code = int(status_text)
+
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or body or f'curl exited with code {completed.returncode}'
+        raise RuntimeError(redact_sms_secrets(detail[:900]))
+
+    if status_code >= 400:
+        raise RuntimeError(redact_sms_secrets(f'HTTP {status_code}: {body[:900]}'))
+
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f'InfiniReach curl fallback returned an unreadable response: {redact_sms_secrets(body[:300])}') from error
+
+def fetch_infinireach_devices_with_curl(api_key):
+    curl_path = shutil.which('curl.exe') or shutil.which('curl')
+    if not curl_path:
+        raise RuntimeError('InfiniReach sender lookup requires curl on this computer.')
+
+    command = [
+        curl_path,
+        '--silent',
+        '--show-error',
+        '--location',
+        '--max-time',
+        '20',
+        '--header',
+        f'X-API-Key: {api_key}',
+        '--header',
+        'Accept: application/json',
+        '--header',
+        f'User-Agent: {os.getenv("SMS_HTTP_USER_AGENT", "curl/8.4.0")}',
+        'https://api.infinireach.io/api/v1/devices',
+        '--write-out',
+        '\n%{http_code}'
+    ]
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=25,
+        shell=False
+    )
+    output = completed.stdout or ''
+    body, _, status_text = output.rpartition('\n')
+    status_text = status_text.strip()
+    body = body.strip()
+
+    if not status_text.isdigit():
+        body = output.strip()
+        status_code = 0
+    else:
+        status_code = int(status_text)
+
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or body or f'curl exited with code {completed.returncode}'
+        raise RuntimeError(redact_sms_secrets(detail[:900]))
+
+    if status_code >= 400:
+        raise RuntimeError(redact_sms_secrets(f'HTTP {status_code}: {body[:900]}'))
+
+    try:
+        response_data = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f'InfiniReach devices response was unreadable: {redact_sms_secrets(body[:300])}') from error
+
+    if isinstance(response_data, dict):
+        return response_data.get('devices') or []
+    if isinstance(response_data, list):
+        return response_data
+    return []
+
+def normalize_infinireach_sender_for_comparison(raw_sender):
+    normalized_sender = normalize_infinireach_number(raw_sender)
+    return re.sub(r'\D', '', normalized_sender or '')
+
+def resolve_infinireach_sender(api_key, configured_sender):
+    sender = (configured_sender or '').strip()
+    cache_key = f'_infinireach_sender_phone_{sender}'
+    cached_sender = getattr(app, cache_key, None)
+    if cached_sender:
+        return cached_sender
+
+    devices = fetch_infinireach_devices_with_curl(api_key)
+    sender_digits = normalize_infinireach_sender_for_comparison(sender)
+    matching_device = None
+    if sender:
+        for device in devices:
+            if not isinstance(device, dict):
+                continue
+            device_values = {
+                str(device.get('id') or ''),
+                str(device.get('clientDeviceId') or ''),
+                str(device.get('deviceId') or '')
+            }
+            if sender in device_values:
+                matching_device = device
+                break
+
+            for sim_slot in device.get('simSlots') or []:
+                if not isinstance(sim_slot, dict):
+                    continue
+                sim_digits = normalize_infinireach_sender_for_comparison(sim_slot.get('phoneNumber'))
+                if sender_digits and sim_digits == sender_digits:
+                    matching_device = device
+                    break
+            if matching_device:
+                break
+
+    if not matching_device and len(devices) == 1 and isinstance(devices[0], dict):
+        matching_device = devices[0]
+
+    if not matching_device:
+        if is_infinireach_phone_sender(sender):
+            return sender.lstrip('+')
+        raise RuntimeError('InfiniReach could not find the configured device sender. Set INFINIREACH_FROM to the registered SIM phone number from the InfiniReach dashboard.')
+
+    sim_slots = matching_device.get('simSlots') or []
+    for sim_slot in sim_slots:
+        if not isinstance(sim_slot, dict):
+            continue
+        phone_number = str(sim_slot.get('phoneNumber') or '').strip()
+        if is_infinireach_phone_sender(phone_number) and sim_slot.get('smsReady', True):
+            setattr(app, cache_key, phone_number)
+            return phone_number
+
+    raise RuntimeError('InfiniReach device was found, but no SMS-ready SIM phone number was available.')
+
+def get_infinireach_sender_candidates(api_key, configured_sender):
+    resolved_sender = resolve_infinireach_sender(api_key, configured_sender)
+    candidates = [
+        normalize_infinireach_number(resolved_sender),
+        str(resolved_sender or '').strip(),
+        normalize_infinireach_number(configured_sender),
+        str(configured_sender or '').strip().lstrip('+')
+    ]
+
+    unique_candidates = []
+    for candidate in candidates:
+        if candidate and candidate not in unique_candidates and not re.fullmatch(r'[0-9a-fA-F-]{32,36}', candidate):
+            unique_candidates.append(candidate)
+    return unique_candidates
+
+def is_infinireach_sender_error(error_detail):
+    lowered_detail = str(error_detail).lower()
+    return (
+        '"from"' in lowered_detail
+        or '\\"from\\"' in lowered_detail
+        or "'from'" in lowered_detail
+        or 'from' in lowered_detail and 'invalid_string' in lowered_detail
+        or 'device not found' in lowered_detail
+        or 'no device found with phone number' in lowered_detail
+    )
 
 def send_sms_via_provider(to_number, message):
     """Send SMS through the configured provider. Console mode logs instead of sending."""
@@ -2624,6 +2893,57 @@ def send_sms_via_provider(to_number, message):
             raise RuntimeError(f'Movider returned an unreadable response: {error}') from error
 
         return parse_movider_sms_response(response_data)
+
+    if SMS_PROVIDER == 'infinireach':
+        api_key = os.getenv('INFINIREACH_API_KEY')
+        configured_sender = get_infinireach_configured_sender()
+        channel = os.getenv('INFINIREACH_CHANNEL', 'sms').lower()
+        provider_number = normalize_infinireach_number(to_number)
+        if not api_key or not configured_sender:
+            raise RuntimeError('InfiniReach SMS is not fully configured. Set INFINIREACH_API_KEY and INFINIREACH_FROM in .env.')
+        last_sender_error = None
+        for from_number in get_infinireach_sender_candidates(api_key, configured_sender):
+            payload = json.dumps({
+                'to': provider_number,
+                'message': message,
+                'from': from_number,
+                'channel': channel
+            }).encode('utf-8')
+            request_obj = urllib.request.Request('https://api.infinireach.io/api/v1/messages', data=payload, method='POST')
+            request_obj.add_header('X-API-Key', api_key)
+            request_obj.add_header('Content-Type', 'application/json')
+            request_obj.add_header('Accept', 'application/json')
+            request_obj.add_header('User-Agent', os.getenv('SMS_HTTP_USER_AGENT', 'curl/8.4.0'))
+            try:
+                with urllib.request.urlopen(request_obj, timeout=20) as response:
+                    response_data = json.loads(response.read().decode('utf-8'))
+            except urllib.error.HTTPError as error:
+                error_detail = read_sms_provider_error(error)
+                if error.code == 403 and is_cloudflare_signature_block(error_detail):
+                    try:
+                        response_data = send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel)
+                    except Exception as fallback_error:
+                        fallback_detail = redact_sms_secrets(str(fallback_error)[:900])
+                        raise RuntimeError(f'InfiniReach blocked the Python request and curl fallback also failed: {fallback_detail}') from fallback_error
+                elif is_infinireach_sender_error(error_detail):
+                    last_sender_error = RuntimeError(f'InfiniReach rejected sender {redact_sms_secrets(from_number)}: {error_detail}')
+                    continue
+                else:
+                    raise RuntimeError(f'InfiniReach rejected the request: {error_detail}') from error
+            except urllib.error.URLError as error:
+                raise RuntimeError(f'InfiniReach connection error: {read_sms_provider_error(error)}') from error
+            except json.JSONDecodeError as error:
+                raise RuntimeError(f'InfiniReach returned an unreadable response: {error}') from error
+
+            return parse_infinireach_sms_response(response_data)
+
+        if last_sender_error:
+            raise RuntimeError(
+                f'{last_sender_error}. InfiniReach /api/v1/devices reports the SMS device online, '
+                'but /api/v1/messages is not accepting either the E.164 sender or the raw SIM sender. '
+                'This usually needs InfiniReach account/device mapping support.'
+            )
+        raise RuntimeError('InfiniReach SMS sender could not be resolved from the configured device.')
 
     raise RuntimeError(f'Unsupported SMS provider: {SMS_PROVIDER}')
 
