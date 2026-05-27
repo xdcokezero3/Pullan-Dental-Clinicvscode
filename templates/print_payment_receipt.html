@@ -3,18 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ receipt.id }} - Payment Receipt</title>
+    <title>{{ receipt.id }} - Official Receipt</title>
     <style>
         @media print {
-            .no-print { display: none !important; }
             body { margin: 0; }
+            .no-print { display: none !important; }
+            .receipt-page { box-shadow: none; margin: 0 auto; }
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
-            color: #333;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            margin: 24px;
+            background: #f3f4f6;
+            color: #111;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 13px;
+            line-height: 1.35;
+            margin: 22px;
         }
 
         .print-actions {
@@ -22,7 +29,8 @@
             flex-wrap: wrap;
             gap: 10px;
             justify-content: flex-end;
-            margin-bottom: 18px;
+            margin: 0 auto 18px;
+            max-width: 820px;
         }
 
         .btn {
@@ -30,7 +38,7 @@
             background: #4285f4;
             border: none;
             border-radius: 6px;
-            color: white;
+            color: #fff;
             cursor: pointer;
             display: inline-flex;
             font-size: 14px;
@@ -45,18 +53,17 @@
         }
 
         .add-payment-panel {
-            background: #f8fafc;
-            border: 1px solid #dbe3ef;
+            background: #fff;
+            border: 1px solid #d9dee7;
             border-radius: 8px;
             margin: 0 auto 18px;
-            max-width: 860px;
+            max-width: 820px;
             padding: 16px;
         }
 
         .add-payment-panel h3 {
-            color: #333;
             font-size: 16px;
-            margin: 0 0 12px 0;
+            margin: 0 0 12px;
         }
 
         .add-payment-form {
@@ -73,220 +80,271 @@
             width: 100%;
         }
 
-        .receipt-shell {
-            border: 1px solid #d9dee7;
+        .receipt-page {
+            background: #fff;
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
             margin: 0 auto;
-            max-width: 860px;
-            padding: 28px;
+            max-width: 820px;
+            min-height: 1060px;
+            padding: 54px 58px 42px;
         }
 
-        .header {
-            border-bottom: 3px solid #4285f4;
-            display: flex;
-            gap: 20px;
-            justify-content: space-between;
-            margin-bottom: 26px;
-            padding-bottom: 18px;
-        }
-
-        .clinic-name {
-            color: #4285f4;
-            font-size: 28px;
-            font-weight: 700;
-        }
-
-        .clinic-subtitle {
-            color: #666;
-            font-size: 15px;
-        }
-
-        .clinic-details {
-            color: #555;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-
-        .official-meta {
-            color: #555;
-            font-size: 12px;
-            margin-top: 8px;
-            text-align: right;
-        }
-
-        .receipt-title {
-            color: #333;
-            font-size: 23px;
-            font-weight: 700;
-            text-align: right;
-        }
-
-        .receipt-id {
-            color: #666;
-            font-size: 14px;
-            text-align: right;
-        }
-
-        .info-grid {
+        .clinic-header {
+            align-items: center;
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-bottom: 22px;
+            gap: 26px;
+            grid-template-columns: 120px 1fr;
+            margin-bottom: 36px;
         }
 
-        .info-card {
-            background: #f8f9fa;
-            border: 1px solid #e6e8eb;
-            border-radius: 8px;
-            padding: 16px;
+        .receipt-logo {
+            display: grid;
+            grid-template-columns: repeat(2, 42px);
+            grid-template-rows: repeat(2, 58px);
+            height: 116px;
+            justify-content: center;
+            position: relative;
+            width: 98px;
         }
 
-        .info-card h3 {
-            color: #4285f4;
+        .logo-block {
+            background: #168f88;
+            border: 2px solid #fff;
+        }
+
+        .logo-block:nth-child(2),
+        .logo-block:nth-child(4) {
+            background: #164270;
+        }
+
+        .receipt-logo::after {
+            border: 4px solid #fff;
+            border-radius: 48% 52% 50% 50%;
+            content: "";
+            height: 72px;
+            left: 20px;
+            position: absolute;
+            top: 21px;
+            transform: rotate(35deg);
+            width: 58px;
+        }
+
+        .clinic-title {
+            text-align: center;
+        }
+
+        .clinic-title h1 {
+            font-size: 30px;
+            letter-spacing: 0;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .clinic-title p {
+            font-size: 13px;
+            font-weight: 700;
+            margin: 3px 0;
+        }
+
+        .receipt-heading {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin: 38px 0 28px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .meta-row,
+        .line-row {
+            align-items: end;
+            display: grid;
+            gap: 18px;
+            grid-template-columns: 1fr 1fr;
+            margin-bottom: 8px;
+        }
+
+        .field-line {
+            align-items: end;
+            display: grid;
+            gap: 5px;
+            grid-template-columns: auto 1fr;
+        }
+
+        .field-line .value {
+            border-bottom: 1px solid #111;
+            min-height: 20px;
+            padding: 0 4px 1px;
+            text-transform: uppercase;
+        }
+
+        .field-line.compact {
+            grid-template-columns: auto 115px;
+            justify-content: end;
+        }
+
+        .or-number {
+            color: #e32626;
             font-size: 16px;
-            margin: 0 0 12px 0;
+            font-weight: 700;
         }
 
-        .info-row {
-            border-bottom: 1px solid #eceff3;
-            display: flex;
-            gap: 16px;
-            justify-content: space-between;
-            padding: 8px 0;
+        .amount-words {
+            border-bottom: 1px solid #111;
+            font-weight: 700;
+            min-height: 20px;
+            padding: 0 4px 1px;
+            text-transform: uppercase;
         }
 
-        .info-row:last-child {
-            border-bottom: none;
+        .purpose-row {
+            align-items: end;
+            display: grid;
+            gap: 8px;
+            grid-template-columns: auto 1fr auto 130px;
+            margin-bottom: 56px;
         }
 
-        .label {
-            color: #666;
-            font-weight: 600;
+        .purpose-row .line {
+            border-bottom: 1px solid #111;
+            min-height: 20px;
+            padding: 0 4px 1px;
+            text-transform: uppercase;
         }
 
-        .value {
-            color: #333;
-            text-align: right;
-        }
-
-        .payment-table {
+        .receipt-table {
+            border: 1px solid #111;
             border-collapse: collapse;
-            margin: 22px 0;
+            margin-bottom: 12px;
+            table-layout: fixed;
             width: 100%;
         }
 
-        .payment-table th {
-            background: #4285f4;
-            color: white;
+        .receipt-table th,
+        .receipt-table td {
+            border-left: 1px solid #111;
+            padding: 7px 8px;
+            text-align: center;
+            vertical-align: top;
+        }
+
+        .receipt-table th:first-child,
+        .receipt-table td:first-child {
+            border-left: none;
+        }
+
+        .receipt-table th {
+            border-bottom: 1px solid #111;
             font-size: 13px;
-            padding: 12px;
+            font-weight: 400;
+        }
+
+        .receipt-table tbody td {
+            height: 142px;
+            padding-top: 34px;
+        }
+
+        .particulars {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 15px;
+            font-weight: 700;
             text-align: left;
         }
 
-        .payment-table td {
-            border-bottom: 1px solid #e6e8eb;
-            padding: 13px 12px;
-        }
-
-        .payment-table td.amount,
-        .payment-table th.amount {
-            text-align: right;
-        }
-
-        .payment-table td.center,
-        .payment-table th.center {
-            text-align: center;
-        }
-
-        .totals {
+        .tax-grid {
+            border-left: 1px solid #111;
+            border-right: 1px solid #111;
             display: grid;
-            gap: 8px;
-            justify-content: end;
-            margin-left: auto;
-            max-width: 360px;
+            font-size: 10px;
+            gap: 18px;
+            grid-template-columns: repeat(3, 1fr);
+            margin-top: -13px;
+            padding: 0 8px 28px;
         }
 
-        .total-row {
-            display: flex;
-            gap: 24px;
-            justify-content: space-between;
+        .total-due {
+            border: 1px solid #111;
+            display: inline-block;
+            font-size: 14px;
+            margin: 12px 0 28px;
+            min-width: 260px;
+            padding: 2px 8px;
         }
 
-        .total-row.received {
-            border-top: 2px solid #4285f4;
-            color: #4285f4;
-            font-size: 20px;
+        .mode-box {
+            border: 1px solid #111;
+            margin-bottom: 30px;
+        }
+
+        .mode-title {
+            border-bottom: 1px solid #111;
+            font-size: 13px;
+            padding: 2px 0;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .mode-grid {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: 1.2fr 1fr;
+            padding: 4px 8px 7px;
+        }
+
+        .payment-line {
+            min-height: 18px;
+        }
+
+        .underline {
+            border-bottom: 1px solid #111;
+            display: inline-block;
+            min-width: 126px;
+            padding: 0 4px;
+        }
+
+        .received-by {
+            margin-top: 28px;
+        }
+
+        .received-by .name {
+            margin-top: 18px;
+        }
+
+        .validity {
+            font-size: 12px;
             font-weight: 700;
-            margin-top: 8px;
-            padding-top: 10px;
-        }
-
-        .status-box {
-            background: #f8fafc;
-            border: 1px solid #dbe3ef;
-            border-radius: 8px;
-            margin-top: 22px;
-            padding: 16px;
-        }
-
-        .status-box h3 {
-            color: #333;
-            font-size: 16px;
-            margin: 0 0 8px 0;
-        }
-
-        .history-list {
-            border-top: 1px solid #e6e8eb;
-            display: grid;
-            gap: 8px;
-            margin-top: 12px;
-            padding-top: 12px;
-        }
-
-        .history-item {
-            display: flex;
-            gap: 14px;
-            justify-content: space-between;
-        }
-
-        .signature-row {
-            display: grid;
-            gap: 24px;
-            grid-template-columns: repeat(2, 1fr);
-            margin-top: 42px;
-        }
-
-        .signature-line {
-            border-top: 1px solid #444;
-            color: #555;
-            font-size: 12px;
-            padding-top: 8px;
+            margin-top: 86px;
             text-align: center;
+            text-transform: uppercase;
         }
 
-        .footer {
-            border-top: 1px solid #ddd;
+        .system-note {
             color: #666;
-            font-size: 12px;
-            margin-top: 34px;
-            padding-top: 16px;
+            font-size: 10px;
+            margin-top: 12px;
             text-align: center;
         }
 
-        @media (max-width: 720px) {
-            .header,
-            .info-grid,
+        @media (max-width: 760px) {
+            body {
+                margin: 0;
+            }
+
+            .receipt-page {
+                min-height: auto;
+                padding: 28px 18px;
+            }
+
+            .clinic-header,
+            .meta-row,
+            .line-row,
+            .mode-grid,
             .add-payment-form {
                 grid-template-columns: 1fr;
             }
 
-            .header {
-                display: block;
-            }
-
-            .receipt-title,
-            .receipt-id {
-                margin-top: 10px;
-                text-align: left;
+            .purpose-row {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -318,159 +376,133 @@
     </div>
     {% endif %}
 
-    <div class="receipt-shell">
-        <div class="header">
-            <div>
-                <div class="clinic-name">{{ clinic.name }}</div>
-                <div class="clinic-subtitle">{{ clinic.business_style }}</div>
-                <div class="clinic-details">
-                    {{ clinic.address }}<br>
-                    {{ clinic.city }}<br>
-                    {{ clinic.phone }}{% if clinic.email %} | {{ clinic.email }}{% endif %}
-                </div>
+    <main class="receipt-page">
+        <header class="clinic-header">
+            <div class="receipt-logo" aria-hidden="true">
+                <span class="logo-block"></span>
+                <span class="logo-block"></span>
+                <span class="logo-block"></span>
+                <span class="logo-block"></span>
             </div>
-            <div>
-                <div class="receipt-title">Official Receipt</div>
-                <div class="receipt-id">{{ receipt.id }}</div>
-                {% if not receipt.is_original_receipt %}
-                <div class="receipt-id">Applied to {{ receipt.original_receipt_id }}</div>
-                {% endif %}
-                <div class="official-meta">
-                    TIN: {{ clinic.tin if clinic.tin else "__________________" }}<br>
-                    BIR Permit: {{ clinic.bir_permit if clinic.bir_permit else "__________________" }}<br>
-                    {% if clinic.accreditation %}Accreditation: {{ clinic.accreditation }}{% endif %}
-                </div>
+            <div class="clinic-title">
+                <h1>{{ clinic.name }}</h1>
+                <p>By: {{ clinic.business_style }}</p>
+                <p>{{ clinic.address }}, {{ clinic.city }}</p>
             </div>
+        </header>
+
+        <div class="receipt-heading">Official Receipt</div>
+
+        <section class="meta-row">
+            <div>OR No. <span class="or-number">{{ receipt.id.replace('PAY-', '') }}</span></div>
+            <div class="field-line compact">
+                <span>Date:</span>
+                <span class="value">{{ receipt.payment_date }}</span>
+            </div>
+        </section>
+
+        <section class="line-row">
+            <div class="field-line">
+                <span>Received from</span>
+                <span class="value">{{ receipt.patient_name }}</span>
+            </div>
+            <div class="field-line">
+                <span>Address</span>
+                <span class="value">{{ patient.pataddress if patient and patient.pataddress else "N/A" }}</span>
+            </div>
+        </section>
+
+        <section class="line-row">
+            <div class="field-line">
+                <span>Bus. Style</span>
+                <span class="value">Dental Patient</span>
+            </div>
+            <div class="field-line">
+                <span>T.I.N.</span>
+                <span class="value">{{ clinic.tin if clinic.tin else "N/A" }}</span>
+            </div>
+        </section>
+
+        <div>
+            <span>The sum of </span>
+            <span class="amount-words">{{ receipt.amount_paid_words }}</span>
         </div>
 
-        <div class="info-grid">
-            <div class="info-card">
-                <h3>Patient Information</h3>
-                <div class="info-row">
-                    <span class="label">Patient</span>
-                    <span class="value">{{ receipt.patient_name }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Patient ID</span>
-                    <span class="value">{{ receipt.patient_id }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Contact</span>
-                    <span class="value">{{ patient.patcontact if patient else "N/A" }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Procedure ID</span>
-                    <span class="value">{{ receipt.procedure_id }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Address</span>
-                    <span class="value">{{ patient.pataddress if patient and patient.pataddress else "N/A" }}</span>
-                </div>
-            </div>
+        <section class="purpose-row">
+            <span></span>
+            <span class="line">{{ receipt.description }}</span>
+            <span>In payment of</span>
+            <span class="line">{{ receipt.payment_type }}</span>
+        </section>
 
-            <div class="info-card">
-                <h3>Payment Information</h3>
-                <div class="info-row">
-                    <span class="label">Date</span>
-                    <span class="value">{{ receipt.payment_date }} {{ receipt.payment_time }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Method</span>
-                    <span class="value">{{ receipt.payment_method }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Type</span>
-                    <span class="value">{{ receipt.payment_type }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Reference</span>
-                    <span class="value">{{ receipt.reference_number }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Original Receipt</span>
-                    <span class="value">{{ receipt.original_receipt_id }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Received By</span>
-                    <span class="value">{{ receipt.received_by }}</span>
-                </div>
-            </div>
-        </div>
-
-        <table class="payment-table">
+        <table class="receipt-table">
             <thead>
                 <tr>
-                    <th>Service</th>
-                    <th class="center">Qty</th>
-                    <th class="amount">Unit Price</th>
-                    <th class="amount">Line Total</th>
+                    <th style="width: 25%;">Reference</th>
+                    <th>Particulars</th>
+                    <th style="width: 16%;">Qty</th>
+                    <th style="width: 20%;">Amount</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in receipt.service_items %}
                 <tr>
-                    <td>
-                        <strong>{{ item.name }}</strong>
-                    </td>
-                    <td class="center">{{ item.quantity }}</td>
-                    <td class="amount">{{ item.unit_price }}</td>
-                    <td class="amount">{{ item.line_total }}</td>
+                    <td>{{ receipt.procedure_id }}</td>
+                    <td class="particulars">{{ item.name }}</td>
+                    <td><strong>{{ item.quantity }}</strong></td>
+                    <td><strong>{{ item.line_total }}</strong></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
 
-        <div class="totals">
-            <div class="total-row">
-                <span>Total Amount Due</span>
-                <strong>{{ receipt.total_amount }}</strong>
+        <div class="tax-grid">
+            <div>
+                VATABLE SALES<br>
+                VAT-EXEMPT SALES<br>
+                ZERO-RATED SALES
             </div>
-            <div class="total-row">
-                <span>Balance Before Payment</span>
-                <strong>{{ receipt.balance_before }}</strong>
+            <div>
+                VAT AMOUNT<br>
+                TOTAL SALES(VAT INCL.)<br>
+                LESS: VAT
             </div>
-            <div class="total-row received">
-                <span>Amount Received</span>
-                <strong>{{ receipt.amount_paid }}</strong>
-            </div>
-            <div class="total-row">
-                <span>Total Paid To Date</span>
-                <strong>{{ receipt.total_paid_to_date }}</strong>
-            </div>
-            <div class="total-row">
-                <span>Receipt Balance After Payment</span>
-                <strong>{{ receipt.balance_after }}</strong>
-            </div>
-            <div class="total-row">
-                <span>Current Transaction Balance</span>
-                <strong>{{ receipt.current_balance }}</strong>
+            <div>
+                AMOUNT NET OF VAT<br>
+                LESS: SC/PWD DISC.<br>
+                ADD: VAT<br>
+                AMOUNT DUE:
             </div>
         </div>
 
-        <div class="status-box">
-            <h3>{{ receipt.current_status }}</h3>
-            <p>This receipt confirms the payment received by Pullan Dental Clinic for the service shown above.</p>
-            <p><strong>Notes:</strong> {{ receipt.notes }}</p>
-            <div class="history-list">
-                <strong>Payment History</strong>
-                {% for payment in receipt.payment_history %}
-                <div class="history-item">
-                    <span>{{ payment.id }} | {{ payment.date }} | {{ payment.method }}</span>
-                    <strong>{{ payment.amount }}</strong>
+        <div class="total-due">TOTAL DUE: <strong>{{ receipt.amount_paid_plain }}</strong></div>
+
+        <section class="mode-box">
+            <div class="mode-title">Mode of Payment</div>
+            <div class="mode-grid">
+                <div>
+                    <div class="payment-line">CASH: <span class="underline">{% if receipt.payment_method == 'Cash' %}{{ receipt.amount_paid }}{% endif %}</span></div>
+                    <div class="payment-line">CHECK: <span class="underline">{% if receipt.payment_method == 'Bank Transfer' %}{{ receipt.amount_paid }}{% endif %}</span></div>
+                    <div class="payment-line">PMO: <span class="underline">{% if receipt.payment_method == 'GCash' %}{{ receipt.amount_paid }}{% endif %}</span></div>
                 </div>
-                {% endfor %}
+                <div>
+                    <div class="payment-line">BANK/CHECK NO.: <span class="underline">{{ receipt.reference_number if receipt.payment_method == 'Bank Transfer' else "" }}</span></div>
+                    <div class="payment-line">PMO NO.: <span class="underline">{{ receipt.reference_number if receipt.payment_method == 'GCash' else "" }}</span></div>
+                </div>
             </div>
-        </div>
+        </section>
 
-        <div class="signature-row">
-            <div class="signature-line">Patient / Authorized Representative</div>
-            <div class="signature-line">Authorized Clinic Representative</div>
-        </div>
+        <section class="received-by">
+            <strong>PAYMENT RECEIVED BY:</strong>
+            <div class="name">{{ receipt.received_by }}</div>
+            <div>Cashier</div>
+        </section>
 
-        <div class="footer">
-            Receipt generated on {{ print_datetime }} by {{ current_user }}<br>
-            This system-generated receipt should use the clinic's registered tax and permit details before official issuance.
+        <div class="validity">This official receipt shall be valid until March 2028</div>
+        <div class="system-note">
+            Receipt generated on {{ print_datetime }} by {{ current_user }}.
+            {% if not receipt.is_original_receipt %}Applied to original receipt {{ receipt.original_receipt_id }}.{% endif %}
         </div>
-    </div>
+    </main>
 </body>
 </html>

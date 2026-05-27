@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedures Report - Pullan Dental Clinic</title>
+    <style>
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none !important; }
+        }
+
+        body {
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+
+        .header {
+            border-bottom: 3px solid #2196f3;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            text-align: center;
+        }
+
+        .clinic-logo {
+            color: #2196f3;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .clinic-subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .report-title {
+            color: #333;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .report-info {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding: 15px;
+        }
+
+        .info-section {
+            flex: 1;
+        }
+
+        .info-label {
+            color: #666;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .info-value {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .filters-section {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            padding: 15px;
+        }
+
+        .filters-title {
+            color: #1976d2;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .filter-item {
+            background: #fff;
+            border: 2px solid #2196f3;
+            border-radius: 20px;
+            color: #1976d2;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 5px;
+            padding: 8px 15px;
+        }
+
+        .no-filters {
+            background: #f5f5f5;
+            border-radius: 5px;
+            color: #666;
+            font-style: italic;
+            padding: 10px;
+        }
+
+        .statistics {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 25px;
+            padding: 15px;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .stat-number {
+            color: #2196f3;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .procedures-table {
+            background: #fff;
+            border-collapse: collapse;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            width: 100%;
+        }
+
+        .procedures-table th {
+            background-color: #2196f3;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 12px 8px;
+            text-align: left;
+        }
+
+        .procedures-table td {
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 12px;
+            padding: 10px 8px;
+            vertical-align: top;
+        }
+
+        .procedures-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .footer {
+            border-top: 2px solid #e0e0e0;
+            color: #666;
+            font-size: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            text-align: center;
+        }
+
+        .print-actions {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .print-btn {
+            background: #2196f3;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            padding: 12px 24px;
+        }
+
+        .back-btn {
+            background: #666;
+            color: #fff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="print-actions no-print">
+        <button onclick="window.print()" class="print-btn">Print Report</button>
+        <a href="{{ url_for('procedures') }}" class="print-btn back-btn">Back to Procedures</a>
+    </div>
+
+    <div class="header">
+        <div class="clinic-logo">Pullan Dental Clinic</div>
+        <div class="clinic-subtitle">Clinic Management System</div>
+        <div class="report-title">Procedures Report</div>
+        <div>{{ report_scope }}</div>
+    </div>
+
+    <div class="report-info">
+        <div class="info-section">
+            <div class="info-label">Generated By</div>
+            <div class="info-value">{{ current_user }}</div>
+            <div class="info-label">Generated On</div>
+            <div class="info-value">{{ print_datetime }}</div>
+        </div>
+        <div class="info-section">
+            <div class="info-label">Report Type</div>
+            <div class="info-value">Procedure History</div>
+            <div class="info-label">Total Records</div>
+            <div class="info-value">{{ total_procedures }}</div>
+        </div>
+    </div>
+
+    <div class="filters-section">
+        <div class="filters-title">Applied Filters</div>
+        {% if filters %}
+            {% for filter in filters %}
+            <span class="filter-item">{{ filter }}</span>
+            {% endfor %}
+        {% else %}
+            <div class="no-filters">No filters applied. Showing all procedure records.</div>
+        {% endif %}
+    </div>
+
+    <div class="statistics">
+        <div class="stat-item">
+            <div class="stat-number">{{ total_procedures }}</div>
+            <div class="stat-label">Procedures</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ patient_count }}</div>
+            <div class="stat-label">Patients</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ dentist_count }}</div>
+            <div class="stat-label">Dentists</div>
+        </div>
+    </div>
+
+    {% if procedures %}
+    <table class="procedures-table">
+        <thead>
+            <tr>
+                <th>Procedure ID</th>
+                <th>Patient</th>
+                <th>Date</th>
+                <th>Procedure</th>
+                <th>Dentist</th>
+                <th>Prescription</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for procedure in procedures %}
+            <tr>
+                <td><strong>{{ procedure.id }}</strong></td>
+                <td>
+                    {{ procedure.patient_name }}<br>
+                    <small>{{ procedure.patient_id }}</small>
+                </td>
+                <td>{{ procedure.date }}</td>
+                <td>{{ procedure.procedure }}</td>
+                <td>{{ procedure.dentist }}</td>
+                <td>{{ procedure.prescription }}</td>
+                <td>{{ procedure.notes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="no-filters">No procedure records found for this report.</div>
+    {% endif %}
+
+    <div class="footer">
+        <p>This report was generated by Pullan Dental Clinic Management System.</p>
+        <p>Report contains {{ total_procedures }} procedure record(s).</p>
+    </div>
+</body>
+</html>

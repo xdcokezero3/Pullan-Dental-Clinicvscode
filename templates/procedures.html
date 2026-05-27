@@ -632,10 +632,28 @@
 
         .procedures-table th {
             color: var(--text-light);
+            cursor: pointer;
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
             background-color: #f8fafc;
+            user-select: none;
+        }
+
+        .procedures-table th::after {
+            color: #9aa3af;
+            content: " \f0dc";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            margin-left: 6px;
+        }
+
+        .procedures-table th.sort-asc::after {
+            content: " \f0de";
+        }
+
+        .procedures-table th.sort-desc::after {
+            content: " \f0dd";
         }
 
         .procedure-id {
@@ -1030,6 +1048,12 @@
                         </div>
                         <div class="history-tools">
                             <input type="text" id="procedureSearch" class="form-control history-search" placeholder="Search procedure, patient, dentist...">
+                            {% if recent_procedures and recent_procedures|length > 0 %}
+                            <button type="button" id="printProceduresReport" class="btn btn-secondary">
+                                <i class="fas fa-print"></i>
+                                Print Report
+                            </button>
+                            {% endif %}
                             {% if patients and patients|length > 0 %}
                             <button type="button" id="showAddProcedure" class="btn btn-primary">
                                 <i class="fas fa-plus"></i>
@@ -1041,16 +1065,16 @@
 
                     {% if recent_procedures and recent_procedures|length > 0 %}
                     <div class="procedures-table-wrap">
-                        <table class="procedures-table">
+                        <table class="procedures-table" id="procedureHistoryTable">
                             <thead>
                                 <tr>
-                                    <th>Procedure ID</th>
-                                    <th>Patient</th>
-                                    <th>Date</th>
-                                    <th>Procedure</th>
-                                    <th>Dentist</th>
-                                    <th>Prescription</th>
-                                    <th>Actions</th>
+                                    <th data-sort="text">Procedure ID</th>
+                                    <th data-sort="text">Patient</th>
+                                    <th data-sort="date">Date</th>
+                                    <th data-sort="text">Procedure</th>
+                                    <th data-sort="text">Dentist</th>
+                                    <th data-sort="text">Prescription</th>
+                                    <th data-sort="text">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="procedureRows">
@@ -1114,6 +1138,8 @@
         const procedureDate = document.getElementById('procedure_date');
         const procedureGrid = document.getElementById('procedureGrid');
         const procedureSearch = document.getElementById('procedureSearch');
+        const procedureHistoryTable = document.getElementById('procedureHistoryTable');
+        const printProceduresReport = document.getElementById('printProceduresReport');
         const addProcedurePanel = document.getElementById('addProcedurePanel');
         const showAddProcedure = document.getElementById('showAddProcedure');
         const cancelAddProcedure = document.getElementById('cancelAddProcedure');
@@ -1728,6 +1754,51 @@
                 if (noResults) {
                     noResults.style.display = visibleCount === 0 ? 'block' : 'none';
                 }
+            });
+        }
+
+        function sortProcedureHistory(header, columnIndex) {
+            const tbody = document.getElementById('procedureRows');
+            if (!tbody) return;
+
+            const sortType = header.dataset.sort || 'text';
+            const nextDirection = header.classList.contains('sort-asc') ? 'desc' : 'asc';
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            procedureHistoryTable.querySelectorAll('th').forEach((th) => th.classList.remove('sort-asc', 'sort-desc'));
+            header.classList.add(nextDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+            rows.sort((a, b) => {
+                const aText = (a.cells[columnIndex]?.textContent || '').trim();
+                const bText = (b.cells[columnIndex]?.textContent || '').trim();
+                let comparison;
+
+                if (sortType === 'date') {
+                    comparison = (Date.parse(aText) || 0) - (Date.parse(bText) || 0);
+                } else {
+                    comparison = aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' });
+                }
+
+                return nextDirection === 'asc' ? comparison : -comparison;
+            });
+
+            rows.forEach((row) => tbody.appendChild(row));
+        }
+
+        if (procedureHistoryTable) {
+            procedureHistoryTable.querySelectorAll('th').forEach((header, index) => {
+                header.addEventListener('click', () => sortProcedureHistory(header, index));
+            });
+        }
+
+        if (printProceduresReport) {
+            printProceduresReport.addEventListener('click', () => {
+                const printUrl = new URL('{{ url_for("print_procedures_report") }}', window.location.origin);
+                const keyword = procedureSearch ? procedureSearch.value.trim() : '';
+                if (keyword) {
+                    printUrl.searchParams.set('search', keyword);
+                }
+                window.open(printUrl.toString(), '_blank');
             });
         }
 

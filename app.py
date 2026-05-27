@@ -5153,6 +5153,102 @@ def procedure_history(patient_id):
         print(f"Error in procedure_history route: {e}")
         return f"Error loading procedure history: {e}", 500
 
+def procedure_labels_from_report(procedure):
+    procedures_done = []
+    if procedure.repcleaning:
+        procedures_done.append("Cleaning")
+    if procedure.repextraction:
+        procedures_done.append("Extraction")
+    if procedure.reprootcanal:
+        procedures_done.append("Root Canal")
+    if procedure.repbraces:
+        procedures_done.append("Braces")
+    if procedure.repdentures:
+        procedures_done.append("Dentures")
+    if procedure.repothers:
+        procedures_done.append(procedure.repothers)
+    return ", ".join(procedures_done) if procedures_done else "General Visit"
+
+def format_procedure_report_rows(procedures):
+    patient_by_name = {
+        patient.patname: patient
+        for patient in Patient.query.filter_by(is_deleted=False).all()
+    }
+    formatted_rows = []
+    for procedure in procedures:
+        patient = patient_by_name.get(procedure.reppatient)
+        formatted_rows.append({
+            'id': f"PROC-{procedure.repid:03d}",
+            'patient_name': procedure.reppatient,
+            'patient_id': f"PAT-{patient.patId:03d}" if patient else "N/A",
+            'date': procedure.repdate.strftime('%B %d, %Y') if procedure.repdate else "N/A",
+            'date_sort': procedure.repdate.strftime('%Y-%m-%d') if procedure.repdate else "",
+            'procedure': procedure_labels_from_report(procedure),
+            'dentist': procedure.repdentist or "N/A",
+            'prescription': procedure.repprescription or "None",
+            'notes': procedure.repothers or "None"
+        })
+    return formatted_rows
+
+@app.route('/print_procedures_report')
+def print_procedures_report():
+    """Print the procedure history list using the shared report layout style."""
+    try:
+        patient_id = request.args.get('patient_id', type=int)
+        search = (request.args.get('search') or '').strip()
+        raw_ids = (request.args.get('ids') or '').strip()
+
+        query = Report.query
+        patient = None
+        if patient_id:
+            patient = Patient.query.get_or_404(patient_id)
+            query = query.filter_by(reppatient=patient.patname)
+
+        if raw_ids:
+            selected_ids = []
+            for raw_id in raw_ids.split(','):
+                try:
+                    selected_ids.append(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+            if selected_ids:
+                query = query.filter(Report.repid.in_(selected_ids))
+
+        procedures = query.order_by(Report.repdate.desc(), Report.repid.desc()).all()
+        formatted_rows = format_procedure_report_rows(procedures)
+
+        if search:
+            lowered_search = search.lower()
+            formatted_rows = [
+                row for row in formatted_rows
+                if lowered_search in ' '.join(str(value) for value in row.values()).lower()
+            ]
+
+        dentist_count = len({row['dentist'] for row in formatted_rows if row['dentist'] != 'N/A'})
+        patient_count = len({row['patient_name'] for row in formatted_rows})
+        filters = []
+        if patient:
+            filters.append(f"Patient: {patient.patname}")
+        if search:
+            filters.append(f"Search: {search}")
+        if raw_ids:
+            filters.append("Selected procedures")
+
+        return render_template(
+            'print_procedures_report.html',
+            procedures=formatted_rows,
+            total_procedures=len(formatted_rows),
+            patient_count=patient_count,
+            dentist_count=dentist_count,
+            filters=filters,
+            report_scope='Procedure History',
+            current_user=session.get('real_name', session.get('username', 'Unknown User')),
+            print_datetime=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        )
+    except Exception as e:
+        print(f"Error printing procedures report: {e}")
+        return f"Error printing procedures report: {e}", 500
+
 @app.route('/print_procedure/<int:procedure_id>')
 def print_procedure(procedure_id):
     """Generate a printable record for one procedure"""
@@ -6029,6 +6125,39 @@ def decimal_money(value):
 def format_money(value):
     return f"PHP {decimal_money(value):,.2f}"
 
+def format_money_plain(value):
+    return f"{decimal_money(value):,.2f}"
+
+def number_to_words_under_million(number):
+    ones = [
+        'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+        'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+        'seventeen', 'eighteen', 'nineteen'
+    ]
+    tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+
+    if number < 20:
+        return ones[number]
+    if number < 100:
+        remainder = number % 10
+        return tens[number // 10] if remainder == 0 else f"{tens[number // 10]} {ones[remainder]}"
+    if number < 1000:
+        remainder = number % 100
+        prefix = f"{ones[number // 100]} hundred"
+        return prefix if remainder == 0 else f"{prefix} {number_to_words_under_million(remainder)}"
+
+    thousands = number // 1000
+    remainder = number % 1000
+    prefix = f"{number_to_words_under_million(thousands)} thousand"
+    return prefix if remainder == 0 else f"{prefix} {number_to_words_under_million(remainder)}"
+
+def pesos_to_words(value):
+    amount = decimal_money(value)
+    pesos = int(amount)
+    centavos = int((amount - Decimal(pesos)) * 100)
+    words = f"{number_to_words_under_million(pesos).upper()} PESOS"
+    return f"{words} AND {centavos:02d}/100"
+
 def seed_service_prices():
     existing_prices = {
         service.service_key: service
@@ -6538,11 +6667,15 @@ def payment_receipt(payment_id):
             'is_original_receipt': is_original_receipt,
             'reference_number': payment_record.reference_number or 'N/A',
             'total_amount': format_money(payment_record.total_amount),
+            'total_amount_plain': format_money_plain(payment_record.total_amount),
             'balance_before': format_money(payment_record.balance_before),
             'amount_paid': format_money(payment_record.amount_paid),
+            'amount_paid_plain': format_money_plain(payment_record.amount_paid),
+            'amount_paid_words': pesos_to_words(payment_record.amount_paid),
             'total_paid_to_date': format_money(transaction_summary['total_paid']),
             'balance_after': format_money(payment_record.balance_after),
             'current_balance': format_money(transaction_summary['remaining_balance']),
+            'current_balance_plain': format_money_plain(transaction_summary['remaining_balance']),
             'current_status': transaction_summary['status'],
             'status': payment_record.status,
             'notes': payment_record.notes or 'None',

@@ -225,6 +225,10 @@
                             Add Procedure
                         </a>
                         {% if procedures and procedures|length > 0 %}
+                        <button type="button" class="btn btn-secondary" id="printProcedureHistoryReport">
+                            <i class="fas fa-print"></i>
+                            Print Report
+                        </button>
                         <button type="button" class="btn btn-secondary" id="printSelectedProcedures" disabled>
                             <i class="fas fa-print"></i>
                             Print Selected
@@ -296,6 +300,7 @@
         const historyTable = document.querySelector('.history-table-wrap table');
         const selectAllProcedures = document.getElementById('selectAllProcedures');
         const printSelectedProcedures = document.getElementById('printSelectedProcedures');
+        const printProcedureHistoryReport = document.getElementById('printProcedureHistoryReport');
 
         if (historySearch) {
             historySearch.addEventListener('input', () => {
@@ -391,52 +396,26 @@
                 const rows = selectedProcedureRows();
                 if (!rows.length) return;
 
-                const printableRows = rows.map((row) => {
-                    const cells = Array.from(row.cells).slice(1, 7)
-                        .map((cell) => `<td>${cell.innerHTML}</td>`)
-                        .join('');
-                    return `<tr>${cells}</tr>`;
-                }).join('');
+                const selectedIds = rows
+                    .map((row) => row.querySelector('.procedure-select')?.value)
+                    .filter(Boolean)
+                    .join(',');
+                const printUrl = new URL('{{ url_for("print_procedures_report") }}', window.location.origin);
+                printUrl.searchParams.set('patient_id', '{{ patient.patId }}');
+                printUrl.searchParams.set('ids', selectedIds);
+                window.open(printUrl.toString(), '_blank');
+            });
+        }
 
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Selected Procedure History</title>
-                        <style>
-                            body { font-family: Arial, sans-serif; padding: 24px; color: #222; }
-                            h1 { font-size: 22px; margin-bottom: 4px; }
-                            p { color: #555; margin-top: 0; }
-                            table { border-collapse: collapse; width: 100%; }
-                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
-                            th { background: #f3f4f6; font-size: 12px; text-transform: uppercase; }
-                            .procedure-id { font-weight: 700; }
-                            @media print { body { padding: 0; } }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>Procedure History - {{ patient.patname }}</h1>
-                        <p>Printed ${new Date().toLocaleString()}</p>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Procedure ID</th>
-                                    <th>Date</th>
-                                    <th>Procedure</th>
-                                    <th>Dentist</th>
-                                    <th>Prescription</th>
-                                    <th>Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody>${printableRows}</tbody>
-                        </table>
-                    </body>
-                    </html>
-                `);
-                printWindow.document.close();
-                printWindow.focus();
-                printWindow.print();
+        if (printProcedureHistoryReport) {
+            printProcedureHistoryReport.addEventListener('click', () => {
+                const printUrl = new URL('{{ url_for("print_procedures_report") }}', window.location.origin);
+                const keyword = historySearch ? historySearch.value.trim() : '';
+                printUrl.searchParams.set('patient_id', '{{ patient.patId }}');
+                if (keyword) {
+                    printUrl.searchParams.set('search', keyword);
+                }
+                window.open(printUrl.toString(), '_blank');
             });
         }
 
