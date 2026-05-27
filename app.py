@@ -2310,6 +2310,15 @@ def build_sms_reminder_message(patient_name, appointment_date, appointment_time)
         "Please arrive on time. Thank you."
     )
 
+def sms_reminder_scheduled_time(appointment_start, now=None):
+    """Schedule normal reminders one day before; send now for today/tomorrow appointments."""
+    if not appointment_start:
+        return None
+
+    now = now or datetime.now()
+    one_day_before = appointment_start - timedelta(days=1)
+    return now if one_day_before <= now else one_day_before
+
 def create_or_update_sms_reminder(appointment, patient):
     """Create one pending reminder per appointment when the patient has a valid PH mobile number."""
     try:
@@ -2348,7 +2357,7 @@ def create_or_update_sms_reminder(appointment, patient):
         if not appointment_start:
             return None
 
-        scheduled_for = appointment_start - timedelta(days=1)
+        scheduled_for = sms_reminder_scheduled_time(appointment_start)
         message = build_sms_reminder_message(patient.patname, appointment.appdate, appointment.apptime)
 
         if existing_reminder and existing_reminder.status in ('Sent', 'Sending'):
@@ -3348,7 +3357,9 @@ def add_appointment():
         
         db.session.add(new_appointment)
         db.session.commit()
-        create_or_update_sms_reminder(new_appointment, patient)
+        sms_reminder = create_or_update_sms_reminder(new_appointment, patient)
+        if sms_reminder and sms_reminder.status == 'Pending' and sms_reminder.scheduled_for <= datetime.now():
+            process_due_sms_reminders()
         
         log_user_action(
             session.get('user_id'),
@@ -3557,7 +3568,9 @@ def reschedule_appointment():
 
         patient = Patient.query.filter_by(patname=appointment.apppatient, is_deleted=False).first()
         if patient:
-            create_or_update_sms_reminder(appointment, patient)
+            sms_reminder = create_or_update_sms_reminder(appointment, patient)
+            if sms_reminder and sms_reminder.status == 'Pending' and sms_reminder.scheduled_for <= datetime.now():
+                process_due_sms_reminders()
         
         log_user_action(
             session.get('user_id'),

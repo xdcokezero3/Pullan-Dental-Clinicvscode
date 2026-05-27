@@ -148,20 +148,6 @@
             font-weight: 500;
         }
 
-        .chart-warning {
-            align-items: flex-start;
-            background-color: rgba(245, 158, 11, 0.12);
-            border: 1px solid rgba(245, 158, 11, 0.35);
-            border-radius: var(--border-radius);
-            color: #92400e;
-            display: flex;
-            font-size: 13px;
-            gap: 10px;
-            line-height: 1.4;
-            margin-top: 14px;
-            padding: 11px 12px;
-        }
-
         .inventory-used {
             border-top: 1px solid #eee;
             margin-top: 18px;
@@ -815,7 +801,6 @@
                                         data-contact="{{ patient.contact }}"
                                         data-age="{{ patient.age }}"
                                         data-gender="{{ patient.gender }}"
-                                        data-chart-complete="{{ 'true' if patient.chart_complete else 'false' }}"
                                         {% if selected_patient_id == patient.raw_id %}selected{% endif %}>
                                     {{ patient.name }} - {{ patient.id }}
                                 </option>
@@ -829,10 +814,6 @@
                             <div class="summary-row"><span>Age</span><strong id="summaryAge">N/A</strong></div>
                             <div class="summary-row"><span>Gender</span><strong id="summaryGender">N/A</strong></div>
                             <div class="summary-row"><span>Contact</span><strong id="summaryContact">N/A</strong></div>
-                            <div id="chartWarning" class="chart-warning" style="display: none;">
-                                <i class="fas fa-triangle-exclamation"></i>
-                                <span>This patient's dental chart is incomplete.</span>
-                            </div>
                         </div>
 
                         <div class="inventory-used">
@@ -1482,13 +1463,9 @@
 
             const selected = patientSelect.options[patientSelect.selectedIndex];
             const summary = document.getElementById('patientSummary');
-            const chartWarning = document.getElementById('chartWarning');
 
             if (!selected || !selected.value) {
                 summary.style.display = 'none';
-                if (chartWarning) {
-                    chartWarning.style.display = 'none';
-                }
                 updateProcedureAvailability();
                 return;
             }
@@ -1498,9 +1475,6 @@
             document.getElementById('summaryAge').textContent = selected.dataset.age || 'N/A';
             document.getElementById('summaryGender').textContent = selected.dataset.gender || 'N/A';
             document.getElementById('summaryContact').textContent = selected.dataset.contact || 'N/A';
-            if (chartWarning) {
-                chartWarning.style.display = selected.dataset.chartComplete === 'true' ? 'none' : 'flex';
-            }
             summary.style.display = 'block';
             updateProcedureAvailability();
             clearSelectedTeeth();

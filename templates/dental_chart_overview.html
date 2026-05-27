@@ -209,10 +209,9 @@
             100% { transform: rotate(360deg); }
         }
         
-        /* Quick Stats - UPDATED: Only 3 stats now */
         .quick-stats {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: 1fr;
             gap: 15px;
             margin-bottom: 20px;
         }
@@ -365,19 +364,11 @@
                 </h1>
                 <p class="date">{{ current_date }}</p>
                 
-                <!-- Quick Statistics - UPDATED: Only 3 stats -->
+                <!-- Quick Statistics -->
                 <div class="quick-stats">
                     <div class="stat-card">
                         <div class="stat-number">{{ total_patients }}</div>
                         <div class="stat-label">Total Patients</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{{ complete_charts }}</div>
-                        <div class="stat-label">Complete Charts</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{{ incomplete_charts }}</div>
-                        <div class="stat-label">Incomplete Charts</div>
                     </div>
                 </div>
                 
@@ -397,11 +388,8 @@
                                     <input type="text" id="searchPatients" placeholder="Search patients...">
                                     <i class="fas fa-search"></i>
                                 </div>
-                                <!-- UPDATED: Removed "Partial Charts" filter -->
                                 <div class="filter-buttons">
                                     <button class="filter-btn active" onclick="filterCharts('all')">All Patients</button>
-                                    <button class="filter-btn" onclick="filterCharts('complete')">Complete Charts</button>
-                                    <button class="filter-btn" onclick="filterCharts('incomplete')">Incomplete Charts</button>
                                 </div>
                             </div>
                         </div>
@@ -414,15 +402,13 @@
                                         <th>Patient Name</th>
                                         <th>Contact</th>
                                         <th>Age/Gender</th>
-                                        <th>Chart Status</th>
                                         <th>Last Procedure</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="chartsTable">
                                     {% for patient in patients %}
-                                    <!-- UPDATED: Only 'complete' or 'incomplete' status -->
-                                    <tr data-status="{{ 'complete' if patient.chart_complete else 'incomplete' }}">
+                                    <tr>
                                         <td>
                                             <span class="patient-id-badge">{{ patient.id }}</span>
                                         </td>
@@ -431,21 +417,6 @@
                                         </td>
                                         <td>{{ patient.contact }}</td>
                                         <td>{{ patient.age }} / {{ patient.gender }}</td>
-                                        <td>
-                                            {% if patient.chart_complete %}
-                                                <span class="chart-status-badge status-complete">
-                                                    <i class="fas fa-check-circle"></i> Complete Chart
-                                                </span>
-                                            {% else %}
-                                                <span class="chart-status-badge status-incomplete">
-                                                    <i class="fas fa-exclamation-circle"></i> Incomplete Chart
-                                                </span>
-                                                <br>
-                                                <small style="color: var(--text-light); font-size: 10px;">
-                                                    Missing required information
-                                                </small>
-                                            {% endif %}
-                                        </td>
                                         <td>
                                             <span style="font-size: 12px; color: var(--text-light);">
                                                 {{ patient.last_procedure_date }}
@@ -456,7 +427,7 @@
                                                 {% if patient.has_dental_chart %}
                                                     <a href="/patient_dental_chart/{{ patient.raw_id }}" class="btn-chart">
                                                         <i class="fas fa-edit" style="margin-right: 5px;"></i>
-                                                        {% if patient.chart_complete %}Edit Chart{% else %}Complete Chart{% endif %}
+                                                        Open Chart
                                                     </a>
                                                 {% else %}
                                                     <a href="/create_dental_chart_now/{{ patient.raw_id }}" class="btn-create" onclick="showCreating(this, {{ patient.raw_id }})">
@@ -641,7 +612,7 @@
             console.log(`Search results: ${visibleCount} patients found`);
         });
 
-        // UPDATED: Filter charts by status (no partial option)
+        // Filter chart list
         function filterCharts(status) {
             const tableRows = document.querySelectorAll('#chartsTable tr');
             const filterButtons = document.querySelectorAll('.filter-btn');
@@ -650,20 +621,8 @@
             filterButtons.forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
             
-            // Filter rows
             tableRows.forEach(row => {
-                if (status === 'all') {
-                    row.style.display = '';
-                } else {
-                    const rowStatus = row.getAttribute('data-status');
-                    if (status === 'incomplete' && rowStatus === 'incomplete') {
-                        row.style.display = '';
-                    } else if (status === 'complete' && rowStatus === 'complete') {
-                        row.style.display = '';
-                    } else if (status !== 'all') {
-                        row.style.display = 'none';
-                    }
-                }
+                row.style.display = '';
             });
         }
 
@@ -684,7 +643,7 @@
             }
         });
 
-        console.log('Dental Charts Overview loaded successfully - No partial charts');
+        console.log('Dental Charts Overview loaded successfully');
     </script>
 </body>
 </html>

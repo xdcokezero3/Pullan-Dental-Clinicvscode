@@ -534,6 +534,7 @@
                 
                 <!-- Main Chart Container -->
                 <div class="chart-container">
+                    <input type="hidden" id="patientId" value="{{ patient.patId }}">
                     <!-- Main Chart Area -->
                     <div class="main-chart-area">
                         <!-- Patient Information Card -->
@@ -567,165 +568,6 @@
                                     <span class="info-value">{{ patient.patdob.strftime('%B %d, %Y') if patient.patdob else "N/A" }}</span>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Dental Chart Information -->
-                        <div class="chart-card">
-                            <div class="card-header">
-                                <h3 class="card-title"><i class="fas fa-file-medical"></i> Dental Chart Information</h3>
-                            </div>
-                            
-                            <!-- UPDATED: Error and Success Message Areas -->
-                            <div id="errorMessage" class="error-message">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <span id="errorText"></span>
-                            </div>
-                            
-                            <div id="successMessage" class="success-message">
-                                <i class="fas fa-check-circle"></i>
-                                <span id="successText"></span>
-                            </div>
-                            
-                            <form id="dentalChartForm">
-                                <input type="hidden" id="patientId" value="{{ patient.patId }}">
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label class="form-label">Referring Doctor</label>
-                                        <input type="text" class="form-input" id="doctor" value="{{ dental_chart.dcdoctor if dental_chart else '' }}" placeholder="Enter doctor name">
-                                    </div>
-                                    <!-- UPDATED: Dentist field is now required -->
-                                    <div class="form-group required">
-                                        <label class="form-label">Dentist</label>
-                                        <input type="text" class="form-input" id="dentist" value="{{ dental_chart.dcdentist if dental_chart else '' }}" placeholder="Enter dentist name" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Patient Contact</label>
-                                        <input type="text" class="form-input" id="patient_contact" value="{{ dental_chart.dcpcontact if dental_chart else patient.patcontact }}" placeholder="Patient contact">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Dentist Contact</label>
-                                        <input type="text" class="form-input" id="dentist_contact" value="{{ dental_chart.dcdcontact if dental_chart else '' }}" placeholder="Dentist contact">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Latest Procedure / Visit</label>
-                                        <input type="text" class="form-input" id="visit_reason" value="{{ dental_chart.dcvisit if dental_chart else '' }}" placeholder="Latest procedure or visit reason">
-                                    </div>
-                                </div>
-                                
-                                <!-- Health Questionnaire - UPDATED: All questions are required -->
-                                <div class="questionnaire-section">
-                                    <h4 style="margin-bottom: 20px; color: var(--primary-color);">
-                                        <i class="fas fa-clipboard-list"></i> Health Questionnaire
-                                        <small style="color: #dc3545; font-size: 14px; font-weight: normal;">(All questions are required)</small>
-                                    </h4>
-                                    
-                                    <!-- Question 1 - REQUIRED -->
-                                    <div class="question-group required" id="q1_group">
-                                        <div class="question-text required">1. Are you currently taking any medications?</div>
-                                        <div class="radio-group">
-                                            <div class="radio-item">
-                                                <input type="radio" name="q1" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq1 == 'Yes' else '' }} required>
-                                                <label>Yes</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q1" value="No" {{ 'checked' if dental_chart and dental_chart.dcq1 == 'No' else '' }} required>
-                                                <label>No</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Question 2 - REQUIRED -->
-                                    <div class="question-group required" id="q2_group">
-                                        <div class="question-text required">2. Do you have any allergies to medications?</div>
-                                        <div class="radio-group">
-                                            <div class="radio-item">
-                                                <input type="radio" name="q2" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq2 == 'Yes' else '' }} onchange="toggleExplanation('q2')" required>
-                                                <label>Yes</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q2" value="No" {{ 'checked' if dental_chart and dental_chart.dcq2 == 'No' else '' }} onchange="toggleExplanation('q2')" required>
-                                                <label>No</label>
-                                            </div>
-                                        </div>
-                                        <div class="explanation-input {{ 'show' if dental_chart and dental_chart.dcq2 == 'Yes' else '' }}" id="q2_explanation">
-                                            <input type="text" class="form-input" name="qe2" placeholder="Please specify allergies" value="{{ dental_chart.dcqe2 if dental_chart else '' }}">
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Question 3 - REQUIRED -->
-                                    <div class="question-group required" id="q3_group">
-                                        <div class="question-text required">3. Have you had any serious illnesses or surgeries?</div>
-                                        <div class="radio-group">
-                                            <div class="radio-item">
-                                                <input type="radio" name="q3" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq3 == 'Yes' else '' }} onchange="toggleExplanation('q3')" required>
-                                                <label>Yes</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q3" value="No" {{ 'checked' if dental_chart and dental_chart.dcq3 == 'No' else '' }} onchange="toggleExplanation('q3')" required>
-                                                <label>No</label>
-                                            </div>
-                                        </div>
-                                        <div class="explanation-input {{ 'show' if dental_chart and dental_chart.dcq3 == 'Yes' else '' }}" id="q3_explanation">
-                                            <input type="text" class="form-input" name="qe3" placeholder="Please specify" value="{{ dental_chart.dcqe3 if dental_chart else '' }}">
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Question 4 - REQUIRED -->
-                                    <div class="question-group required" id="q4_group">
-                                        <div class="question-text required">4. Do you have any heart problems?</div>
-                                        <div class="radio-group">
-                                            <div class="radio-item">
-                                                <input type="radio" name="q4" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq4 == 'Yes' else '' }} onchange="toggleExplanation('q4')" required>
-                                                <label>Yes</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q4" value="No" {{ 'checked' if dental_chart and dental_chart.dcq4 == 'No' else '' }} onchange="toggleExplanation('q4')" required>
-                                                <label>No</label>
-                                            </div>
-                                        </div>
-                                        <div class="explanation-input {{ 'show' if dental_chart and dental_chart.dcq4 == 'Yes' else '' }}" id="q4_explanation">
-                                            <input type="text" class="form-input" name="qe4" placeholder="Please specify" value="{{ dental_chart.dcqe4 if dental_chart else '' }}">
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Question 5 - REQUIRED -->
-                                    <div class="question-group required" id="q5_group">
-                                        <div class="question-text required">5. Are you pregnant or nursing?</div>
-                                        <div class="radio-group">
-                                            <div class="radio-item">
-                                                <input type="radio" name="q5" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'Yes' else '' }} onchange="toggleExplanation('q5')" required>
-                                                <label>Yes</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q5" value="No" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'No' else '' }} onchange="toggleExplanation('q5')" required>
-                                                <label>No</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q5" value="N/A" {{ 'checked' if dental_chart and dental_chart.dcq5 == 'N/A' else '' }} onchange="toggleExplanation('q5')" required>
-                                                <label>N/A</label>
-                                            </div>
-                                        </div>
-                                        <div class="explanation-input {{ 'show' if dental_chart and dental_chart.dcq5 == 'Yes' else '' }}" id="q5_explanation">
-                                            <input type="text" class="form-input" name="qe5" placeholder="Please specify" value="{{ dental_chart.dcqe5 if dental_chart else '' }}">
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Question 6 - REQUIRED -->
-                                    <div class="question-group required" id="q6_group">
-                                        <div class="question-text required">6. Do you smoke or use tobacco products?</div>
-                                        <div class="radio-group">
-                                            <div class="radio-item">
-                                                <input type="radio" name="q6" value="Yes" {{ 'checked' if dental_chart and dental_chart.dcq6 == 'Yes' else '' }} required>
-                                                <label>Yes</label>
-                                            </div>
-                                            <div class="radio-item">
-                                                <input type="radio" name="q6" value="No" {{ 'checked' if dental_chart and dental_chart.dcq6 == 'No' else '' }} required>
-                                                <label>No</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </form>
                         </div>
                         
                         <!-- Interactive Teeth Chart -->
@@ -835,9 +677,6 @@
                         
                         <!-- Action Buttons -->
                         <div class="action-buttons">
-                            <button class="btn btn-primary" id="saveButton" onclick="saveDentalChart()">
-                                <i class="fas fa-save"></i> Save Complete Chart
-                            </button>
                             <a href="/print_dental_chart/{{ patient.patId }}" class="btn btn-success" target="_blank">
                                 <i class="fas fa-print"></i> Print Chart
                             </a>
@@ -919,6 +758,7 @@
         function showError(message, missingFields = []) {
             const errorDiv = document.getElementById('errorMessage');
             const errorText = document.getElementById('errorText');
+            if (!errorDiv || !errorText) return;
             
             errorText.textContent = message;
             errorDiv.classList.add('show');
@@ -950,6 +790,7 @@
         
         function hideError() {
             const errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) return;
             errorDiv.classList.remove('show');
             
             // Clear all error styling
@@ -961,6 +802,7 @@
         function showSuccess(message) {
             const successDiv = document.getElementById('successMessage');
             const successText = document.getElementById('successText');
+            if (!successDiv || !successText) return;
             
             successText.textContent = message;
             successDiv.classList.add('show');
@@ -1132,10 +974,13 @@
         }
         
         // Clear validation errors when user starts typing in dentist field
-        document.getElementById('dentist').addEventListener('input', function() {
-            clearValidationError('dentist');
-            this.classList.remove('error');
-        });
+        const dentistInput = document.getElementById('dentist');
+        if (dentistInput) {
+            dentistInput.addEventListener('input', function() {
+                clearValidationError('dentist');
+                this.classList.remove('error');
+            });
+        }
         
         // Clear validation errors when user selects radio buttons
         document.addEventListener('change', function(event) {
