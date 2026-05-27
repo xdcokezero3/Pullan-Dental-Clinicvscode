@@ -94,6 +94,11 @@
             color: #188038;
         }
 
+        .status-pill.sending {
+            background-color: rgba(66, 133, 244, 0.12);
+            color: #1a56b3;
+        }
+
         .status-pill.failed {
             background-color: rgba(234, 67, 53, 0.12);
             color: #b3261e;
@@ -270,6 +275,13 @@
                     </div>
                 </div>
                 <div class="stat-card">
+                    <span class="stat-icon"><i class="fas fa-paper-plane"></i></span>
+                    <div>
+                        <h3>{{ sending_count }}</h3>
+                        <p>Sending</p>
+                    </div>
+                </div>
+                <div class="stat-card">
                     <span class="stat-icon"><i class="fas fa-triangle-exclamation"></i></span>
                     <div>
                         <h3>{{ failed_count }}</h3>
@@ -371,6 +383,13 @@
                 });
             });
         }
+
+        setInterval(() => {
+            if (document.hidden || (smsSearch && smsSearch.value.trim())) {
+                return;
+            }
+            window.location.reload();
+        }, 30000);
     </script>
 </body>
 </html>

@@ -2351,7 +2351,7 @@ def create_or_update_sms_reminder(appointment, patient):
         scheduled_for = appointment_start - timedelta(days=1)
         message = build_sms_reminder_message(patient.patname, appointment.appdate, appointment.apptime)
 
-        if existing_reminder and existing_reminder.status == 'Sent':
+        if existing_reminder and existing_reminder.status in ('Sent', 'Sending'):
             return existing_reminder
 
         if not existing_reminder:
@@ -2499,6 +2499,9 @@ def parse_infinireach_sms_response(response_data):
     if not isinstance(response_data, dict):
         raise RuntimeError('InfiniReach returned an unreadable response.')
 
+    if response_data.get('provider_status') == 'sent_unconfirmed':
+        return {'provider_message_id': str(response_data.get('provider_message_id') or '')}
+
     if response_data.get('success') is False:
         error_detail = (
             response_data.get('error')
@@ -2516,6 +2519,21 @@ def parse_infinireach_sms_response(response_data):
         or ''
     )
     return {'provider_message_id': str(provider_message_id)}
+
+def build_unconfirmed_infinireach_success():
+    return {
+        'provider_message_id': f'infinireach-timeout-{int(time.time())}',
+        'provider_status': 'sent_unconfirmed'
+    }
+
+def is_sms_timeout_error(error):
+    detail = str(getattr(error, 'reason', None) or error).lower()
+    return (
+        isinstance(error, TimeoutError)
+        or isinstance(error, socket.timeout)
+        or 'timed out' in detail
+        or 'timeout' in detail
+    )
 
 def is_cloudflare_signature_block(error_detail):
     lowered_detail = error_detail.lower()
@@ -2646,6 +2664,8 @@ def send_infinireach_sms_with_curl(api_key, from_number, provider_number, messag
 
     if completed.returncode != 0:
         detail = completed.stderr.strip() or body or f'curl exited with code {completed.returncode}'
+        if completed.returncode == 28 or is_sms_timeout_error(detail):
+            return build_unconfirmed_infinireach_success()
         raise RuntimeError(redact_sms_secrets(detail[:900]))
 
     if status_code >= 400:
@@ -2930,7 +2950,11 @@ def send_sms_via_provider(to_number, message):
                     continue
                 else:
                     raise RuntimeError(f'InfiniReach rejected the request: {error_detail}') from error
+            except TimeoutError:
+                return parse_infinireach_sms_response(build_unconfirmed_infinireach_success())
             except urllib.error.URLError as error:
+                if is_sms_timeout_error(error):
+                    return parse_infinireach_sms_response(build_unconfirmed_infinireach_success())
                 raise RuntimeError(f'InfiniReach connection error: {read_sms_provider_error(error)}') from error
             except json.JSONDecodeError as error:
                 raise RuntimeError(f'InfiniReach returned an unreadable response: {error}') from error
@@ -2947,6 +2971,19 @@ def send_sms_via_provider(to_number, message):
 
     raise RuntimeError(f'Unsupported SMS provider: {SMS_PROVIDER}')
 
+def claim_sms_reminder_for_sending(reminder_id):
+    updated_count = SMSReminder.query.filter(
+        SMSReminder.reminder_id == reminder_id,
+        SMSReminder.status == 'Pending'
+    ).update({
+        'status': 'Sending',
+        'provider': SMS_PROVIDER,
+        'error_message': None,
+        'updated_at': datetime.utcnow()
+    }, synchronize_session=False)
+    db.session.commit()
+    return updated_count == 1
+
 def process_due_sms_reminders():
     """Send due pending reminders; appointment_id uniqueness prevents duplicates."""
     ensure_sms_reminders_table()
@@ -2957,6 +2994,7 @@ def process_due_sms_reminders():
     ).all()
 
     for reminder in due_reminders:
+        reminder_id = reminder.reminder_id
         appointment = Appointment.query.get(reminder.appointment_id)
         if appointment and getattr(appointment, 'status', 'active') in ('cancelled', 'completed'):
             reminder.status = 'Failed'
@@ -2965,7 +3003,14 @@ def process_due_sms_reminders():
             db.session.commit()
             continue
 
+        if not claim_sms_reminder_for_sending(reminder_id):
+            continue
+
         try:
+            reminder = SMSReminder.query.get(reminder_id)
+            if not reminder:
+                continue
+
             result = send_sms_via_provider(reminder.mobile_number, reminder.message)
             reminder.status = 'Sent'
             reminder.provider = SMS_PROVIDER
@@ -2977,7 +3022,7 @@ def process_due_sms_reminders():
             log_user_action(None, 'SMS Reminder Sent', f'Sent reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
         except Exception as e:
             db.session.rollback()
-            reminder = SMSReminder.query.get(reminder.reminder_id)
+            reminder = SMSReminder.query.get(reminder_id)
             if reminder:
                 reminder.status = 'Failed'
                 reminder.error_message = str(e)
@@ -3033,6 +3078,7 @@ def sms_reminders():
             })
 
         pending_count = SMSReminder.query.filter_by(status='Pending').count()
+        sending_count = SMSReminder.query.filter_by(status='Sending').count()
         sent_count = SMSReminder.query.filter_by(status='Sent').count()
         failed_count = SMSReminder.query.filter_by(status='Failed').count()
         current_date = datetime.now().strftime("%A, %B %d, %Y")
@@ -3047,6 +3093,7 @@ def sms_reminders():
             provider_status=get_sms_provider_config_status(),
             test_result=request.args.get('test_result', ''),
             test_error=request.args.get('test_error', ''),
+            sending_count=sending_count,
             current_date=current_date
         )
     except Exception as e:
