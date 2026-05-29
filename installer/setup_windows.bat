@@ -81,6 +81,8 @@ if not exist ".env" (
     copy ".env.example" ".env" >nul
 )
 
+powershell -NoProfile -ExecutionPolicy Bypass -File "installer\ensure_sms_env.ps1" -EnvPath ".env"
+
 if not exist "instance" mkdir "instance"
 if not exist "backups" mkdir "backups"
 

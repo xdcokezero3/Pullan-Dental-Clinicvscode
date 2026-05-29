@@ -3,6 +3,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import psycopg2
 import os
+import shutil
 import time
 from datetime import date, datetime
 from sqlalchemy import create_engine, inspect, text
@@ -10,7 +11,18 @@ from sqlalchemy.exc import OperationalError
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    BASE_DIR_FOR_ENV = os.path.dirname(os.path.abspath(__file__))
+    ENV_PATH = os.path.join(BASE_DIR_FOR_ENV, '.env')
+    ENV_EXAMPLE_PATH = os.path.join(BASE_DIR_FOR_ENV, '.env.example')
+
+    if not os.path.exists(ENV_PATH) and os.path.exists(ENV_EXAMPLE_PATH):
+        shutil.copyfile(ENV_EXAMPLE_PATH, ENV_PATH)
+        print(f"Created local .env from .env.example: {ENV_PATH}")
+
+    if os.path.exists(ENV_PATH):
+        load_dotenv(ENV_PATH)
+    elif os.path.exists(ENV_EXAMPLE_PATH):
+        load_dotenv(ENV_EXAMPLE_PATH)
 except ImportError:
     pass
 

@@ -106,6 +106,8 @@ InfiniReach sends through your registered device. The `INFINIREACH_FROM` value m
 
 If InfiniReach blocks Python HTTP requests with Cloudflare Error 1010, the app automatically retries the same request through `curl`. The Windows installer checks for `curl` before installing so SMS remains functional on the installed PC.
 
+When the project is copied through Git, `.env` may be missing because it is ignored by Git. On first run, the app creates `.env` from `.env.example`. The Windows installer also verifies the InfiniReach SMS settings in `.env` during installation.
+
 After configuring real SMS credentials, restart the app. The reminder worker runs in the background while the system is open. Admin users can review SMS status from:
 
 ```text
