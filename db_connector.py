@@ -330,6 +330,7 @@ class Inventory(db.Model):
     invname = db.Column(db.String(100), nullable=False)
     invtype = db.Column(db.String(50))
     invquantity = db.Column(db.Integer, default=0)
+    invbuyprice = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     invprice = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     invdoe = db.Column(db.Date)  # Date of Expiry
     invcreatedat = db.Column(db.DateTime, default=datetime.utcnow)
@@ -346,6 +347,7 @@ class Inventory(db.Model):
             'invname': self.invname,
             'invtype': self.invtype,
             'invquantity': self.invquantity,
+            'invbuyprice': float(self.invbuyprice or 0),
             'invprice': float(self.invprice or 0),
             'invdoe': self.invdoe.isoformat() if self.invdoe else None,
             'invcreatedat': self.invcreatedat.isoformat() if self.invcreatedat else None,

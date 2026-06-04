@@ -25,6 +25,16 @@ from functools import wraps
 import traceback
 from urllib.parse import urlparse, parse_qs
 
+try:
+    import bcrypt
+except ImportError:
+    bcrypt = None
+
+try:
+    from celery import Celery
+except ImportError:
+    Celery = None
+
 # Use the Flask app instance from the connector
 app = db_app
 
@@ -227,13 +237,30 @@ def download_user_manual():
         print(f"Error downloading user manual: {e}")
         return f"Error downloading user manual: {e}", 500
     
-def hash_password(password):
-    """Hash a password using SHA-256"""
+def legacy_sha256_password(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
-def verify_password(password, hashed_password):
-    """Verify a password against its SHA-256 hash"""
-    return hash_password(password) == hashed_password
+def hash_password(password):
+    """Hash new passwords with bcrypt."""
+    if bcrypt is None:
+        raise RuntimeError("bcrypt is required for password hashing. Please install requirements.txt.")
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def is_bcrypt_hash(stored_password):
+    return bool(stored_password and re.match(r'^\$2[aby]\$\d{2}\$', stored_password))
+
+def verify_password(password, stored_password):
+    """Verify bcrypt passwords while allowing old SHA-256 hashes to log in once."""
+    if not stored_password:
+        return False, False
+
+    if is_bcrypt_hash(stored_password):
+        if bcrypt is None:
+            return False, False
+        return bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')), False
+
+    legacy_matches = legacy_sha256_password(password) == stored_password
+    return legacy_matches, legacy_matches
 
 def validate_password(password):
     """Validate password meets security requirements"""
@@ -264,6 +291,14 @@ def admin_required(f):
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
+def current_user_is_admin():
+    return session.get('access_level') == 'admin'
+
+def require_admin_json():
+    if not current_user_is_admin():
+        return jsonify({"success": False, "error": "Administrator access is required."}), 403
+    return None
 
 # DNS Resolution fix for backup functionality
 def resolve_host(host):
@@ -399,10 +434,19 @@ def login():
             
             return redirect(url_for('dashboard'))
 
-        # Check credentials against database with SHA-256 verification
+        # Check credentials against database. Legacy SHA-256 hashes are upgraded after login.
         user = User.query.filter_by(usersusername=username).first()
         
-        if user and verify_password(password, user.userspassword):
+        password_matches = False
+        needs_password_upgrade = False
+        if user:
+            password_matches, needs_password_upgrade = verify_password(password, user.userspassword)
+
+        if user and password_matches:
+            if needs_password_upgrade:
+                user.userspassword = hash_password(password)
+                db.session.commit()
+
             session['failed_attempts'] = 0
             session['first_failed_attempt_time'] = None
             
@@ -2210,6 +2254,21 @@ def print_patients_report():
 SMS_PROVIDER = os.getenv('SMS_PROVIDER', 'console').lower()
 SMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME', 'PullanDental')
 SMS_WORKER_INTERVAL_SECONDS = int(os.getenv('SMS_WORKER_INTERVAL_SECONDS', '60'))
+SMS_SENDING_STALE_AFTER_MINUTES = int(os.getenv('SMS_SENDING_STALE_AFTER_MINUTES', '10'))
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL') or os.getenv('REDIS_URL')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+celery_app = None
+
+if Celery is not None and CELERY_BROKER_URL:
+    celery_app = Celery(
+        app.import_name,
+        broker=CELERY_BROKER_URL,
+        backend=CELERY_RESULT_BACKEND
+    )
+    celery_app.conf.update(
+        task_ignore_result=True,
+        timezone=os.getenv('CELERY_TIMEZONE', 'Asia/Manila')
+    )
 
 def ensure_sms_reminders_table():
     SMSReminder.__table__.create(bind=db.engine, checkfirst=True)
@@ -2277,10 +2336,10 @@ def is_infinireach_phone_sender(raw_sender):
 
 def get_infinireach_configured_sender():
     return (
-        os.getenv('INFINIREACH_DEVICE_ID')
-        or os.getenv('INFINIREACH_FROM')
+        os.getenv('INFINIREACH_FROM')
         or os.getenv('INFINIREACH_SENDER')
         or os.getenv('INFINIREACH_SENDER_ID')
+        or os.getenv('INFINIREACH_DEVICE_ID')
     )
 
 def build_twilio_provider_error(error_detail):
@@ -2328,6 +2387,42 @@ def sms_reminder_scheduled_time(appointment_start, now=None):
     one_day_before = appointment_start - timedelta(days=1)
     return now if one_day_before <= now else one_day_before
 
+def datetimes_match(left, right):
+    if not left or not right:
+        return left == right
+    return abs((left - right).total_seconds()) < 1
+
+def reminder_matches_schedule(reminder, mobile_number, message, scheduled_for):
+    return (
+        reminder.mobile_number == mobile_number
+        and reminder.message == message
+        and datetimes_match(reminder.scheduled_for, scheduled_for)
+    )
+
+def reminder_is_recently_sending(reminder):
+    if not reminder or reminder.status != 'Sending' or not reminder.updated_at:
+        return False
+    return reminder.updated_at > datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
+
+def close_unsent_sms_reminder(appointment_id, reason):
+    ensure_sms_reminders_table()
+    reminder = SMSReminder.query.filter_by(appointment_id=appointment_id).first()
+    if reminder and reminder.status in ('Pending', 'Sending'):
+        reminder.status = 'Failed'
+        reminder.error_message = reason
+        reminder.updated_at = datetime.utcnow()
+        db.session.commit()
+    return reminder
+
+def sms_reminder_response_summary(reminder):
+    if not reminder:
+        return None
+    return {
+        'status': reminder.status,
+        'scheduled_for': reminder.scheduled_for.strftime('%Y-%m-%d %H:%M:%S') if reminder.scheduled_for else '',
+        'error_message': reminder.error_message or ''
+    }
+
 def create_or_update_sms_reminder(appointment, patient):
     """Create one pending reminder per appointment when the patient has a valid PH mobile number."""
     try:
@@ -2369,7 +2464,18 @@ def create_or_update_sms_reminder(appointment, patient):
         scheduled_for = sms_reminder_scheduled_time(appointment_start)
         message = build_sms_reminder_message(patient.patname, appointment.appdate, appointment.apptime)
 
-        if existing_reminder and existing_reminder.status in ('Sent', 'Sending'):
+        if (
+            existing_reminder
+            and existing_reminder.status == 'Sent'
+            and reminder_matches_schedule(existing_reminder, normalized_number, message, scheduled_for)
+        ):
+            return existing_reminder
+
+        if (
+            existing_reminder
+            and reminder_is_recently_sending(existing_reminder)
+            and reminder_matches_schedule(existing_reminder, normalized_number, message, scheduled_for)
+        ):
             return existing_reminder
 
         if not existing_reminder:
@@ -2394,6 +2500,8 @@ def create_or_update_sms_reminder(appointment, patient):
             existing_reminder.status = 'Pending'
             existing_reminder.provider = SMS_PROVIDER
             existing_reminder.error_message = None
+            existing_reminder.sent_at = None
+            existing_reminder.provider_message_id = None
             existing_reminder.updated_at = datetime.utcnow()
 
         db.session.commit()
@@ -2518,7 +2626,7 @@ def parse_infinireach_sms_response(response_data):
         raise RuntimeError('InfiniReach returned an unreadable response.')
 
     if response_data.get('provider_status') == 'sent_unconfirmed':
-        return {'provider_message_id': str(response_data.get('provider_message_id') or '')}
+        raise RuntimeError('InfiniReach timed out before confirming that the SMS was accepted.')
 
     if response_data.get('success') is False:
         error_detail = (
@@ -2537,6 +2645,59 @@ def parse_infinireach_sms_response(response_data):
         or ''
     )
     return {'provider_message_id': str(provider_message_id)}
+
+def parse_infinireach_history_response(response_data, expected_message):
+    if not isinstance(response_data, dict):
+        return None
+
+    for message_record in response_data.get('messages') or []:
+        if not isinstance(message_record, dict):
+            continue
+        if (message_record.get('body') or '') != expected_message:
+            continue
+
+        status = (message_record.get('status') or '').lower()
+        message_id = str(message_record.get('_id') or message_record.get('id') or '')
+        if status == 'failed':
+            raise RuntimeError(f'InfiniReach accepted the SMS but later marked it failed. Message ID: {message_id or "N/A"}.')
+        if status in ('acked', 'queued', 'sending', 'sent', 'delivered'):
+            return {
+                'provider_message_id': message_id,
+                'provider_status': status
+            }
+
+    return None
+
+def find_recent_infinireach_message(api_key, from_number, provider_number, message, since_time):
+    query_params = {
+        'limit': '20',
+        'order': 'desc',
+        'from': from_number,
+        'to': provider_number,
+        'conversation': 'false',
+        'channel': os.getenv('INFINIREACH_CHANNEL', 'sms').lower(),
+        'q': message[:120]
+    }
+    if since_time:
+        query_params['since'] = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    request_url = 'https://api.infinireach.io/api/v1/messages?' + urllib.parse.urlencode(query_params)
+    request_obj = urllib.request.Request(request_url, method='GET')
+    request_obj.add_header('X-API-Key', api_key)
+    request_obj.add_header('Accept', 'application/json')
+    request_obj.add_header('User-Agent', os.getenv('SMS_HTTP_USER_AGENT', 'curl/8.4.0'))
+
+    try:
+        with urllib.request.urlopen(request_obj, timeout=20) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+    except Exception as error:
+        raise RuntimeError(f'InfiniReach send timed out and message-history check failed: {read_sms_provider_error(error)}') from error
+
+    return parse_infinireach_history_response(response_data, message)
+
+def build_infinireach_external_id(from_number, provider_number, channel, message):
+    source = f'{from_number}|{provider_number}|{channel}|{message}'
+    return 'pullan-' + hashlib.sha256(source.encode('utf-8')).hexdigest()[:32]
 
 def build_unconfirmed_infinireach_success():
     return {
@@ -2627,17 +2788,20 @@ def send_movider_sms_with_curl(api_key, api_secret, provider_number, message):
     except json.JSONDecodeError as error:
         raise RuntimeError(f'Movider curl fallback returned an unreadable response: {redact_sms_secrets(body[:300])}') from error
 
-def send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel):
+def send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel, external_id=None):
     curl_path = shutil.which('curl.exe') or shutil.which('curl')
     if not curl_path:
         raise RuntimeError('InfiniReach blocked the Python request and curl is not installed on this computer.')
 
-    payload = json.dumps({
+    payload_data = {
         'to': provider_number,
         'message': message,
         'from': from_number,
         'channel': channel
-    })
+    }
+    if external_id:
+        payload_data['externalId'] = external_id
+    payload = json.dumps(payload_data)
     command = [
         curl_path,
         '--silent',
@@ -2683,7 +2847,7 @@ def send_infinireach_sms_with_curl(api_key, from_number, provider_number, messag
     if completed.returncode != 0:
         detail = completed.stderr.strip() or body or f'curl exited with code {completed.returncode}'
         if completed.returncode == 28 or is_sms_timeout_error(detail):
-            return build_unconfirmed_infinireach_success()
+            raise RuntimeError(f'InfiniReach curl request timed out before confirming SMS acceptance: {redact_sms_secrets(detail[:300])}')
         raise RuntimeError(redact_sms_secrets(detail[:900]))
 
     if status_code >= 400:
@@ -2941,12 +3105,16 @@ def send_sms_via_provider(to_number, message):
             raise RuntimeError('InfiniReach SMS is not fully configured. Set INFINIREACH_API_KEY and INFINIREACH_FROM in .env.')
         last_sender_error = None
         for from_number in get_infinireach_sender_candidates(api_key, configured_sender):
-            payload = json.dumps({
+            external_id = build_infinireach_external_id(from_number, provider_number, channel, message)
+            payload_data = {
                 'to': provider_number,
                 'message': message,
                 'from': from_number,
-                'channel': channel
-            }).encode('utf-8')
+                'channel': channel,
+                'externalId': external_id
+            }
+            payload = json.dumps(payload_data).encode('utf-8')
+            send_started_at = datetime.utcnow() - timedelta(seconds=5)
             request_obj = urllib.request.Request('https://api.infinireach.io/api/v1/messages', data=payload, method='POST')
             request_obj.add_header('X-API-Key', api_key)
             request_obj.add_header('Content-Type', 'application/json')
@@ -2959,7 +3127,7 @@ def send_sms_via_provider(to_number, message):
                 error_detail = read_sms_provider_error(error)
                 if error.code == 403 and is_cloudflare_signature_block(error_detail):
                     try:
-                        response_data = send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel)
+                        response_data = send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel, external_id)
                     except Exception as fallback_error:
                         fallback_detail = redact_sms_secrets(str(fallback_error)[:900])
                         raise RuntimeError(f'InfiniReach blocked the Python request and curl fallback also failed: {fallback_detail}') from fallback_error
@@ -2968,12 +3136,33 @@ def send_sms_via_provider(to_number, message):
                     continue
                 else:
                     raise RuntimeError(f'InfiniReach rejected the request: {error_detail}') from error
-            except TimeoutError:
-                return parse_infinireach_sms_response(build_unconfirmed_infinireach_success())
+            except TimeoutError as error:
+                history_result = find_recent_infinireach_message(api_key, from_number, provider_number, message, send_started_at)
+                if history_result:
+                    return history_result
+                try:
+                    response_data = send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel, external_id)
+                except Exception as fallback_error:
+                    history_result = find_recent_infinireach_message(api_key, from_number, provider_number, message, send_started_at)
+                    if history_result:
+                        return history_result
+                    fallback_detail = redact_sms_secrets(str(fallback_error)[:900])
+                    raise RuntimeError(f'InfiniReach timed out and curl fallback also failed: {fallback_detail}') from fallback_error
             except urllib.error.URLError as error:
                 if is_sms_timeout_error(error):
-                    return parse_infinireach_sms_response(build_unconfirmed_infinireach_success())
-                raise RuntimeError(f'InfiniReach connection error: {read_sms_provider_error(error)}') from error
+                    history_result = find_recent_infinireach_message(api_key, from_number, provider_number, message, send_started_at)
+                    if history_result:
+                        return history_result
+                    try:
+                        response_data = send_infinireach_sms_with_curl(api_key, from_number, provider_number, message, channel, external_id)
+                    except Exception as fallback_error:
+                        history_result = find_recent_infinireach_message(api_key, from_number, provider_number, message, send_started_at)
+                        if history_result:
+                            return history_result
+                        fallback_detail = redact_sms_secrets(str(fallback_error)[:900])
+                        raise RuntimeError(f'InfiniReach timed out and curl fallback also failed: {fallback_detail}') from fallback_error
+                else:
+                    raise RuntimeError(f'InfiniReach connection error: {read_sms_provider_error(error)}') from error
             except json.JSONDecodeError as error:
                 raise RuntimeError(f'InfiniReach returned an unreadable response: {error}') from error
 
@@ -3002,9 +3191,51 @@ def claim_sms_reminder_for_sending(reminder_id):
     db.session.commit()
     return updated_count == 1
 
+def reset_stale_sending_sms_reminders():
+    stale_before = datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
+    updated_count = SMSReminder.query.filter(
+        SMSReminder.status == 'Sending',
+        SMSReminder.updated_at <= stale_before
+    ).update({
+        'status': 'Pending',
+        'error_message': f'Retrying after SMS send was stuck in Sending for more than {SMS_SENDING_STALE_AFTER_MINUTES} minutes.',
+        'updated_at': datetime.utcnow()
+    }, synchronize_session=False)
+    if updated_count:
+        db.session.commit()
+    return updated_count
+
+def reconcile_unconfirmed_infinireach_reminders():
+    unconfirmed_reminders = SMSReminder.query.filter(
+        SMSReminder.status == 'Sent',
+        SMSReminder.provider == 'infinireach',
+        SMSReminder.provider_message_id.like('infinireach-timeout%')
+    ).all()
+
+    changed = False
+    for reminder in unconfirmed_reminders:
+        appointment = Appointment.query.get(reminder.appointment_id)
+        appointment_status = (getattr(appointment, 'status', '') or 'active').lower() if appointment else 'missing'
+        if appointment and appointment_status == 'active':
+            reminder.status = 'Pending'
+            reminder.sent_at = None
+            reminder.provider_message_id = None
+            reminder.error_message = 'Retrying because InfiniReach timed out before confirming SMS acceptance.'
+        else:
+            reminder.status = 'Failed'
+            reminder.error_message = 'InfiniReach timed out before confirming SMS acceptance.'
+        reminder.updated_at = datetime.utcnow()
+        changed = True
+
+    if changed:
+        db.session.commit()
+    return len(unconfirmed_reminders)
+
 def process_due_sms_reminders():
     """Send due pending reminders; appointment_id uniqueness prevents duplicates."""
     ensure_sms_reminders_table()
+    reconcile_unconfirmed_infinireach_reminders()
+    reset_stale_sending_sms_reminders()
     now = datetime.now()
     due_reminders = SMSReminder.query.filter(
         SMSReminder.status == 'Pending',
@@ -3048,6 +3279,28 @@ def process_due_sms_reminders():
                 reminder.updated_at = datetime.utcnow()
                 db.session.commit()
             log_user_action(None, 'SMS Reminder Failed', f'Appointment APT-{reminder.appointment_id:03d}: {e}')
+
+def process_due_sms_reminders_in_background():
+    try:
+        with app.app_context():
+            process_due_sms_reminders()
+    except Exception as e:
+        print(f"Async SMS reminder processing error: {e}")
+
+if celery_app is not None:
+    @celery_app.task(name='pullan_dental.process_due_sms_reminders')
+    def process_due_sms_reminders_task():
+        process_due_sms_reminders_in_background()
+
+def queue_due_sms_reminder_processing():
+    """Run due SMS sends outside the request. Uses Celery when configured, else a daemon thread."""
+    if celery_app is not None:
+        process_due_sms_reminders_task.delay()
+        return 'celery'
+
+    worker = threading.Thread(target=process_due_sms_reminders_in_background, daemon=True)
+    worker.start()
+    return 'thread'
 
 def sms_reminder_worker():
     with app.app_context():
@@ -3231,6 +3484,28 @@ def _appointment_duration(time_value):
 
     return f"{end_minutes - start_minutes} min"
 
+def appointment_needs_attention(appointment, now=None):
+    status = (getattr(appointment, 'status', '') or 'active').strip().lower()
+    if status != 'active' or not appointment.appdate:
+        return False
+
+    now = now or datetime.now()
+    if appointment.appdate < now.date():
+        return True
+    if appointment.appdate > now.date():
+        return False
+
+    try:
+        start_minutes, _ = _appointment_time_bounds(appointment.apptime)
+    except ValueError:
+        return False
+
+    if start_minutes is None:
+        return False
+
+    appointment_start = datetime.combine(appointment.appdate, datetime.min.time()) + timedelta(minutes=start_minutes)
+    return appointment_start <= now
+
 
 def _find_overlapping_appointment(appointment_date, start_time, end_time, exclude_id=None):
     start_minutes = _time_to_minutes(start_time)
@@ -3298,6 +3573,7 @@ def appointments():
                 'duration': _appointment_duration(appointment.apptime),
                 'status': status,
                 'status_class': f"status-{status}",
+                'needs_attention': appointment_needs_attention(appointment),
                 'raw_id': appointment.appid
             })
         
@@ -3384,8 +3660,10 @@ def add_appointment():
                 "date": new_appointment.appdate.strftime('%B %d, %Y'),
                 "time": new_appointment.apptime,
                 "status": getattr(new_appointment, 'status', 'active'),
+                "needs_attention": appointment_needs_attention(new_appointment),
                 "raw_id": new_appointment.appid
-            }
+            },
+            "sms_reminder": sms_reminder_response_summary(sms_reminder)
         })
     except Exception as e:
         db.session.rollback()
@@ -3403,12 +3681,7 @@ def cancel_appointment(appointment_id):
         else:
             return jsonify({"success": False, "error": "Status field not available."})
 
-        ensure_sms_reminders_table()
-        reminder = SMSReminder.query.filter_by(appointment_id=appointment.appid).first()
-        if reminder and reminder.status == 'Pending':
-            reminder.status = 'Failed'
-            reminder.error_message = 'Appointment was cancelled before reminder was sent.'
-            reminder.updated_at = datetime.utcnow()
+        close_unsent_sms_reminder(appointment.appid, 'Appointment was cancelled before reminder was sent.')
         
         db.session.commit()
         
@@ -3432,6 +3705,8 @@ def complete_appointment(appointment_id):
         
         if hasattr(appointment, 'status'):
             appointment.status = 'completed'
+
+        close_unsent_sms_reminder(appointment.appid, 'Appointment was completed before reminder was sent.')
         
         db.session.commit()
         
@@ -3474,6 +3749,12 @@ def reactivate_appointment(appointment_id):
             appointment.status = 'active'
         
         db.session.commit()
+
+        patient = Patient.query.filter_by(patname=appointment.apppatient, is_deleted=False).first()
+        if patient:
+            sms_reminder = create_or_update_sms_reminder(appointment, patient)
+            if sms_reminder and sms_reminder.status == 'Pending' and sms_reminder.scheduled_for <= datetime.now():
+                process_due_sms_reminders()
         
         log_user_action(
             session.get('user_id'),
@@ -3589,7 +3870,8 @@ def reschedule_appointment():
         
         return jsonify({
             "success": True,
-            "message": f"Appointment for {appointment.apppatient} rescheduled from {old_date.strftime('%B %d, %Y')} at {old_time} to {appointment.appdate.strftime('%B %d, %Y')} at {appointment.apptime}"
+            "message": f"Appointment for {appointment.apppatient} rescheduled from {old_date.strftime('%B %d, %Y')} at {old_time} to {appointment.appdate.strftime('%B %d, %Y')} at {appointment.apptime}",
+            "sms_reminder": sms_reminder_response_summary(sms_reminder if patient else None)
         })
     except Exception as e:
         db.session.rollback()
@@ -3770,6 +4052,7 @@ def staff():
     """Staff management page with status filtering"""
     try:
         status_filter = request.args.get('status', 'active')
+        is_admin_view = current_user_is_admin()
         
         base_query = User.query.filter(User.usersaccess.in_(['admin', 'user']))
         
@@ -3843,8 +4126,8 @@ def staff():
                 'id': f"STF-{get_attr(user, 'usersid', 0):03d}",
                 'raw_id': get_attr(user, 'usersid', 0),
                 'name': get_attr(user, 'usersrealname', 'Unknown'),
-                'email': get_attr(user, 'usersemail', 'No email'),
-                'contact': get_attr(user, 'userscontact', 'No contact'),
+                'email': get_attr(user, 'usersemail', 'No email') if is_admin_view else 'Admin only',
+                'contact': get_attr(user, 'userscontact', 'No contact') if is_admin_view else 'Admin only',
                 'role': "Staff",
                 'occupation': get_attr(user, 'usersoccupation', 'Staff'),
                 'access_level': get_attr(user, 'usersaccess', 'user').capitalize(),
@@ -3912,6 +4195,16 @@ def staff_details(staff_id):
             staff.is_active = not staff.is_deleted
         
         if request.args.get('format') == 'json':
+            if not current_user_is_admin():
+                return jsonify({
+                    'usersid': staff.usersid,
+                    'usersusername': staff.usersusername,
+                    'usersrealname': staff.usersrealname,
+                    'usersaccess': staff.usersaccess,
+                    'usersoccupation': staff.usersoccupation if hasattr(staff, 'usersoccupation') else 'Staff',
+                    'is_active': staff.is_active
+                })
+
             staff_data = {
                 'usersid': staff.usersid,
                 'usersusername': staff.usersusername,
@@ -3942,6 +4235,16 @@ def staff_details(staff_id):
                                   staff=staff,
                                   current_date=current_date)
         except Exception as template_error:
+            admin_extra = ''
+            if current_user_is_admin():
+                admin_extra = f"""
+                    <p><strong>Email:</strong> {staff.usersemail or 'N/A'}</p>
+                    <p><strong>Contact:</strong> {staff.userscontact or 'N/A'}</p>
+                    <p><strong>Address:</strong> {staff.usershomeaddress or 'N/A'}</p>
+                    <p><strong>City/Zip:</strong> {staff.userscityzipcode or 'N/A'}</p>
+                    <p><strong>Religion:</strong> {staff.usersreligion or 'N/A'}</p>
+                    <p><strong>Gender:</strong> {staff.usersgender or 'N/A'}</p>
+                """
             return f"""
             <html>
             <head><title>Staff Details - {staff.usersrealname}</title></head>
@@ -3950,15 +4253,10 @@ def staff_details(staff_id):
                 <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
                     <h2>{staff.usersrealname}</h2>
                     <p><strong>Username:</strong> {staff.usersusername}</p>
-                    <p><strong>Email:</strong> {staff.usersemail or 'N/A'}</p>
-                    <p><strong>Contact:</strong> {staff.userscontact or 'N/A'}</p>
                     <p><strong>Occupation:</strong> {getattr(staff, 'usersoccupation', 'Staff')}</p>
                     <p><strong>Access Level:</strong> {staff.usersaccess.capitalize()}</p>
                     <p><strong>Status:</strong> {'Active' if staff.is_active else 'Inactive'}</p>
-                    <p><strong>Address:</strong> {staff.usershomeaddress or 'N/A'}</p>
-                    <p><strong>City/Zip:</strong> {staff.userscityzipcode or 'N/A'}</p>
-                    <p><strong>Religion:</strong> {staff.usersreligion or 'N/A'}</p>
-                    <p><strong>Gender:</strong> {staff.usersgender or 'N/A'}</p>
+                    {admin_extra}
                 </div>
                 <div style="margin-top: 20px;">
                     <a href="/staff" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">← Back to Staff Directory</a>
@@ -3982,7 +4280,7 @@ def add_staff():
         confirm_password = request.form.get('confirm_password') or ''
         contact_number = ''.join(filter(str.isdigit, request.form.get('contact') or ''))
         city_zipcode = (request.form.get('cityzipcode') or '').strip()
-        zip_digits = ''.join(filter(str.isdigit, city_zipcode))
+        zip_digits = re.sub(r'\D', '', city_zipcode)
         access_level = (request.form.get('access') or '').strip()
         occupation = (request.form.get('occupation') or '').strip()
 
@@ -4014,7 +4312,7 @@ def add_staff():
         if not is_valid_ph_mobile_number(contact_number):
             return jsonify({"success": False, "error": PH_MOBILE_VALIDATION_MESSAGE})
 
-        if len(zip_digits) != 4:
+        if not re.fullmatch(r'\d{4}', city_zipcode):
             return jsonify({"success": False, "error": "Zipcode must be exactly 4 digits"})
 
         if access_level not in ('admin', 'user'):
@@ -4080,15 +4378,18 @@ def update_staff(staff_id):
         staff = User.query.get_or_404(staff_id)
         
         old_name = staff.usersrealname
-        contact_number = request.form.get('contact')
+        contact_number = ''.join(filter(str.isdigit, request.form.get('contact') or ''))
         if not is_valid_ph_mobile_number(contact_number):
             return jsonify({'success': False, 'error': PH_MOBILE_VALIDATION_MESSAGE})
+        city_zipcode = (request.form.get('cityzipcode') or '').strip()
+        if not re.fullmatch(r'\d{4}', city_zipcode):
+            return jsonify({'success': False, 'error': 'Zipcode must be exactly 4 digits'})
         
         staff.usersrealname = request.form.get('name')
         staff.usersemail = request.form.get('email')
         staff.userscontact = contact_number
         staff.usershomeaddress = request.form.get('address')
-        staff.userscityzipcode = request.form.get('cityzipcode')
+        staff.userscityzipcode = city_zipcode
         staff.usersreligion = request.form.get('religion')
         staff.usersgender = request.form.get('gender')
         staff.usersaccess = request.form.get('access')
@@ -4366,6 +4667,9 @@ def ensure_inventory_schema():
     if 'invprice' not in columns:
         db.session.execute(text('ALTER TABLE inventory ADD COLUMN invprice NUMERIC(10, 2) DEFAULT 0'))
         changed = True
+    if 'invbuyprice' not in columns:
+        db.session.execute(text('ALTER TABLE inventory ADD COLUMN invbuyprice NUMERIC(10, 2) DEFAULT 0'))
+        changed = True
     if 'invcreatedat' not in columns:
         db.session.execute(text('ALTER TABLE inventory ADD COLUMN invcreatedat TIMESTAMP'))
         changed = True
@@ -4377,6 +4681,7 @@ def ensure_inventory_schema():
         db.session.commit()
 
     db.session.execute(text('UPDATE inventory SET invprice = 0 WHERE invprice IS NULL'))
+    db.session.execute(text('UPDATE inventory SET invbuyprice = 0 WHERE invbuyprice IS NULL'))
     db.session.execute(text('UPDATE inventory SET invcreatedat = CURRENT_TIMESTAMP WHERE invcreatedat IS NULL'))
     db.session.execute(text('UPDATE inventory SET invinitialquantity = COALESCE(invquantity, 0) WHERE invinitialquantity IS NULL OR invinitialquantity = 0'))
     db.session.commit()
@@ -4394,12 +4699,15 @@ def get_inventory_stats():
 def format_inventory_item(item):
     is_expired = item.invdoe and item.invdoe < datetime.now().date()
     quantity = item.invquantity or 0
+    buy_price = decimal_money(item.invbuyprice or 0)
     price = decimal_money(item.invprice or 0)
     return {
         'id': f"INV-{item.invid:03d}",
         'name': item.invname,
         'type': item.invtype,
         'quantity': quantity,
+        'buy_price': f"{buy_price:.2f}",
+        'buy_price_display': format_money(buy_price),
         'price': f"{price:.2f}",
         'price_display': format_money(price),
         'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
@@ -4571,6 +4879,8 @@ def get_inventory_item(item_id):
             'name': item.invname, 
             'type': item.invtype,
             'quantity': item.invquantity or 0,
+            'buy_price': f"{decimal_money(item.invbuyprice or 0):.2f}",
+            'buy_price_display': format_money(item.invbuyprice or 0),
             'price': f"{decimal_money(item.invprice or 0):.2f}",
             'price_display': format_money(item.invprice or 0),
             'expiry_date': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "",
@@ -4593,13 +4903,24 @@ def get_inventory_item(item_id):
 def add_inventory():
     """Add a new inventory item"""
     try:
+        admin_error = require_admin_json()
+        if admin_error:
+            return admin_error
+
         ensure_inventory_schema()
         quantity = int(request.form.get('quantity', 0))
-        price = decimal_money(request.form.get('price') or 0)
+        buy_price = decimal_money(request.form.get('buy_price') or 0)
+        price = decimal_money(request.form.get('price') or request.form.get('sell_price') or 0)
+        if quantity < 0:
+            return jsonify({"success": False, "error": "Quantity cannot be negative."})
+        if buy_price < 0 or price < 0:
+            return jsonify({"success": False, "error": "Buy and sell prices cannot be negative."})
+
         new_item = Inventory(
             invname=request.form.get('name'),
             invtype=request.form.get('type'),
             invquantity=quantity,
+            invbuyprice=buy_price,
             invprice=price,
             invcreatedat=datetime.utcnow(),
             invinitialquantity=quantity,
@@ -4642,6 +4963,10 @@ def add_inventory():
 def update_inventory(item_id):
     """Update an inventory item"""
     try:
+        admin_error = require_admin_json()
+        if admin_error:
+            return admin_error
+
         ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
@@ -4652,7 +4977,12 @@ def update_inventory(item_id):
         item.invname = request.form.get('name')
         item.invtype = request.form.get('type')
         item.invquantity = int(request.form.get('quantity', 0))
-        item.invprice = decimal_money(request.form.get('price') or 0)
+        item.invbuyprice = decimal_money(request.form.get('buy_price') or 0)
+        item.invprice = decimal_money(request.form.get('price') or request.form.get('sell_price') or 0)
+        if item.invquantity < 0:
+            return jsonify({"success": False, "error": "Quantity cannot be negative."})
+        if item.invbuyprice < 0 or item.invprice < 0:
+            return jsonify({"success": False, "error": "Buy and sell prices cannot be negative."})
         if not item.invcreatedat:
             item.invcreatedat = datetime.utcnow()
         if not item.invinitialquantity:
@@ -4691,10 +5021,63 @@ def update_inventory(item_id):
         print(f"Error in update_inventory route: {e}")
         return jsonify({"success": False, "error": str(e)})
 
+@app.route('/add_inventory_stock/<int:item_id>', methods=['POST'])
+def add_inventory_stock(item_id):
+    """Receive additional stock for an existing inventory item."""
+    try:
+        ensure_inventory_schema()
+        item = Inventory.query.filter_by(invid=item_id, is_deleted=False).first_or_404()
+        old_quantity = item.invquantity or 0
+
+        try:
+            quantity_added = int(request.form.get('quantity_added', 0))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Please enter a valid quantity to add."})
+
+        if quantity_added <= 0:
+            return jsonify({"success": False, "error": "Quantity added must be greater than 0."})
+
+        item.invquantity = old_quantity + quantity_added
+        item.invinitialquantity = (item.invinitialquantity or old_quantity) + quantity_added
+        if not item.invcreatedat:
+            item.invcreatedat = datetime.utcnow()
+
+        remarks = (request.form.get('remarks') or '').strip()
+        if remarks:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
+            item.invremarks = ((item.invremarks or '').strip() + f"\n[{timestamp}] Stock received: +{quantity_added}. {remarks}").strip()
+
+        db.session.commit()
+
+        log_user_action(
+            session.get('user_id'),
+            'Receive Inventory Stock',
+            f'Received {quantity_added} units for {item.invname} (Quantity: {old_quantity} -> {item.invquantity})'
+        )
+
+        sms_warning = ''
+        if item.invdoe and item.invdoe < date.today():
+            sms_warning = send_expired_inventory_alert(item)
+
+        return jsonify({
+            "success": True,
+            "item": format_inventory_item(item),
+            "stats": get_inventory_stats(),
+            "sms_warning": sms_warning
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error receiving inventory stock: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/deactivate_inventory/<int:item_id>', methods=['POST'])
 def deactivate_inventory(item_id):
     """Deactivate an inventory item (soft delete)"""
     try:
+        admin_error = require_admin_json()
+        if admin_error:
+            return admin_error
+
         ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
@@ -4719,6 +5102,10 @@ def deactivate_inventory(item_id):
 def reactivate_inventory(item_id):
     """Reactivate an inventory item (restore from soft delete)"""
     try:
+        admin_error = require_admin_json()
+        if admin_error:
+            return admin_error
+
         ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
@@ -4769,13 +5156,20 @@ def update_inventory_prices():
         ensure_inventory_schema()
         updated_items = []
         for item in Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all():
+            raw_buy_price = request.form.get(f'buy_price_{item.invid}')
             raw_price = request.form.get(f'price_{item.invid}')
-            if raw_price is None:
+            if raw_price is None and raw_buy_price is None:
                 continue
-            price = decimal_money(raw_price)
-            if price < 0:
-                return jsonify({"success": False, "error": "Inventory prices cannot be negative."})
-            item.invprice = price
+            if raw_buy_price is not None:
+                buy_price = decimal_money(raw_buy_price)
+                if buy_price < 0:
+                    return jsonify({"success": False, "error": "Inventory buy prices cannot be negative."})
+                item.invbuyprice = buy_price
+            if raw_price is not None:
+                price = decimal_money(raw_price)
+                if price < 0:
+                    return jsonify({"success": False, "error": "Inventory sell prices cannot be negative."})
+                item.invprice = price
             updated_items.append(format_inventory_item(item))
 
         db.session.commit()
@@ -6585,6 +6979,18 @@ def get_service_price_list():
 
 def ensure_service_table_only():
     ServicePrice.__table__.create(bind=db.engine, checkfirst=True)
+
+def ensure_application_schema():
+    db.create_all()
+    ensure_sms_reminders_table()
+    ensure_inventory_schema()
+    ensure_payments_table()
+
+try:
+    with app.app_context():
+        ensure_application_schema()
+except Exception as e:
+    print(f"Application schema check failed: {e}")
 
 def service_price_map(service_prices):
     return {service['key']: service for service in service_prices}

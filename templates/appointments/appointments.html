@@ -479,6 +479,20 @@
             background-color: #f8f9fa;
         }
 
+        .appointments-table tr.needs-attention {
+            background-color: #fff1f2;
+            border-left: 4px solid #dc3545;
+        }
+
+        .appointments-table tr.needs-attention:hover {
+            background-color: #ffe4e6;
+        }
+
+        .appointments-table tr.needs-attention td:first-child {
+            color: #b91c1c;
+            font-weight: 700;
+        }
+
         .stat-item .count {
             font-weight: bold;
             color: #333;
@@ -756,7 +770,7 @@
                     </thead>
                     <tbody>
                         {% for appointment in appointments %}
-                        <tr>
+                        <tr class="{% if appointment.needs_attention %}needs-attention{% endif %}">
                             <td>{{ appointment.id }}</td>
                             <td>{{ appointment.patient_name }}</td>
                             <td>{{ appointment.date }}</td>
@@ -1474,6 +1488,7 @@
                         
                         if (data.success === true) {
                             showNotification('Appointment cancelled successfully!', 'success');
+                            row.classList.remove('needs-attention');
                             
                             const statusCell = row.cells[4];
                             statusCell.innerHTML = '<span class="status-badge status-cancelled"><i class="fas fa-times-circle"></i> Cancelled</span>';

@@ -230,6 +230,28 @@
             background: #c82333;
         }
 
+        .stock-btn {
+            background: #0f766e;
+            color: white;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .stock-btn:hover {
+            background: #115e59;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
         /* Form validation styles */
         .form-group.error input {
             border-color: #dc3545;
@@ -349,7 +371,7 @@
             align-items: center;
             display: grid;
             gap: 12px;
-            grid-template-columns: 1fr 140px;
+            grid-template-columns: 1fr 140px 140px;
         }
 
         @media (max-width: 760px) {
@@ -418,8 +440,8 @@
                         <button id="printInventoryBtn" class="secondary-btn"><i class="fas fa-print"></i> Print Report</button>
                         {% if session.get('access_level') == 'admin' %}
                         <button id="adminNumberBtn" class="secondary-btn"><i class="fas fa-mobile-screen"></i> Admin Number</button>
-                        {% endif %}
                         <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -558,6 +580,12 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                         {% if item.is_active %}
+                                        <button class="stock-btn" title="Receive Stock" data-id="{{ item.raw_id }}">
+                                            <i class="fas fa-boxes-stacked"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if session.get('access_level') == 'admin' %}
+                                        {% if item.is_active %}
                                         <button class="edit-btn" title="Edit Item" data-id="{{ item.raw_id }}">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -568,6 +596,7 @@
                                         <button class="reactivate-btn" title="Reactivate Item" data-id="{{ item.raw_id }}">
                                             <i class="fas fa-check"></i>
                                         </button>
+                                        {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -584,15 +613,23 @@
                         {% elif status_filter == 'active' %}
                         <h3>No active inventory items found</h3>
                         <p>Start by adding your first inventory item.</p>
+                        {% if session.get('access_level') == 'admin' %}
                         <button id="addFirstItemBtn" class="primary-btn">
                             <i class="fas fa-plus"></i> Add First Item
                         </button>
                         {% else %}
+                        <p>Ask an admin to create the first inventory item.</p>
+                        {% endif %}
+                        {% else %}
                         <h3>No inventory items found</h3>
                         <p>Start by adding your first inventory item.</p>
+                        {% if session.get('access_level') == 'admin' %}
                         <button id="addFirstItemBtn" class="primary-btn">
                             <i class="fas fa-plus"></i> Add First Item
                         </button>
+                        {% else %}
+                        <p>Ask an admin to create inventory items.</p>
+                        {% endif %}
                         {% endif %}
                     </div>
                     {% endif %}
@@ -646,14 +683,27 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="itemPrice">Sale Price</label>
+                            <label for="itemBuyPrice">Buy Price</label>
+                            <input type="number" id="itemBuyPrice" name="buy_price" min="0" step="0.01" value="0.00">
+                            <small>Cost paid when purchasing this item.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="itemPrice">Sell Price</label>
                             <input type="number" id="itemPrice" name="price" min="0" step="0.01" value="0.00">
                             <small>Used when selling this item.</small>
                         </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="itemInitialQuantity">Quantity Added</label>
                             <input type="number" id="itemInitialQuantity" min="0" readonly>
                             <small>Saved from the original quantity added.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="minQuantity">Minimum Quantity</label>
+                            <input type="number" id="minQuantity" name="min_quantity" min="0" value="5">
+                            <small>For low stock alerts</small>
                         </div>
                     </div>
                     
@@ -662,12 +712,6 @@
                             <label for="itemExpiry">Expiry Date</label>
                             <input type="date" id="itemExpiry" name="expiry_date">
                             <small>Leave blank for non-expiring items</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="minQuantity">Minimum Quantity</label>
-                            <input type="number" id="minQuantity" name="min_quantity" min="0" value="5">
-                            <small>For low stock alerts</small>
                         </div>
                     </div>
                     
@@ -707,6 +751,44 @@
                         <i class="fas fa-edit"></i> Edit Item
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Receive Stock Modal -->
+    <div id="stockModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Receive Stock</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="stockForm">
+                    <input type="hidden" id="stockItemId">
+                    <div class="detail-row">
+                        <strong>Item</strong>
+                        <span id="stockItemName">N/A</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Current Stock</strong>
+                        <span id="stockCurrentQuantity">0</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="stockQuantityAdded">Quantity Added*</label>
+                        <input type="number" id="stockQuantityAdded" name="quantity_added" min="1" step="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="stockRemarks">Remarks</label>
+                        <textarea id="stockRemarks" name="remarks" rows="3" placeholder="Optional delivery/order notes..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelStockBtn" class="secondary-btn">Cancel</button>
+                        <button type="submit" id="saveStockBtn" class="primary-btn">
+                            <span class="btn-text">Save Stock</span>
+                            <span class="btn-loading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -851,7 +933,8 @@
                                 <strong>{{ item.name }}</strong>
                                 <small>{{ item.id }} | Stock: {{ item.quantity }}</small>
                             </label>
-                            <input type="number" id="price_{{ item.raw_id }}" name="price_{{ item.raw_id }}" min="0" step="0.01" value="{{ item.price }}" required>
+                            <input type="number" id="buy_price_{{ item.raw_id }}" name="buy_price_{{ item.raw_id }}" min="0" step="0.01" value="{{ item.buy_price }}" placeholder="Buy" required aria-label="Buy price for {{ item.name }}">
+                            <input type="number" id="price_{{ item.raw_id }}" name="price_{{ item.raw_id }}" min="0" step="0.01" value="{{ item.price }}" placeholder="Sell" required aria-label="Sell price for {{ item.name }}">
                         </div>
                         {% endfor %}
                     </div>
@@ -910,6 +993,7 @@
             let currentEditingItemId = null;
             let currentActionItemId = null;
             let currentAction = null; // 'deactivate' or 'reactivate'
+            const isAdmin = {{ 'true' if session.get('access_level') == 'admin' else 'false' }};
 
             function escapeHtml(value) {
                 return String(value || '')
@@ -1165,6 +1249,7 @@
                 document.getElementById('modalTitle').textContent = 'Add New Item';
                 document.getElementById('inventoryForm').reset();
                 document.getElementById('itemId').value = '';
+                document.getElementById('itemBuyPrice').value = '0.00';
                 document.getElementById('itemPrice').value = '0.00';
                 document.getElementById('itemInitialQuantity').value = '';
                 currentEditingItemId = null;
@@ -1242,6 +1327,13 @@
             document.getElementById('cancelSaleBtn').addEventListener('click', function() {
                 document.getElementById('saleModal').style.display = 'none';
             });
+
+            const cancelStockBtn = document.getElementById('cancelStockBtn');
+            if (cancelStockBtn) {
+                cancelStockBtn.addEventListener('click', function() {
+                    document.getElementById('stockModal').style.display = 'none';
+                });
+            }
 
             const cancelAdminNumberBtn = document.getElementById('cancelAdminNumberBtn');
             if (cancelAdminNumberBtn) {
@@ -1569,6 +1661,49 @@
                 });
             }
 
+            const stockForm = document.getElementById('stockForm');
+            if (stockForm) {
+                stockForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const itemId = document.getElementById('stockItemId').value;
+                    const saveBtn = document.getElementById('saveStockBtn');
+                    const btnText = saveBtn.querySelector('.btn-text');
+                    const btnLoading = saveBtn.querySelector('.btn-loading');
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline';
+                    saveBtn.disabled = true;
+
+                    fetch(`/add_inventory_stock/${itemId}`, {
+                        method: 'POST',
+                        body: new FormData(stockForm)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateInventoryRow(data.item.raw_id, data.item);
+                            upsertSaleOption(data.item);
+                            if (data.stats) {
+                                updateInventoryStats(data.stats);
+                            }
+                            document.getElementById('stockModal').style.display = 'none';
+                            showAlert('success', 'Stock received successfully.' + (data.sms_warning ? ` ${data.sms_warning}` : ''));
+                        } else {
+                            showAlert('error', data.error || 'Unable to receive stock.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('error', 'Unable to receive stock.');
+                    })
+                    .finally(() => {
+                        btnText.style.display = 'inline';
+                        btnLoading.style.display = 'none';
+                        saveBtn.disabled = false;
+                    });
+                });
+            }
+
             const adminNumberForm = document.getElementById('adminNumberForm');
             if (adminNumberForm) {
                 adminNumberForm.addEventListener('submit', function(e) {
@@ -1659,25 +1794,56 @@
                     const itemId = e.target.closest('.view-btn').getAttribute('data-id');
                     viewItem(itemId);
                 }
+
+                if (e.target.closest('.stock-btn')) {
+                    const itemId = e.target.closest('.stock-btn').getAttribute('data-id');
+                    openStockModal(itemId);
+                }
                 
                 // Edit button
-                if (e.target.closest('.edit-btn')) {
+                if (e.target.closest('.edit-btn') && isAdmin) {
                     const itemId = e.target.closest('.edit-btn').getAttribute('data-id');
                     editItem(itemId);
                 }
                 
                 // Deactivate button
-                if (e.target.closest('.deactivate-btn')) {
+                if (e.target.closest('.deactivate-btn') && isAdmin) {
                     const itemId = e.target.closest('.deactivate-btn').getAttribute('data-id');
                     confirmAction(itemId, 'deactivate');
                 }
                 
                 // Reactivate button
-                if (e.target.closest('.reactivate-btn')) {
+                if (e.target.closest('.reactivate-btn') && isAdmin) {
                     const itemId = e.target.closest('.reactivate-btn').getAttribute('data-id');
                     confirmAction(itemId, 'reactivate');
                 }
             });
+
+            function openStockModal(itemId) {
+                showLoading();
+                fetch(`/inventory_item/${itemId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const item = data.item;
+                        document.getElementById('stockForm').reset();
+                        document.getElementById('stockItemId').value = item.raw_id;
+                        document.getElementById('stockItemName').textContent = item.name;
+                        document.getElementById('stockCurrentQuantity').textContent = item.quantity;
+                        document.getElementById('stockModal').style.display = 'block';
+                        setTimeout(() => document.getElementById('stockQuantityAdded').focus(), 100);
+                    } else {
+                        showAlert('error', data.error || 'Failed to load item details.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('error', 'Failed to load item details.');
+                })
+                .finally(() => {
+                    hideLoading();
+                });
+            }
 
             // View item functionality
             function viewItem(itemId) {
@@ -1856,8 +2022,13 @@
                         <div class="detail-row">
                             <strong>Quantity:</strong> ${item.quantity}
                         </div>
+                        ${isAdmin ? `
                         <div class="detail-row">
-                            <strong>Sale Price:</strong> ${item.price_display || money(item.price)}
+                            <strong>Buy Price:</strong> ${item.buy_price_display || money(item.buy_price)}
+                        </div>
+                        ` : ''}
+                        <div class="detail-row">
+                            <strong>Sell Price:</strong> ${item.price_display || money(item.price)}
                         </div>
                         <div class="detail-row">
                             <strong>Date Added:</strong> ${item.date_added_display || item.date_added || 'N/A'}
@@ -1885,7 +2056,7 @@
                 
                 // Show/hide edit button based on active status
                 const editBtn = document.getElementById('editFromViewBtn');
-                editBtn.style.display = item.is_active ? 'inline-block' : 'none';
+                editBtn.style.display = isAdmin && item.is_active ? 'inline-block' : 'none';
             }
 
             function populateEditForm(item) {
@@ -1893,6 +2064,7 @@
                 document.getElementById('itemName').value = item.name;
                 document.getElementById('itemType').value = item.type;
                 document.getElementById('itemQuantity').value = item.quantity;
+                document.getElementById('itemBuyPrice').value = item.buy_price || '0.00';
                 document.getElementById('itemPrice').value = item.price || '0.00';
                 document.getElementById('itemInitialQuantity').value = item.initial_quantity || item.quantity || 0;
                 document.getElementById('itemExpiry').value = item.expiry_date || '';
@@ -1946,10 +2118,10 @@
                                 <div class="empty-state">
                                     <i class="fas fa-box-open"></i>
                                     <h3>No active inventory items found</h3>
-                                    <p>Start by adding your first inventory item.</p>
-                                    <button id="addFirstItemBtn" class="primary-btn">
+                                    <p>${isAdmin ? 'Start by adding your first inventory item.' : 'Ask an admin to create inventory items.'}</p>
+                                    ${isAdmin ? `<button id="addFirstItemBtn" class="primary-btn">
                                         <i class="fas fa-plus"></i> Add First Item
-                                    </button>
+                                    </button>` : ''}
                                 </div>
                             `;
                         }
@@ -1987,9 +2159,11 @@
                         <button class="view-btn" title="View Details" data-id="${itemId}">
                             <i class="fas fa-eye"></i>
                         </button>
+                        ${isAdmin ? `
                         <button class="reactivate-btn" title="Reactivate Item" data-id="${itemId}">
                             <i class="fas fa-check"></i>
                         </button>
+                        ` : ''}
                     `;
                 }
             }
@@ -2029,26 +2203,28 @@
                     ? '<span class="status-badge inactive">Inactive</span>'
                     : `<span class="status-badge ${item.status ? item.status.toLowerCase().replace(' ', '-') : 'ok'}">${item.status || 'OK'}</span>`;
                 
-                const actionButtons = !item.is_active
-                    ? `
-                        <button class="view-btn" title="View Details" data-id="${item.raw_id}">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="reactivate-btn" title="Reactivate Item" data-id="${item.raw_id}">
-                            <i class="fas fa-check"></i>
-                        </button>
-                    `
-                    : `
-                        <button class="view-btn" title="View Details" data-id="${item.raw_id}">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="edit-btn" title="Edit Item" data-id="${item.raw_id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="deactivate-btn" title="Deactivate Item" data-id="${item.raw_id}">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    `;
+                const actionButtons = `
+                    <button class="view-btn" title="View Details" data-id="${item.raw_id}">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    ${item.is_active ? `
+                    <button class="stock-btn" title="Receive Stock" data-id="${item.raw_id}">
+                        <i class="fas fa-boxes-stacked"></i>
+                    </button>
+                    ` : ''}
+                    ${isAdmin ? (!item.is_active ? `
+                    <button class="reactivate-btn" title="Reactivate Item" data-id="${item.raw_id}">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    ` : `
+                    <button class="edit-btn" title="Edit Item" data-id="${item.raw_id}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="deactivate-btn" title="Deactivate Item" data-id="${item.raw_id}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    `) : ''}
+                `;
                 
                 row.innerHTML = `
                     <td>${item.id}</td>
