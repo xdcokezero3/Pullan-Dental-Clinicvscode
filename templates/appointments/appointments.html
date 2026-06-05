@@ -469,6 +469,31 @@
             border-bottom: 2px solid #e9ecef;
         }
 
+        .appointments-table th[data-sort] {
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+        }
+
+        .appointments-table th[data-sort]::after {
+            color: #9ca3af;
+            content: "\f0dc";
+            font-family: "Font Awesome 6 Free";
+            font-size: 11px;
+            font-weight: 900;
+            margin-left: 8px;
+        }
+
+        .appointments-table th.sort-asc::after {
+            color: #1976d2;
+            content: "\f0de";
+        }
+
+        .appointments-table th.sort-desc::after {
+            color: #1976d2;
+            content: "\f0dd";
+        }
+
         .appointments-table td {
             padding: 12px;
             border-bottom: 1px solid #e9ecef;
@@ -760,11 +785,11 @@
                 <table id="appointmentsTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Patient Name</th>
-                            <th>Date</th>
-                            <th>Time Range</th>
-                            <th>Status</th>
+                            <th data-sort="id">ID</th>
+                            <th data-sort="text">Patient Name</th>
+                            <th data-sort="date">Date</th>
+                            <th data-sort="time">Time Range</th>
+                            <th data-sort="text">Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -1192,6 +1217,63 @@
             };
         }
 
+        function appointmentSortValue(row, columnIndex, sortType) {
+            const cell = row.cells[columnIndex];
+            const text = cell ? cell.textContent.trim() : '';
+
+            if (sortType === 'id') {
+                const idNumber = text.match(/\d+/);
+                return idNumber ? Number(idNumber[0]) : 0;
+            }
+
+            if (sortType === 'date') {
+                return parseAndNormalizeDate(text) || '';
+            }
+
+            if (sortType === 'time') {
+                const range = parseAppointmentTimeRange(text);
+                return range ? range.start : 0;
+            }
+
+            return text.toLowerCase();
+        }
+
+        function sortAppointmentsByHeader(header, columnIndex) {
+            const table = document.getElementById('appointmentsTable');
+            const tbody = table.querySelector('tbody');
+            const sortType = header.dataset.sort || 'text';
+            const nextDirection = header.classList.contains('sort-asc') ? 'desc' : 'asc';
+            const directionMultiplier = nextDirection === 'asc' ? 1 : -1;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            table.querySelectorAll('th[data-sort]').forEach((th) => th.classList.remove('sort-asc', 'sort-desc'));
+            header.classList.add(nextDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+            rows.sort((a, b) => {
+                const aValue = appointmentSortValue(a, columnIndex, sortType);
+                const bValue = appointmentSortValue(b, columnIndex, sortType);
+
+                if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    return (aValue - bValue) * directionMultiplier;
+                }
+
+                return String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: 'base' }) * directionMultiplier;
+            });
+
+            rows.forEach((row) => tbody.appendChild(row));
+        }
+
+        document.querySelectorAll('#appointmentsTable th[data-sort]').forEach((header, index) => {
+            header.addEventListener('click', () => sortAppointmentsByHeader(header, index));
+        });
+
+        function setScheduledAppointmentStatus(appointmentId, status) {
+            const appointment = scheduledAppointments.find(item => String(item.raw_id) === String(appointmentId));
+            if (appointment) {
+                appointment.status = status;
+            }
+        }
+
         function findOverlappingAppointment(dateValue, startTime, endTime, excludeId = null) {
             const startMinutes = timeToMinutes(startTime);
             const endMinutes = timeToMinutes(endTime);
@@ -1205,7 +1287,8 @@
                     return false;
                 }
 
-                if (appointment.status === 'cancelled' || appointment.raw_date !== dateValue) {
+                const status = String(appointment.status || 'active').toLowerCase();
+                if (status !== 'active' || appointment.raw_date !== dateValue) {
                     return false;
                 }
 
@@ -1488,6 +1571,7 @@
                         
                         if (data.success === true) {
                             showNotification('Appointment cancelled successfully!', 'success');
+                            setScheduledAppointmentStatus(appointmentId, 'cancelled');
                             row.classList.remove('needs-attention');
                             
                             const statusCell = row.cells[4];
@@ -1566,6 +1650,7 @@
                     .then(data => {
                         if (data.success) {
                             showNotification('Appointment marked as completed', 'success');
+                            setScheduledAppointmentStatus(appointmentId, 'completed');
                             setTimeout(() => {
                                 window.location.reload();
                             }, 1000);
@@ -1601,6 +1686,7 @@
                 .then(data => {
                     if (data.success) {
                         showNotification('Appointment reactivated successfully!', 'success');
+                        setScheduledAppointmentStatus(appointmentId, 'active');
                         setTimeout(() => {
                             window.location.reload();
                         }, 1000);

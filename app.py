@@ -3516,7 +3516,8 @@ def _find_overlapping_appointment(appointment_date, start_time, end_time, exclud
         query = query.filter(Appointment.appid != exclude_id)
 
     for appointment in query.all():
-        if getattr(appointment, 'status', 'active') == 'cancelled':
+        status = (getattr(appointment, 'status', '') or 'active').strip().lower()
+        if status != 'active':
             continue
 
         try:
