@@ -414,6 +414,15 @@ class UserLog(db.Model):
         """Return formatted timestamp for display"""
         return self.timestamp.strftime('%Y-%m-%d %H:%M:%S') if self.timestamp else "N/A"
 
+class ActiveUserSession(db.Model):
+    __tablename__ = 'active_user_sessions'
+
+    user_id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(255), nullable=False)
+    session_token = db.Column(db.String(255), nullable=False)
+    issued_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
 class DentalChart(db.Model):
     __tablename__ = 'dentalchart'
     #__table_args__ = {'schema': 'pullandentalclinic'}

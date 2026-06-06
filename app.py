@@ -1,6 +1,6 @@
 # app.py - PostgreSQL Ready Fixed Version with Enhanced Features
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
-from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, ServicePrice, SMSReminder, User, UserLog, Teeth, log_user_action
+from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, ServicePrice, SMSReminder, User, UserLog, ActiveUserSession, Teeth, log_user_action
 from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 import os
@@ -23,6 +23,7 @@ import atexit
 from io import StringIO
 from functools import wraps
 import traceback
+import secrets
 from urllib.parse import urlparse, parse_qs
 
 try:
@@ -349,8 +350,81 @@ def clear_login_session_state(reason="Return to Login"):
     """Clear login lock state and any active auth identity."""
     session['failed_attempts'] = 0
     session['first_failed_attempt_time'] = None
-    for key in ('user_id', 'username', 'access_level', 'real_name'):
+    for key in ('user_id', 'username', 'access_level', 'real_name', 'session_token'):
         session.pop(key, None)
+
+PUBLIC_ENDPOINTS = {
+    'static',
+    'index',
+    'login',
+    'return_to_login',
+    'register',
+    'register_process',
+    'forgot_password',
+    'verify_identity',
+    'reset_password',
+}
+
+def issue_active_user_session(user_id, username):
+    token = secrets.token_urlsafe(32)
+    active_session = ActiveUserSession.query.get(user_id)
+    now = datetime.utcnow()
+
+    if not active_session:
+        active_session = ActiveUserSession(user_id=user_id, username=username, session_token=token)
+        db.session.add(active_session)
+    else:
+        active_session.username = username
+        active_session.session_token = token
+        active_session.issued_at = now
+
+    active_session.last_seen = now
+    db.session.commit()
+    session['session_token'] = token
+
+def end_active_user_session(user_id, session_token):
+    if user_id is None or not session_token:
+        return
+
+    active_session = ActiveUserSession.query.get(user_id)
+    if active_session and active_session.session_token == session_token:
+        db.session.delete(active_session)
+        db.session.commit()
+
+def wants_json_response():
+    return request.is_json or request.accept_mimetypes.best == 'application/json'
+
+def stale_session_response():
+    session.clear()
+    if wants_json_response():
+        return jsonify({
+            "success": False,
+            "error": "This account was signed in on another device. Please log in again."
+        }), 401
+    return redirect(url_for('login', session_expired='1'))
+
+@app.before_request
+def enforce_single_active_session():
+    if request.endpoint in PUBLIC_ENDPOINTS or (request.endpoint or '').startswith('static'):
+        return None
+
+    user_id = session.get('user_id')
+    session_token = session.get('session_token')
+    if user_id is None or not session_token:
+        if wants_json_response():
+            return jsonify({"success": False, "error": "Please log in to continue."}), 401
+        return redirect(url_for('login'))
+
+    active_session = ActiveUserSession.query.get(user_id)
+    if not active_session or active_session.session_token != session_token:
+        return stale_session_response()
+
+    now = datetime.utcnow()
+    if not active_session.last_seen or (now - active_session.last_seen).total_seconds() >= 60:
+        active_session.last_seen = now
+        db.session.commit()
+
+    return None
 
 @app.context_processor
 def inject_sidebar_notifications():
@@ -429,6 +503,7 @@ def login():
             session['username'] = 'admin'
             session['access_level'] = 'admin'
             session['real_name'] = 'System Administrator'
+            issue_active_user_session(0, 'admin')
             
             log_user_action(0, 'Login', 'Hardcoded admin logged in successfully')
             
@@ -454,6 +529,7 @@ def login():
             session['username'] = user.usersusername
             session['access_level'] = user.usersaccess
             session['real_name'] = user.usersrealname
+            issue_active_user_session(user.usersid, user.usersusername)
             
             log_user_action(user.usersid, 'Login', f'User {username} logged in successfully')
             
@@ -492,7 +568,9 @@ def login():
     
     reason = request.args.get('reason')
     redirect_message = None
-    if reason == 'too_many_attempts':
+    if request.args.get('session_expired') == '1':
+        redirect_message = "This account was signed in on another device. Please log in again to continue."
+    elif reason == 'too_many_attempts':
         redirect_message = f"You have been redirected here due to {MAX_FAILED_ATTEMPTS} failed login attempts. Please reset your password."
     
     if 'failed_attempts' not in session:
@@ -689,12 +767,15 @@ def logout():
     """Log out the current user"""
     user_id = session.get('user_id')
     username = session.get('username')
+    session_token = session.get('session_token')
     
     if user_id is not None:
         if user_id == 0:
             log_user_action(0, 'Logout', 'Hardcoded admin logged out')
         else:
             log_user_action(user_id, 'Logout', f'User {username} logged out')
+
+    end_active_user_session(user_id, session_token)
     
     session.clear()
     return redirect(url_for('login'))

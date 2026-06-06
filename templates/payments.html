@@ -284,6 +284,11 @@
             flex-wrap: wrap;
         }
 
+        .actions button {
+            height: auto !important;
+            width: auto !important;
+        }
+
         .btn {
             align-items: center;
             border: none;
@@ -294,10 +299,21 @@
             font-weight: 600;
             gap: 8px;
             justify-content: center;
+            line-height: 1.2;
+            min-height: 44px;
+            min-width: 116px;
             padding: 11px 16px;
             text-decoration: none;
             transition: var(--transition);
             white-space: nowrap;
+        }
+
+        .actions .btn-primary {
+            min-width: 180px;
+        }
+
+        .modal .actions .btn-primary {
+            min-width: 140px;
         }
 
         .btn-primary {
@@ -440,7 +456,10 @@
             background-color: var(--white);
             border-radius: var(--border-radius);
             box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2);
-            max-width: 560px;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 48px);
+            max-width: 640px;
             padding: 22px;
             width: 100%;
         }
@@ -459,9 +478,22 @@
 
         .price-grid {
             display: grid;
-            gap: 12px;
-            max-height: 420px;
+            gap: 18px;
+            max-height: min(58vh, 460px);
             overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .modal form {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .modal .actions {
+            border-top: 1px solid #edf0f3;
+            margin-top: 16px;
+            padding-top: 14px;
         }
 
         .price-row {
@@ -555,6 +587,10 @@
 
             .btn {
                 width: 100%;
+            }
+
+            .actions button.btn {
+                width: 100% !important;
             }
         }
     </style>
