@@ -19,7 +19,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import base64
-import atexit
 from io import StringIO
 from functools import wraps
 import traceback
@@ -48,6 +47,10 @@ app.static_folder = 'static'
 
 # Add this constant near the top of app.py, after the Flask app is created
 BACKUP_DIRECTORY = os.path.join(os.getcwd(), 'backups')
+DEFAULT_DENTIST_NAME = 'Dr. Pullan'
+CLINIC_OPEN_TIME = '8:00 AM'
+CLINIC_CLOSE_TIME = '5:00 PM'
+DAILY_BACKUP_CHECK_INTERVAL_SECONDS = 30 * 60
 
 # Ensure backup directory exists
 if not os.path.exists(BACKUP_DIRECTORY):
@@ -108,6 +111,34 @@ def create_sqlite_backup(backup_path):
     db.session.close()
     db.engine.dispose()
     shutil.copy2(sqlite_path, backup_path)
+
+def create_daily_startup_backup():
+    """Create or refresh the current day's automatic backup when the app opens."""
+    os.makedirs(BACKUP_DIRECTORY, exist_ok=True)
+    current_date = datetime.now().strftime('%Y-%m-%d')
+
+    if is_sqlite_database():
+        backup_filename = f"{current_date}_backup.sqlite"
+        backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
+        create_sqlite_backup(backup_path)
+        return {
+            'filename': backup_filename,
+            'path': backup_path,
+            'size': os.path.getsize(backup_path) / (1024 * 1024),
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+    backup = create_database_backup_file("backup", None)
+    dated_filename = f"{current_date}_backup.sql"
+    dated_path = os.path.join(BACKUP_DIRECTORY, dated_filename)
+    shutil.copy2(backup['path'], dated_path)
+    backup.update({
+        'filename': dated_filename,
+        'path': dated_path,
+        'size': os.path.getsize(dated_path) / (1024 * 1024),
+        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+    return backup
 
 def create_database_backup_file(reason="manual", user_id=None):
     """Create a timestamped database backup and return display metadata."""
@@ -596,6 +627,18 @@ def dashboard():
     """Dashboard with real data from database"""
     try:
         today = datetime.now().date()
+        requested_month = (request.args.get('month') or '').strip()
+        try:
+            calendar_month = datetime.strptime(requested_month, '%Y-%m').date().replace(day=1) if requested_month else today.replace(day=1)
+        except ValueError:
+            calendar_month = today.replace(day=1)
+
+        if calendar_month.month == 12:
+            next_calendar_month = calendar_month.replace(year=calendar_month.year + 1, month=1)
+        else:
+            next_calendar_month = calendar_month.replace(month=calendar_month.month + 1)
+
+        previous_calendar_month = (calendar_month - timedelta(days=1)).replace(day=1)
         current_month_start = today.replace(day=1)
         last_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
         last_month_end = current_month_start - timedelta(days=1)
@@ -620,28 +663,19 @@ def dashboard():
         # 3. FORMAT TODAY'S APPOINTMENTS FOR TABLE
         formatted_appointments = []
         for appointment in todays_appointments:
-            patient = Patient.query.filter_by(patname=appointment.apppatient).first()
+            patient_name = (appointment.apppatient or 'Unknown Patient').strip() or 'Unknown Patient'
+            patient = Patient.query.filter_by(patname=patient_name, is_deleted=False).first()
             patient_id = f"PAT-{patient.patId:03d}" if patient else "N/A"
             
             appointment_time = appointment.apptime
-            current_time = datetime.now().time()
+            status = (getattr(appointment, 'status', '') or 'active').strip().lower()
             
-            if appointment_time:
-                try:
-                    apt_start_minutes, _ = _appointment_time_bounds(appointment_time)
-                    apt_time_obj = datetime.strptime(_minutes_to_time(apt_start_minutes), '%H:%M').time()
-                    if apt_time_obj < current_time:
-                        status = 'completed'
-                    else:
-                        status = 'pending'
-                except:
-                    status = 'pending'
-            else:
-                status = 'pending'
+            if status == 'active':
+                status = 'attention' if appointment_needs_attention(appointment) else 'pending'
             
             formatted_appointments.append({
                 'id': f"APT-{appointment.appid:03d}",
-                'patient_name': appointment.apppatient,
+                'patient_name': patient_name,
                 'patient_id': patient_id,
                 'time': appointment.apptime or "N/A",
                 'status': status,
@@ -662,11 +696,13 @@ def dashboard():
         
         patient_latest_appointments = {}
         for appointment in all_completed:
-            patient_name = appointment.apppatient
+            patient_name = (appointment.apppatient or '').strip()
+            if not patient_name or not appointment.appdate:
+                continue
             if patient_name not in patient_latest_appointments:
                 patient_latest_appointments[patient_name] = appointment
             else:
-                if appointment.appdate > patient_latest_appointments[patient_name].appdate:
+                if appointment.appdate > (patient_latest_appointments[patient_name].appdate or date.min):
                     patient_latest_appointments[patient_name] = appointment
         
         recent_patients = []
@@ -700,15 +736,9 @@ def dashboard():
         recent_patients.sort(key=lambda x: datetime.strptime(x['last_visit'], '%b %d, %Y'), reverse=True)
         
         # 5. GET APPOINTMENT DATES FOR CALENDAR MARKING
-        current_month = today.replace(day=1)
-        if today.month == 12:
-            next_month = today.replace(year=today.year + 1, month=1, day=1)
-        else:
-            next_month = today.replace(month=today.month + 1, day=1)
-        
         monthly_appointments = Appointment.query.filter(
-            Appointment.appdate >= current_month,
-            Appointment.appdate < next_month
+            Appointment.appdate >= calendar_month,
+            Appointment.appdate < next_calendar_month
         ).all()
         
         appointment_dates = []
@@ -735,6 +765,12 @@ def dashboard():
             'appointments': formatted_appointments,
             'recent_patients': recent_patients,
             'appointment_dates': appointment_dates,
+            'calendar_month': calendar_month.strftime('%Y-%m'),
+            'calendar_month_label': calendar_month.strftime('%B %Y'),
+            'calendar_year': calendar_month.year,
+            'calendar_month_index': calendar_month.month - 1,
+            'previous_calendar_month': previous_calendar_month.strftime('%Y-%m'),
+            'next_calendar_month': next_calendar_month.strftime('%Y-%m'),
             'alerts': {
                 'low_stock': low_stock_items,
                 'expired_items': expired_items
@@ -2024,7 +2060,7 @@ def patient_details(patient_id):
                 'id': f"PROC-{proc.repid:03d}",
                 'date': proc.repdate.strftime('%B %d, %Y') if proc.repdate else "N/A",
                 'procedures': ", ".join(procedures_done) if procedures_done else "General Visit",
-                'dentist': proc.repdentist or "Dr. Andrews",
+                'dentist': proc.repdentist or DEFAULT_DENTIST_NAME,
                 'prescription': proc.repprescription or "None",
                 'status': 'completed',
                 'raw_id': proc.repid
@@ -3764,7 +3800,18 @@ def _time_to_minutes(time_value):
     clean_time = time_value.strip()
     if clean_time == '24:00':
         return 24 * 60
-    parsed_time = datetime.strptime(clean_time, '%H:%M').time()
+
+    parsed_time = None
+    for time_format in ('%H:%M', '%I:%M %p'):
+        try:
+            parsed_time = datetime.strptime(clean_time.upper(), time_format).time()
+            break
+        except ValueError:
+            continue
+
+    if parsed_time is None:
+        raise ValueError(f"Invalid time value: {time_value}")
+
     return parsed_time.hour * 60 + parsed_time.minute
 
 
@@ -3772,6 +3819,13 @@ def _minutes_to_time(minutes):
     hours = minutes // 60
     minutes = minutes % 60
     return f"{hours:02d}:{minutes:02d}"
+
+def _minutes_to_display_time(minutes):
+    hours_24 = (minutes // 60) % 24
+    minute_value = minutes % 60
+    period = 'AM' if hours_24 < 12 else 'PM'
+    hours_12 = hours_24 % 12 or 12
+    return f"{hours_12}:{minute_value:02d} {period}"
 
 
 def _appointment_time_bounds(time_value):
@@ -3804,7 +3858,34 @@ def _format_time_range(start_time, end_time):
     if end_minutes <= start_minutes:
         raise ValueError("End time must be later than start time.")
 
-    return f"{start_time.strip()} - {end_time.strip()}"
+    clinic_start = _time_to_minutes(CLINIC_OPEN_TIME)
+    clinic_end = _time_to_minutes(CLINIC_CLOSE_TIME)
+    if start_minutes < clinic_start or end_minutes > clinic_end:
+        raise ValueError("Appointments must be scheduled between 8:00 AM and 5:00 PM.")
+
+    return f"{_minutes_to_display_time(start_minutes)} - {_minutes_to_display_time(end_minutes)}"
+
+def _format_display_time(time_value):
+    return _minutes_to_display_time(_time_to_minutes(time_value))
+
+def ensure_appointments_schema():
+    Appointment.__table__.create(bind=db.engine, checkfirst=True)
+    columns = {column['name'] for column in inspect(db.engine).get_columns(Appointment.__tablename__)}
+    if 'appstarttime' not in columns:
+        db.session.execute(text('ALTER TABLE appointment ADD COLUMN appstarttime VARCHAR(20)'))
+        db.session.commit()
+    if 'appendtime' not in columns:
+        db.session.execute(text('ALTER TABLE appointment ADD COLUMN appendtime VARCHAR(20)'))
+        db.session.commit()
+
+def is_clinic_open_date(appointment_date):
+    return bool(appointment_date and appointment_date.weekday() < 5)
+
+def next_clinic_open_date(appointment_date):
+    next_date = appointment_date
+    while not is_clinic_open_date(next_date):
+        next_date += timedelta(days=1)
+    return next_date
 
 
 def _appointment_duration(time_value):
@@ -3872,6 +3953,7 @@ def appointments():
     """Render the appointments page with status filtering"""
     try:
         status_filter = request.args.get('status', 'all')
+        selected_date_filter = (request.args.get('date') or '').strip()
         
         if status_filter == 'active':
             appointments_list = Appointment.query.filter_by(status='active').order_by(Appointment.appdate.desc()).all()
@@ -3900,7 +3982,7 @@ def appointments():
             formatted_appointments.append({
                 'id': f"APT-{appointment.appid:03d}",
                 'patient_name': appointment.apppatient,
-                'doctor_name': "Dr. Andrews",
+                'doctor_name': DEFAULT_DENTIST_NAME,
                 'treatment': "General Checkup",
                 'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
                 'raw_date': appointment.appdate.strftime('%Y-%m-%d') if appointment.appdate else "",
@@ -3932,6 +4014,7 @@ def appointments():
                               all_patients=all_patients,
                               current_date=current_date,
                               today_date=today_date,
+                              selected_date_filter=selected_date_filter,
                               status_filter=status_filter,
                               active_count=active_count,
                               completed_count=completed_count,
@@ -3952,10 +4035,17 @@ def add_appointment():
         start_time = request.form.get('start_time') or request.form.get('time')
         end_time = request.form.get('end_time')
 
+        if not is_clinic_open_date(appointment_date):
+            return jsonify({"success": False, "error": "The clinic is closed on Saturdays and Sundays. Please choose a weekday."})
+
         if not start_time or not end_time:
             return jsonify({"success": False, "error": "Start time and end time are required."})
 
-        time_range = _format_time_range(start_time, end_time)
+        try:
+            time_range = _format_time_range(start_time, end_time)
+        except ValueError as validation_error:
+            return jsonify({"success": False, "error": str(validation_error)})
+
         overlapping_appointment = _find_overlapping_appointment(appointment_date, start_time, end_time)
 
         if overlapping_appointment:
@@ -3967,6 +4057,8 @@ def add_appointment():
         appointment_data = {
             'apppatient': patient_name,
             'apptime': time_range,
+            'appstarttime': _format_display_time(start_time),
+            'appendtime': _format_display_time(end_time),
             'appdate': appointment_date
         }
         
@@ -4064,6 +4156,9 @@ def reactivate_appointment(appointment_id):
         appointment = Appointment.query.get_or_404(appointment_id)
         
         if hasattr(appointment, 'status'):
+            if not is_clinic_open_date(appointment.appdate):
+                return jsonify({"success": False, "error": "This appointment falls on a weekend. Please reschedule it to a weekday before reactivating."})
+
             try:
                 start_minutes, end_minutes = _appointment_time_bounds(appointment.apptime)
             except ValueError:
@@ -4115,7 +4210,7 @@ def appointment_details(appointment_id):
         formatted_appointment = {
             'id': f"APT-{appointment.appid:03d}",
             'patient_name': appointment.apppatient,
-            'doctor_name': "Dr. Andrews",
+            'doctor_name': DEFAULT_DENTIST_NAME,
             'treatment': "General Checkup",
             'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
             'time': appointment.apptime,
@@ -4153,7 +4248,14 @@ def reschedule_appointment():
         
         appointment = Appointment.query.get_or_404(int(appointment_id))
         parsed_new_date = datetime.strptime(new_date, '%Y-%m-%d').date()
-        new_time = _format_time_range(new_start_time, new_end_time)
+        if not is_clinic_open_date(parsed_new_date):
+            return jsonify({"success": False, "error": "The clinic is closed on Saturdays and Sundays. Please choose a weekday."})
+
+        try:
+            new_time = _format_time_range(new_start_time, new_end_time)
+        except ValueError as validation_error:
+            return jsonify({"success": False, "error": str(validation_error)})
+
         overlapping_appointment = _find_overlapping_appointment(
             parsed_new_date,
             new_start_time,
@@ -4187,6 +4289,8 @@ def reschedule_appointment():
         
         appointment.appdate = parsed_new_date
         appointment.apptime = new_time
+        appointment.appstarttime = _format_display_time(new_start_time)
+        appointment.appendtime = _format_display_time(new_end_time)
         
         db.session.add(reschedule_record)
         db.session.commit()
@@ -4317,7 +4421,7 @@ def print_appointments_report():
                     'date': appointment.appdate.strftime('%B %d, %Y') if appointment.appdate else "N/A",
                     'time': appointment.apptime or "N/A",
                     'status': status.capitalize(),
-                    'doctor': "Dr. Andrews",
+                    'doctor': DEFAULT_DENTIST_NAME,
                     'treatment': "General Checkup",
                     'raw_date': appointment.appdate.strftime('%Y-%m-%d') if appointment.appdate else "",
                     'raw_time': appointment.apptime or ""
@@ -6409,8 +6513,7 @@ def is_chart_complete(dental_chart):
         return False
     
     required_fields = [
-        'dcdentist',
-        'dcq1', 'dcq2', 'dcq3', 'dcq4', 'dcq5', 'dcq6'
+        'dcdentist'
     ]
     
     for field in required_fields:
@@ -6506,7 +6609,7 @@ def create_dental_chart_now(patient_id):
                 dcpatname=patient.patname,
                 dcpcontact=patient.patcontact or "",
                 dcdoctor="",
-                dcdentist="",
+                dcdentist=DEFAULT_DENTIST_NAME,
                 dcdcontact="",
                 dcvisit="",
                 dcq1="",
@@ -6734,7 +6837,7 @@ def add_procedure():
     try:
         patient_id = request.form.get('patient_id')
         procedure_date = request.form.get('procedure_date')
-        dentist = request.form.get('dentist')
+        dentist = (request.form.get('dentist') or DEFAULT_DENTIST_NAME).strip()
         prescription = request.form.get('prescription')
         notes = request.form.get('notes')
 
@@ -6883,6 +6986,7 @@ def add_procedure():
                 dcpatname=patient.patname,
                 dcpcontact=patient.patcontact or "",
                 dcdoctor="",
+                dcdentist=DEFAULT_DENTIST_NAME,
                 dcdcontact="",
                 dcq1="",
                 dcq2="",
@@ -6978,13 +7082,7 @@ def update_dental_chart():
             return jsonify({"success": False, "error": "Dental chart not found"})
         
         required_fields = {
-            'dentist': request.form.get('dentist'),
-            'q1': request.form.get('q1'),
-            'q2': request.form.get('q2'),
-            'q3': request.form.get('q3'),
-            'q4': request.form.get('q4'),
-            'q5': request.form.get('q5'),
-            'q6': request.form.get('q6')
+            'dentist': request.form.get('dentist')
         }
         
         missing_fields = []
@@ -6992,9 +7090,6 @@ def update_dental_chart():
             if not field_value or field_value.strip() == '':
                 if field_name == 'dentist':
                     missing_fields.append('Dentist Name')
-                else:
-                    question_number = field_name[1:]
-                    missing_fields.append(f'Question {question_number}')
         
         if missing_fields:
             return jsonify({
@@ -7004,7 +7099,7 @@ def update_dental_chart():
             })
         
         dental_chart.dcdoctor = request.form.get('doctor')
-        dental_chart.dcdentist = request.form.get('dentist')
+        dental_chart.dcdentist = (request.form.get('dentist') or DEFAULT_DENTIST_NAME).strip()
         dental_chart.dcdcontact = request.form.get('dentist_contact')
         dental_chart.dcpcontact = request.form.get('patient_contact') or dental_chart.dcpcontact
         dental_chart.dcvisit = request.form.get('visit_reason') or dental_chart.dcvisit
@@ -7194,8 +7289,8 @@ SERVICE_PRICE_LIST = [
 
 CLINIC_RECEIPT_INFO = {
     'name': 'Pullan Dental Clinic',
-    'address': '142 Timog Avenue, Sacred Heart',
-    'city': 'Quezon City, 1103 Metro Manila, Philippines',
+    'address': '100-A C. Benitez St. Cubao',
+    'city': 'Quezon City, Philippines',
     'phone': '(02) 8123-4567 / +63 917 123 4567',
     'email': 'info@pullandental.com.ph',
     'tin': os.getenv('CLINIC_TIN', ''),
@@ -7329,6 +7424,7 @@ def ensure_service_table_only():
 
 def ensure_application_schema():
     db.create_all()
+    ensure_appointments_schema()
     ensure_sms_reminders_table()
     ensure_inventory_schema()
     ensure_payments_table()
@@ -7390,6 +7486,11 @@ def total_from_service_items(service_items):
 
 def payment_root_id(payment_record):
     return payment_record.original_payment_id or payment_record.payment_id
+
+def format_or_number(payment_record):
+    """Display a receipt-style serial number without changing stored payment IDs."""
+    paid_at = payment_record.paid_at or datetime.now()
+    return f"PDC-{paid_at:%Y}-{payment_record.payment_id:07d}"
 
 def get_transaction_payments(root_payment_id):
     return Payment.query.filter(
@@ -7886,6 +7987,7 @@ def payment_receipt(payment_id):
         receipt = {
             'raw_id': payment_record.payment_id,
             'id': payment_record.formatted_id(),
+            'or_number': format_or_number(payment_record),
             'patient_name': payment_record.patient_name,
             'patient_id': f"PAT-{payment_record.patient_id:03d}" if payment_record.patient_id else "N/A",
             'description': payment_record.description or 'Dental service payment',
@@ -8098,13 +8200,15 @@ def settings():
         
         clinic_info = {
             'name': 'Pullan Dental Clinic',
-            'address': '142 Timog Avenue, Sacred Heart',
-            'city': 'Quezon City, 1103 Metro Manila, Philippines',
+            'address': '100-A C. Benitez St. Cubao',
+            'city': 'Quezon City, Philippines',
             'phone': '(02) 8123-4567 / +63 917 123 4567',
             'email': 'info@pullandental.com.ph',
             'website': 'www.pullandental.com.ph',
             'established': '2018',
-            'license': 'QC-DC-2018-0142'
+            'license': 'QC-DC-2018-0142',
+            'hours': 'Monday - Friday, 8:00 AM - 5:00 PM',
+            'weekend_hours': 'Closed on Saturdays and Sundays'
         }
         
         try:
@@ -8164,23 +8268,48 @@ def get_lan_ip_addresses():
 
     return sorted(addresses) or ["YOUR_COMPUTER_IP"]
 
-def should_run_lifecycle_tasks(debug):
-    lifecycle_backups_enabled = os.getenv("LIFECYCLE_BACKUPS", "false").lower() in ("1", "true", "yes", "on")
-    return lifecycle_backups_enabled and (not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
+def should_run_startup_backup(debug):
+    startup_backups_enabled = os.getenv("DAILY_STARTUP_BACKUPS", "true").lower() in ("1", "true", "yes", "on")
+    return startup_backups_enabled and (not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
 
-def create_lifecycle_backup(reason):
+def create_startup_backup():
     try:
         with app.app_context():
-            backup = create_database_backup_file(reason, None)
-        print(f"Automatic {reason} backup created: {backup['filename']}")
+            backup = create_daily_startup_backup()
+        app._last_daily_backup_date = datetime.now().strftime('%Y-%m-%d')
+        print(f"Automatic startup backup created: {backup['filename']}")
     except Exception as e:
-        print(f"Automatic {reason} backup failed: {e}")
+        print(f"Automatic startup backup failed: {e}")
+
+def daily_backup_worker():
+    last_backup_date = getattr(app, '_last_daily_backup_date', None)
+    while True:
+        current_backup_date = datetime.now().strftime('%Y-%m-%d')
+        if current_backup_date != last_backup_date:
+            try:
+                with app.app_context():
+                    backup = create_daily_startup_backup()
+                last_backup_date = current_backup_date
+                print(f"Automatic daily backup created: {backup['filename']}")
+            except Exception as e:
+                print(f"Automatic daily backup failed: {e}")
+        time.sleep(DAILY_BACKUP_CHECK_INTERVAL_SECONDS)
+
+def start_daily_backup_worker(debug):
+    if not should_run_startup_backup(debug):
+        return
+    if getattr(app, '_daily_backup_worker_started', False):
+        return
+
+    app._daily_backup_worker_started = True
+    worker = threading.Thread(target=daily_backup_worker, daemon=True)
+    worker.start()
 
 if __name__ == "__main__":
     host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "true").lower() in ("1", "true", "yes", "on")
-    run_lifecycle_backups = should_run_lifecycle_tasks(debug)
+    run_startup_backup = should_run_startup_backup(debug)
 
     print("\nPullan Dental Clinic is starting...")
     print(f"Local access: http://127.0.0.1:{port}")
@@ -8194,9 +8323,9 @@ if __name__ == "__main__":
         print("Set APP_HOST=0.0.0.0 if other devices cannot connect to the LAN URL.")
         print("")
 
-    if run_lifecycle_backups:
-        create_lifecycle_backup("startup")
-        atexit.register(create_lifecycle_backup, "shutdown")
+    if run_startup_backup:
+        create_startup_backup()
+        start_daily_backup_worker(debug)
 
     start_sms_reminder_worker()
     app.run(host=host, port=port, debug=debug)

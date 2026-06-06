@@ -287,7 +287,7 @@
         .mode-grid {
             display: grid;
             gap: 18px;
-            grid-template-columns: 1.2fr 1fr;
+            grid-template-columns: 1fr;
             padding: 4px 8px 7px;
         }
 
@@ -394,7 +394,7 @@
         <div class="receipt-heading">Official Receipt</div>
 
         <section class="meta-row">
-            <div>OR No. <span class="or-number">{{ receipt.id.replace('PAY-', '') }}</span></div>
+            <div>OR No. <span class="or-number">{{ receipt.or_number }}</span></div>
             <div class="field-line compact">
                 <span>Date:</span>
                 <span class="value">{{ receipt.payment_date }}</span>
@@ -484,10 +484,6 @@
                     <div class="payment-line">CASH: <span class="underline">{% if receipt.payment_method == 'Cash' %}{{ receipt.amount_paid }}{% endif %}</span></div>
                     <div class="payment-line">CHECK: <span class="underline">{% if receipt.payment_method == 'Bank Transfer' %}{{ receipt.amount_paid }}{% endif %}</span></div>
                     <div class="payment-line">PMO: <span class="underline">{% if receipt.payment_method == 'GCash' %}{{ receipt.amount_paid }}{% endif %}</span></div>
-                </div>
-                <div>
-                    <div class="payment-line">BANK/CHECK NO.: <span class="underline">{{ receipt.reference_number if receipt.payment_method == 'Bank Transfer' else "" }}</span></div>
-                    <div class="payment-line">PMO NO.: <span class="underline">{{ receipt.reference_number if receipt.payment_method == 'GCash' else "" }}</span></div>
                 </div>
             </div>
         </section>

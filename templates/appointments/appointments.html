@@ -763,7 +763,7 @@
             <div class="filter-controls">
                 <div class="filter-group">
                     <label for="dateFilter">Date:</label>
-                    <input type="date" id="dateFilter" value="{{ today_date }}">
+                    <input type="date" id="dateFilter" value="{{ selected_date_filter }}">
                     <div class="helper-text">Select a specific date to filter appointments</div>
                 </div>
                 <div class="filter-group">
@@ -913,17 +913,17 @@
                         <div class="form-group" id="appointmentDateGroup">
                             <label for="appointmentDate">Date*</label>
                             <input type="date" id="appointmentDate" name="date" required>
-                            <div class="helper-text">Only future dates are allowed</div>
-                            <div class="error-message">Please select a future date. Past dates are not allowed.</div>
+                            <div class="helper-text">Weekdays only. The clinic is closed on Saturdays and Sundays.</div>
+                            <div class="error-message">Please select a weekday. Past dates and weekends are not allowed.</div>
                         </div>
                         <div class="form-group">
                             <label for="appointmentStartTime">Start Time*</label>
-                            <input type="time" id="appointmentStartTime" name="start_time" required>
+                            <input type="text" id="appointmentStartTime" name="start_time" placeholder="8:00 AM" required>
                         </div>
                         <div class="form-group" id="appointmentEndTimeGroup">
                             <label for="appointmentEndTime">End Time*</label>
-                            <input type="time" id="appointmentEndTime" name="end_time" required>
-                            <div class="error-message">End time must be later and must not overlap another appointment.</div>
+                            <input type="text" id="appointmentEndTime" name="end_time" placeholder="8:30 AM" required>
+                            <div class="error-message">Use clinic hours, 8:00 AM - 5:00 PM. End time must be later and must not overlap another appointment.</div>
                         </div>
                     </div>
                     
@@ -965,17 +965,17 @@
                         <div class="form-group" id="newAppointmentDateGroup">
                             <label for="newAppointmentDate">New Date*</label>
                             <input type="date" id="newAppointmentDate" name="date" required>
-                            <div class="helper-text">Only future dates are allowed</div>
-                            <div class="error-message">Please select a future date. Past dates are not allowed.</div>
+                            <div class="helper-text">Weekdays only. The clinic is closed on Saturdays and Sundays.</div>
+                            <div class="error-message">Please select a weekday. Past dates and weekends are not allowed.</div>
                         </div>
                         <div class="form-group">
                             <label for="newAppointmentStartTime">New Start Time*</label>
-                            <input type="time" id="newAppointmentStartTime" name="start_time" required>
+                            <input type="text" id="newAppointmentStartTime" name="start_time" placeholder="8:00 AM" required>
                         </div>
                         <div class="form-group" id="newAppointmentEndTimeGroup">
                             <label for="newAppointmentEndTime">New End Time*</label>
-                            <input type="time" id="newAppointmentEndTime" name="end_time" required>
-                            <div class="error-message">End time must be later and must not overlap another appointment.</div>
+                            <input type="text" id="newAppointmentEndTime" name="end_time" placeholder="8:30 AM" required>
+                            <div class="error-message">Use clinic hours, 8:00 AM - 5:00 PM. End time must be later and must not overlap another appointment.</div>
                         </div>
                     </div>
                     
@@ -1074,6 +1074,23 @@
             return `${year}-${month}-${day}`;
         }
 
+        function isWeekendDate(dateValue) {
+            if (!dateValue) return false;
+            const [year, month, day] = dateValue.split('-').map(Number);
+            const selected = new Date(year, month - 1, day);
+            const weekday = selected.getDay();
+            return weekday === 0 || weekday === 6;
+        }
+
+        function getNextClinicDayString(dateValue = getTodayString()) {
+            const [year, month, day] = dateValue.split('-').map(Number);
+            const selected = new Date(year, month - 1, day);
+            while (selected.getDay() === 0 || selected.getDay() === 6) {
+                selected.setDate(selected.getDate() + 1);
+            }
+            return `${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, '0')}-${String(selected.getDate()).padStart(2, '0')}`;
+        }
+
         // Function to parse date string and normalize format
         function parseAndNormalizeDate(dateStr) {
             if (!dateStr) return null;
@@ -1152,7 +1169,7 @@
             const selectedDate = dateInput.value;
             const today = getTodayString();
             
-            if (selectedDate && selectedDate < today) {
+            if (selectedDate && (selectedDate < today || isWeekendDate(selectedDate))) {
                 formGroup.classList.add('invalid');
                 if (submitButton) {
                     submitButton.disabled = true;
@@ -1172,14 +1189,27 @@
                 return null;
             }
 
-            const parts = timeValue.split(':');
+            const cleanValue = timeValue.trim();
+            const amPmMatch = cleanValue.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+            if (amPmMatch) {
+                let hours = parseInt(amPmMatch[1], 10);
+                const minutes = parseInt(amPmMatch[2], 10);
+                const period = amPmMatch[3].toUpperCase();
+                if (period === 'PM' && hours !== 12) hours += 12;
+                if (period === 'AM' && hours === 12) hours = 0;
+                return (hours * 60) + minutes;
+            }
+
+            const parts = cleanValue.split(':');
             return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
         }
 
         function minutesToTime(totalMinutes) {
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
-            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            const period = hours < 12 ? 'AM' : 'PM';
+            const displayHours = hours % 12 || 12;
+            return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
         }
 
         function parseAppointmentTimeRange(timeRange) {
@@ -1318,6 +1348,19 @@
                 return false;
             }
 
+            const clinicStart = timeToMinutes('8:00 AM');
+            const clinicEnd = timeToMinutes('5:00 PM');
+            if (timeToMinutes(startTime) < clinicStart || timeToMinutes(endTime) > clinicEnd) {
+                if (errorMessage) {
+                    errorMessage.textContent = 'Appointments must be scheduled between 8:00 AM and 5:00 PM.';
+                }
+                formGroup.classList.add('invalid');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+                return false;
+            }
+
             const overlappingAppointment = findOverlappingAppointment(dateInput.value, startTime, endTime, excludeId);
             if (overlappingAppointment) {
                 if (errorMessage) {
@@ -1339,7 +1382,7 @@
         
         // Initialize date validation
         function initializeDateValidation() {
-            const today = getTodayString();
+            const today = getNextClinicDayString();
             
             // Add appointment modal
             const appointmentDate = document.getElementById('appointmentDate');
@@ -1710,7 +1753,7 @@
         });
         
         // IMPROVED Filter functionality with proper date handling
-        document.getElementById('applyFilters').addEventListener('click', function() {
+        function applyAppointmentFilters(showMessage = true) {
             const dateFilter = document.getElementById('dateFilter').value;
             const patientFilter = document.getElementById('patientFilter').value.toLowerCase().trim();
             
@@ -1763,8 +1806,18 @@
             if (patientFilter) filterMessage.push(`patient: "${patientFilter}"`);
             
             const filterText = filterMessage.length > 0 ? ` (${filterMessage.join(', ')})` : '';
-            showNotification(`Filters applied${filterText}. ${visibleCount} appointments found.`, 'info');
+            if (showMessage) {
+                showNotification(`Filters applied${filterText}. ${visibleCount} appointments found.`, 'info');
+            }
+        }
+
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            applyAppointmentFilters(true);
         });
+
+        if (document.getElementById('dateFilter').value || document.getElementById('patientFilter').value.trim()) {
+            applyAppointmentFilters(false);
+        }
 
         // Clear filters functionality
         document.getElementById('clearFilters').addEventListener('click', function() {
@@ -1833,7 +1886,7 @@
             modal.style.display = 'flex';
             document.body.classList.add('modal-open');
             
-            const today = getTodayString();
+            const today = getNextClinicDayString();
             const appointmentDate = document.getElementById('appointmentDate');
             appointmentDate.value = today;
             
@@ -1885,7 +1938,7 @@
             );
 
             if (!isDateValid || !validateAddAppointmentWindow()) {
-                showNotification('Please choose a valid appointment time that does not overlap another appointment.', 'error');
+                showNotification('Please choose a weekday appointment time that does not overlap another appointment.', 'error');
                 return;
             }
             
@@ -1930,10 +1983,10 @@
                 document.getElementById('currentDate').textContent = date;
                 document.getElementById('currentTime').textContent = time;
                 
-                const today = getTodayString();
+                const today = getNextClinicDayString();
                 const newAppointmentDate = document.getElementById('newAppointmentDate');
                 const currentAppointmentDate = parseAndNormalizeDate(date) || today;
-                newAppointmentDate.value = currentAppointmentDate < today ? today : currentAppointmentDate;
+                newAppointmentDate.value = (currentAppointmentDate < today || isWeekendDate(currentAppointmentDate)) ? today : currentAppointmentDate;
                 
                 const timeRange = parseAppointmentTimeRange(time);
                 document.getElementById('newAppointmentStartTime').value = timeRange ? timeRange.startTime : '';
@@ -1976,7 +2029,7 @@
             );
 
             if (!isDateValid || !validateRescheduleAppointmentWindow()) {
-                showNotification('Please choose a valid appointment time that does not overlap another appointment.', 'error');
+                showNotification('Please choose a weekday appointment time that does not overlap another appointment.', 'error');
                 return;
             }
             

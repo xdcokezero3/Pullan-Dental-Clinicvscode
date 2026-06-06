@@ -43,6 +43,18 @@ if (Test-Path $readmeSource) {
     Copy-Item -LiteralPath $readmeSource -Destination $packageDir -Force
 }
 
+$backupSource = Join-Path $root "backups"
+if (Test-Path $backupSource) {
+    $backupDest = Join-Path $packageDir "backups"
+    New-Item -ItemType Directory -Path $backupDest | Out-Null
+
+    Get-ChildItem -LiteralPath $backupSource -Filter "*.sqlite" |
+        Where-Object { $_.Name -eq "demo_seed_backup.sqlite" -or $_.Name -match '^\d{4}-\d{2}-\d{2}_backup\.sqlite$' } |
+        ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $backupDest -Force
+        }
+}
+
 if (Test-Path $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }

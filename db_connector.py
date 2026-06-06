@@ -298,6 +298,8 @@ class Appointment(db.Model):
     appid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     apppatient = db.Column(db.String(100))
     apptime = db.Column(db.String(20))
+    appstarttime = db.Column(db.String(20))
+    appendtime = db.Column(db.String(20))
     appdate = db.Column(db.Date)
     status = db.Column(db.String(20), default='active')
     

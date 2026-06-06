@@ -183,64 +183,6 @@
             border: 1px solid #e0e0e0;
         }
         
-        /* Health Questionnaire */
-        .questionnaire-section {
-            background-color: #f5f5f5;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 25px;
-            border-left: 4px solid #ff9800;
-        }
-        
-        .question-item {
-            margin-bottom: 15px;
-            padding: 12px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-        }
-        
-        .question-text {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 8px;
-        }
-        
-        .question-answer {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .answer-value {
-            padding: 4px 12px;
-            background: #e3f2fd;
-            color: #1976d2;
-            border-radius: 15px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .answer-value.yes {
-            background: #ffebee;
-            color: #d32f2f;
-        }
-        
-        .answer-value.no {
-            background: #e8f5e8;
-            color: #388e3c;
-        }
-        
-        .explanation {
-            margin-left: 20px;
-            font-style: italic;
-            color: #666;
-            background: #fff3e0;
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 5px;
-        }
-        
         /* Teeth Chart */
         .teeth-chart-section {
             background-color: #f9f9f9;
@@ -376,8 +318,7 @@
         
         /* Print optimizations */
         @media print {
-            .teeth-chart-section,
-            .questionnaire-section {
+            .teeth-chart-section {
                 page-break-inside: avoid;
             }
             
@@ -486,86 +427,6 @@
         </div>
     </div>
 
-    <!-- Health Questionnaire -->
-    <div class="questionnaire-section">
-        <div class="section-title">
-            <i class="fas fa-clipboard-list"></i> Health Questionnaire
-        </div>
-        
-        <div class="question-item">
-            <div class="question-text">1. Are you currently taking any medications?</div>
-            <div class="question-answer">
-                <span class="answer-value {{ 'yes' if dental_chart.dcq1 == 'Yes' else 'no' if dental_chart.dcq1 == 'No' else '' }}">
-                    {{ dental_chart.dcq1 or "Not answered" }}
-                </span>
-            </div>
-        </div>
-        
-        <div class="question-item">
-            <div class="question-text">2. Do you have any allergies to medications?</div>
-            <div class="question-answer">
-                <span class="answer-value {{ 'yes' if dental_chart.dcq2 == 'Yes' else 'no' if dental_chart.dcq2 == 'No' else '' }}">
-                    {{ dental_chart.dcq2 or "Not answered" }}
-                </span>
-            </div>
-            {% if dental_chart.dcq2 == 'Yes' and dental_chart.dcqe2 %}
-            <div class="explanation">
-                <i class="fas fa-info-circle"></i> {{ dental_chart.dcqe2 }}
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="question-item">
-            <div class="question-text">3. Have you had any serious illnesses or surgeries?</div>
-            <div class="question-answer">
-                <span class="answer-value {{ 'yes' if dental_chart.dcq3 == 'Yes' else 'no' if dental_chart.dcq3 == 'No' else '' }}">
-                    {{ dental_chart.dcq3 or "Not answered" }}
-                </span>
-            </div>
-            {% if dental_chart.dcq3 == 'Yes' and dental_chart.dcqe3 %}
-            <div class="explanation">
-                <i class="fas fa-info-circle"></i> {{ dental_chart.dcqe3 }}
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="question-item">
-            <div class="question-text">4. Do you have any heart problems?</div>
-            <div class="question-answer">
-                <span class="answer-value {{ 'yes' if dental_chart.dcq4 == 'Yes' else 'no' if dental_chart.dcq4 == 'No' else '' }}">
-                    {{ dental_chart.dcq4 or "Not answered" }}
-                </span>
-            </div>
-            {% if dental_chart.dcq4 == 'Yes' and dental_chart.dcqe4 %}
-            <div class="explanation">
-                <i class="fas fa-info-circle"></i> {{ dental_chart.dcqe4 }}
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="question-item">
-            <div class="question-text">5. Are you pregnant or nursing?</div>
-            <div class="question-answer">
-                <span class="answer-value {{ 'yes' if dental_chart.dcq5 == 'Yes' else 'no' if dental_chart.dcq5 == 'No' else '' }}">
-                    {{ dental_chart.dcq5 or "Not answered" }}
-                </span>
-            </div>
-            {% if dental_chart.dcq5 == 'Yes' and dental_chart.dcqe5 %}
-            <div class="explanation">
-                <i class="fas fa-info-circle"></i> {{ dental_chart.dcqe5 }}
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="question-item">
-            <div class="question-text">6. Do you smoke or use tobacco products?</div>
-            <div class="question-answer">
-                <span class="answer-value {{ 'yes' if dental_chart.dcq6 == 'Yes' else 'no' if dental_chart.dcq6 == 'No' else '' }}">
-                    {{ dental_chart.dcq6 or "Not answered" }}
-                </span>
-            </div>
-        </div>
-    </div>
     {% endif %}
 
     <!-- Teeth Chart -->

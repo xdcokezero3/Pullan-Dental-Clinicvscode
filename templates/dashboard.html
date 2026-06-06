@@ -146,6 +146,8 @@
                                         <span class="status completed">Completed</span>
                                         {% elif appointment.status == 'in-progress' %}
                                         <span class="status in-progress">In Progress</span>
+                                        {% elif appointment.status == 'attention' %}
+                                        <span class="status pending">Needs Attention</span>
                                         {% else %}
                                         <span class="status pending">Pending</span>
                                         {% endif %}
@@ -228,9 +230,9 @@
                         <div class="section-header">
                             <h2>Calendar</h2>
                             <div class="calendar-nav">
-                                <button><i class="fas fa-chevron-left"></i></button>
-                                <span id="calendar-month-year">{{ current_date.split(',')[1].strip() if current_date else 'Loading...' }}</span>
-                                <button><i class="fas fa-chevron-right"></i></button>
+                                <a href="{{ url_for('dashboard', month=previous_calendar_month) }}" title="Previous month"><i class="fas fa-chevron-left"></i></a>
+                                <span id="calendar-month-year">{{ calendar_month_label or 'Loading...' }}</span>
+                                <a href="{{ url_for('dashboard', month=next_calendar_month) }}" title="Next month"><i class="fas fa-chevron-right"></i></a>
                             </div>
                         </div>
                         
@@ -289,6 +291,8 @@
     <script>
         // Get appointment dates from the server
         const appointmentDates = {{ appointment_dates | tojson | safe }};
+        const calendarYear = {{ calendar_year | tojson | safe }};
+        const calendarMonthIndex = {{ calendar_month_index | tojson | safe }};
         
         // Enhanced script to handle current date and calendar
         document.addEventListener('DOMContentLoaded', function() {
@@ -314,8 +318,12 @@
             }
             
             // Generate calendar days
-            generateCalendar(now.getFullYear(), now.getMonth());
+            generateCalendar(calendarYear ?? now.getFullYear(), calendarMonthIndex ?? now.getMonth());
         });
+
+        function toDateValue(year, month, day) {
+            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
         
         function generateCalendar(year, month) {
             const calendarDays = document.getElementById('calendar-days');
@@ -341,9 +349,19 @@
             const today = new Date();
             for (let day = 1; day <= daysInMonth; day++) {
                 const dayElement = document.createElement('div');
-                dayElement.textContent = day;
+                const dateValue = toDateValue(year, month, day);
+                const weekday = new Date(year, month, day).getDay();
+                const isClosedDay = weekday === 0 || weekday === 6;
+                const dayLink = document.createElement('a');
+                dayLink.href = `/appointments?date=${dateValue}`;
+                dayLink.textContent = day;
+                dayLink.title = isClosedDay ? 'Clinic closed' : 'View appointments for this date';
+                dayElement.appendChild(dayLink);
                 
                 let classes = [];
+                if (isClosedDay) {
+                    classes.push('closed-day');
+                }
                 
                 // Highlight today
                 if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
