@@ -537,6 +537,25 @@ tbody tr:hover {
     min-height: 80px;
 }
 
+.time-control {
+    display: grid;
+    grid-template-columns: minmax(48px, 1fr) auto minmax(48px, 1fr) 72px;
+    align-items: center;
+    gap: 6px;
+}
+
+.time-control input,
+.time-control select {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+}
+
+.time-control .time-separator {
+    color: var(--text-light);
+    font-weight: 600;
+}
+
 .form-actions {
     display: flex;
     justify-content: flex-end;
@@ -709,7 +728,8 @@ body.modal-open {
 }
 
 #rescheduleAppointmentModal input[type="date"],
-#rescheduleAppointmentModal input[type="time"],
+#rescheduleAppointmentModal .time-control input,
+#rescheduleAppointmentModal .time-control select,
 #rescheduleAppointmentModal textarea {
     width: 100%;
     padding: 8px 12px;

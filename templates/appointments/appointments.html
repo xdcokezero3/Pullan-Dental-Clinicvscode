@@ -918,11 +918,29 @@
                         </div>
                         <div class="form-group">
                             <label for="appointmentStartTime">Start Time*</label>
-                            <input type="text" id="appointmentStartTime" name="start_time" placeholder="8:00 AM" required>
+                            <div class="time-control" data-time-control data-target="appointmentStartTime">
+                                <input type="hidden" id="appointmentStartTime" name="start_time" required>
+                                <input type="text" class="time-hour" inputmode="numeric" maxlength="2" placeholder="08" aria-label="Start hour" required>
+                                <span class="time-separator">:</span>
+                                <input type="text" class="time-minute" inputmode="numeric" maxlength="2" placeholder="30" aria-label="Start minutes" required>
+                                <select class="time-period" aria-label="Start period">
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="form-group" id="appointmentEndTimeGroup">
                             <label for="appointmentEndTime">End Time*</label>
-                            <input type="text" id="appointmentEndTime" name="end_time" placeholder="8:30 AM" required>
+                            <div class="time-control" data-time-control data-target="appointmentEndTime">
+                                <input type="hidden" id="appointmentEndTime" name="end_time" required>
+                                <input type="text" class="time-hour" inputmode="numeric" maxlength="2" placeholder="09" aria-label="End hour" required>
+                                <span class="time-separator">:</span>
+                                <input type="text" class="time-minute" inputmode="numeric" maxlength="2" placeholder="00" aria-label="End minutes" required>
+                                <select class="time-period" aria-label="End period">
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                </select>
+                            </div>
                             <div class="error-message">Use clinic hours, 8:00 AM - 5:00 PM. End time must be later and must not overlap another appointment.</div>
                         </div>
                     </div>
@@ -970,11 +988,29 @@
                         </div>
                         <div class="form-group">
                             <label for="newAppointmentStartTime">New Start Time*</label>
-                            <input type="text" id="newAppointmentStartTime" name="start_time" placeholder="8:00 AM" required>
+                            <div class="time-control" data-time-control data-target="newAppointmentStartTime">
+                                <input type="hidden" id="newAppointmentStartTime" name="start_time" required>
+                                <input type="text" class="time-hour" inputmode="numeric" maxlength="2" placeholder="08" aria-label="New start hour" required>
+                                <span class="time-separator">:</span>
+                                <input type="text" class="time-minute" inputmode="numeric" maxlength="2" placeholder="30" aria-label="New start minutes" required>
+                                <select class="time-period" aria-label="New start period">
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="form-group" id="newAppointmentEndTimeGroup">
                             <label for="newAppointmentEndTime">New End Time*</label>
-                            <input type="text" id="newAppointmentEndTime" name="end_time" placeholder="8:30 AM" required>
+                            <div class="time-control" data-time-control data-target="newAppointmentEndTime">
+                                <input type="hidden" id="newAppointmentEndTime" name="end_time" required>
+                                <input type="text" class="time-hour" inputmode="numeric" maxlength="2" placeholder="09" aria-label="New end hour" required>
+                                <span class="time-separator">:</span>
+                                <input type="text" class="time-minute" inputmode="numeric" maxlength="2" placeholder="00" aria-label="New end minutes" required>
+                                <select class="time-period" aria-label="New end period">
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                </select>
+                            </div>
                             <div class="error-message">Use clinic hours, 8:00 AM - 5:00 PM. End time must be later and must not overlap another appointment.</div>
                         </div>
                     </div>
@@ -1212,6 +1248,96 @@
             return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
         }
 
+        function parseTimeParts(timeValue) {
+            const minutes = timeToMinutes(timeValue);
+            if (minutes === null || Number.isNaN(minutes)) {
+                return null;
+            }
+
+            const hours24 = Math.floor(minutes / 60);
+            return {
+                hour: String(hours24 % 12 || 12).padStart(2, '0'),
+                minute: String(minutes % 60).padStart(2, '0'),
+                period: hours24 < 12 ? 'AM' : 'PM'
+            };
+        }
+
+        function setTimeControlValue(targetId, timeValue) {
+            const hiddenInput = document.getElementById(targetId);
+            if (!hiddenInput) return;
+
+            const control = document.querySelector(`[data-time-control][data-target="${targetId}"]`);
+            if (!control) {
+                hiddenInput.value = timeValue || '';
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+
+            const hourInput = control.querySelector('.time-hour');
+            const minuteInput = control.querySelector('.time-minute');
+            const periodSelect = control.querySelector('.time-period');
+            const parts = parseTimeParts(timeValue);
+
+            if (!parts) {
+                hourInput.value = '';
+                minuteInput.value = '';
+                periodSelect.value = 'AM';
+                hiddenInput.value = '';
+            } else {
+                hourInput.value = parts.hour;
+                minuteInput.value = parts.minute;
+                periodSelect.value = parts.period;
+                hiddenInput.value = `${parseInt(parts.hour, 10)}:${parts.minute} ${parts.period}`;
+            }
+
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function initializeTimeControls() {
+            document.querySelectorAll('[data-time-control]').forEach(control => {
+                const hiddenInput = document.getElementById(control.dataset.target);
+                const hourInput = control.querySelector('.time-hour');
+                const minuteInput = control.querySelector('.time-minute');
+                const periodSelect = control.querySelector('.time-period');
+
+                const syncHiddenValue = () => {
+                    const hourDigits = hourInput.value.replace(/\D/g, '').slice(0, 2);
+                    const minuteDigits = minuteInput.value.replace(/\D/g, '').slice(0, 2);
+                    hourInput.value = hourDigits;
+                    minuteInput.value = minuteDigits;
+
+                    const hourValue = parseInt(hourDigits, 10);
+                    const minuteValue = parseInt(minuteDigits, 10);
+                    if (!hiddenInput || !hourDigits || !minuteDigits || hourValue < 1 || hourValue > 12 || minuteValue < 0 || minuteValue > 59) {
+                        if (hiddenInput) hiddenInput.value = '';
+                        return;
+                    }
+
+                    hiddenInput.value = `${hourValue}:${String(minuteValue).padStart(2, '0')} ${periodSelect.value}`;
+                    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                };
+
+                const normalizePart = (input, minimum, maximum) => {
+                    if (!input.value) return;
+                    let value = parseInt(input.value, 10);
+                    if (Number.isNaN(value)) {
+                        input.value = '';
+                        syncHiddenValue();
+                        return;
+                    }
+                    value = Math.min(Math.max(value, minimum), maximum);
+                    input.value = String(value).padStart(2, '0');
+                    syncHiddenValue();
+                };
+
+                hourInput.addEventListener('input', syncHiddenValue);
+                minuteInput.addEventListener('input', syncHiddenValue);
+                hourInput.addEventListener('blur', () => normalizePart(hourInput, 1, 12));
+                minuteInput.addEventListener('blur', () => normalizePart(minuteInput, 0, 59));
+                periodSelect.addEventListener('change', syncHiddenValue);
+            });
+        }
+
         function parseAppointmentTimeRange(timeRange) {
             if (!timeRange) {
                 return null;
@@ -1333,8 +1459,14 @@
             const errorMessage = formGroup.querySelector('.error-message');
 
             if (!startTime || !endTime) {
-                formGroup.classList.remove('invalid');
-                return true;
+                if (errorMessage) {
+                    errorMessage.textContent = 'Enter a complete start and end time.';
+                }
+                formGroup.classList.add('invalid');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+                return false;
             }
 
             if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
@@ -1505,6 +1637,7 @@
         
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
+            initializeTimeControls();
             initializeDateValidation();
         });
         
@@ -1889,10 +2022,13 @@
             const today = getNextClinicDayString();
             const appointmentDate = document.getElementById('appointmentDate');
             appointmentDate.value = today;
+            setTimeControlValue('appointmentStartTime', '8:00 AM');
+            setTimeControlValue('appointmentEndTime', '8:30 AM');
             
             const appointmentDateGroup = document.getElementById('appointmentDateGroup');
             const scheduleBtn = document.getElementById('scheduleAppointmentBtn');
             validateDate(appointmentDate, appointmentDateGroup, scheduleBtn);
+            validateAddAppointmentWindow();
         });
         
         function closeModal() {
@@ -1989,8 +2125,8 @@
                 newAppointmentDate.value = (currentAppointmentDate < today || isWeekendDate(currentAppointmentDate)) ? today : currentAppointmentDate;
                 
                 const timeRange = parseAppointmentTimeRange(time);
-                document.getElementById('newAppointmentStartTime').value = timeRange ? timeRange.startTime : '';
-                document.getElementById('newAppointmentEndTime').value = timeRange ? timeRange.endTime : '';
+                setTimeControlValue('newAppointmentStartTime', timeRange ? timeRange.startTime : '');
+                setTimeControlValue('newAppointmentEndTime', timeRange ? timeRange.endTime : '');
                 document.getElementById('rescheduleReason').value = '';
                 
                 validateRescheduleAppointmentWindow();
