@@ -898,7 +898,7 @@
                                         <td>{{ payment.amount }}</td>
                                         <td><span class="status-pill {{ payment.status_class }}">{{ payment.type }}</span></td>
                                         <td>
-                                            <a class="receipt-link" href="{{ url_for('payment_receipt', payment_id=payment.raw_id) }}" target="_blank">
+                                            <a class="receipt-link" href="{{ payment.receipt_url }}" target="_blank">
                                                 <i class="fas fa-print"></i> Receipt
                                             </a>
                                             {% if payment.can_add_payment %}
@@ -1638,6 +1638,7 @@
                 formData.append('patient_id', patientSelect.value);
                 formData.append('payment_method', paymentMethodSelect.value);
                 formData.append('reference_number', referenceInput.value);
+                formData.append('payment_date', paymentDateInput.value);
                 formData.append('notes', document.getElementById('notes').value);
                 formData.append('sale_items', inventorySaleItemsInput.value);
 

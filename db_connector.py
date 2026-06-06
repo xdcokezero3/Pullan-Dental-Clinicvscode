@@ -507,6 +507,53 @@ class Payment(db.Model):
     def status(self):
         return 'Full Payment' if self.payment_type == 'full' or float(self.balance_after or 0) <= 0 else 'Partial Payment'
 
+class InventoryPayment(db.Model):
+    __tablename__ = 'inventory_payments'
+
+    inventory_payment_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    source_payment_id = db.Column(db.Integer, unique=True)
+    patient_id = db.Column(db.Integer)
+    patient_name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(255))
+    sale_items = db.Column(db.Text)
+    total_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    amount_paid = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    payment_method = db.Column(db.String(30), nullable=False)
+    reference_number = db.Column(db.String(120))
+    notes = db.Column(db.Text)
+    received_by = db.Column(db.String(255))
+    paid_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<InventoryPayment {self.inventory_payment_id}: {self.patient_name} {self.amount_paid}>"
+
+    def formatted_id(self):
+        return f"INVPAY-{self.inventory_payment_id:03d}"
+
+    @property
+    def payment_id(self):
+        return self.inventory_payment_id
+
+    @property
+    def service_items(self):
+        return self.sale_items
+
+    @property
+    def balance_before(self):
+        return self.total_amount
+
+    @property
+    def balance_after(self):
+        return 0
+
+    @property
+    def payment_type(self):
+        return 'full'
+
+    @property
+    def status(self):
+        return 'Full Payment'
+
 class ServicePrice(db.Model):
     __tablename__ = 'service_prices'
 

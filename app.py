@@ -1,6 +1,6 @@
 # app.py - PostgreSQL Ready Fixed Version with Enhanced Features
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, session, make_response
-from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, ServicePrice, SMSReminder, User, UserLog, ActiveUserSession, Teeth, log_user_action
+from db_connector import app as db_app, db, DatabaseConfig, Patient, Appointment, DentalChart, Inventory, RescheduleAppointment, Report, Payment, InventoryPayment, ServicePrice, SMSReminder, User, UserLog, ActiveUserSession, Teeth, log_user_action
 from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 import os
@@ -1698,7 +1698,7 @@ def restore_direct_postgresql_backup(username, password, host, backup_path, port
                 cursor.execute("""
                     SELECT tablename FROM pg_tables 
                     WHERE schemaname = 'public' 
-                    AND tablename IN ('patients', 'appointment', 'users', 'inventory', 'dentalchart', 'teeth', 'report')
+                    AND tablename IN ('patients', 'appointment', 'users', 'inventory', 'inventory_payments', 'payments', 'dentalchart', 'teeth', 'report', 'reports')
                     ORDER BY tablename
                 """)
                 public_tables = cursor.fetchall()
@@ -1903,7 +1903,7 @@ def test_database_after_restore():
                 return False, "Basic connection test failed"
             
             # Test if main tables exist
-            tables_to_check = ['patients', 'appointment', 'users', 'inventory']
+            tables_to_check = ['patients', 'appointment', 'users', 'inventory', 'payments', 'inventory_payments']
             for table in tables_to_check:
                 try:
                     # Try pullandentalclinic schema first
@@ -5637,15 +5637,24 @@ def update_inventory_prices():
 
 @app.route('/sell_inventory_item', methods=['POST'])
 def sell_inventory_item():
-    """Sell one or more inventory items to a patient, reduce stock, and create a full payment receipt."""
+    """Sell one or more inventory items to a patient, reduce stock, and create an inventory payment receipt."""
     try:
         ensure_inventory_schema()
         ensure_payments_table()
+        ensure_inventory_payments_table()
 
         patient_id = request.form.get('patient_id', type=int)
         payment_method = (request.form.get('payment_method') or '').strip()
         reference_number = (request.form.get('reference_number') or '').strip()
         notes = (request.form.get('notes') or '').strip()
+        paid_at = datetime.now()
+        raw_payment_date = request.form.get('payment_date')
+        if raw_payment_date:
+            try:
+                payment_date = datetime.strptime(raw_payment_date, '%Y-%m-%d').date()
+                paid_at = datetime.combine(payment_date, datetime.now().time())
+            except ValueError:
+                return jsonify({"success": False, "error": "Please choose a valid payment date."})
 
         if not patient_id:
             return jsonify({"success": False, "error": "Please choose a client."})
@@ -5711,22 +5720,18 @@ def sell_inventory_item():
             return jsonify({"success": False, "error": "Please add at least one valid item to the sale."})
 
         description = "Inventory sale: " + ", ".join(item['name'] for item in service_items)
-        new_payment = Payment(
+        new_payment = InventoryPayment(
             patient_id=patient.patId,
             patient_name=patient.patname,
-            report_id=None,
             description=description[:255],
-            service_items=json.dumps(service_items),
+            sale_items=json.dumps(service_items),
             total_amount=sale_total,
-            balance_before=sale_total,
             amount_paid=sale_total,
-            balance_after=Decimal('0.00'),
-            payment_type='full',
             payment_method=payment_method,
             reference_number=reference_number or None,
             notes=notes or None,
             received_by=session.get('real_name', session.get('username', 'Unknown User')),
-            paid_at=datetime.now()
+            paid_at=paid_at
         )
 
         low_stock_alerts = []
@@ -5736,7 +5741,6 @@ def sell_inventory_item():
 
         db.session.add(new_payment)
         db.session.flush()
-        sync_transaction_payment_status(new_payment.payment_id)
         db.session.commit()
 
         sms_warnings = [
@@ -5757,7 +5761,7 @@ def sell_inventory_item():
             "message": "Inventory sale recorded successfully.",
             "items": updated_items,
             "stats": get_inventory_stats(),
-            "receipt_url": url_for('payment_receipt', payment_id=new_payment.payment_id),
+            "receipt_url": url_for('inventory_payment_receipt', inventory_payment_id=new_payment.inventory_payment_id),
             "sms_warning": " ".join(sms_warnings)
         })
     except ValueError as e:
@@ -7301,6 +7305,15 @@ CLINIC_RECEIPT_INFO = {
 
 MONEY_QUANT = Decimal('0.01')
 
+def record_has_inventory_sale_marker(payment_record):
+    if (payment_record.description or '').lower().startswith('inventory sale:'):
+        return True
+    try:
+        saved_items = json.loads(payment_record.service_items or '[]')
+    except (TypeError, json.JSONDecodeError):
+        saved_items = []
+    return any(isinstance(item, dict) and item.get('key') == 'inventory_item' for item in saved_items)
+
 def ensure_payments_table():
     """Create the payments table when running without migrations."""
     Payment.__table__.create(bind=db.engine, checkfirst=True)
@@ -7314,6 +7327,48 @@ def ensure_payments_table():
         db.session.commit()
 
     seed_service_prices()
+
+def ensure_inventory_payments_table(migrate_legacy=True):
+    """Create the inventory payments ledger and copy older inventory sales into it."""
+    InventoryPayment.__table__.create(bind=db.engine, checkfirst=True)
+    columns = {column['name'] for column in inspect(db.engine).get_columns(InventoryPayment.__tablename__)}
+    if 'source_payment_id' not in columns:
+        db.session.execute(text('ALTER TABLE inventory_payments ADD COLUMN source_payment_id INTEGER'))
+        db.session.commit()
+
+    if migrate_legacy:
+        migrate_legacy_inventory_payments()
+
+def migrate_legacy_inventory_payments():
+    legacy_payments = Payment.query.order_by(Payment.paid_at.asc(), Payment.payment_id.asc()).all()
+    changed = False
+
+    for payment_record in legacy_payments:
+        if not record_has_inventory_sale_marker(payment_record):
+            continue
+        existing = InventoryPayment.query.filter_by(source_payment_id=payment_record.payment_id).first()
+        if existing:
+            continue
+
+        inventory_payment = InventoryPayment(
+            source_payment_id=payment_record.payment_id,
+            patient_id=payment_record.patient_id,
+            patient_name=payment_record.patient_name,
+            description=payment_record.description,
+            sale_items=payment_record.service_items,
+            total_amount=decimal_money(payment_record.total_amount),
+            amount_paid=decimal_money(payment_record.amount_paid),
+            payment_method=payment_record.payment_method,
+            reference_number=payment_record.reference_number,
+            notes=payment_record.notes,
+            received_by=payment_record.received_by,
+            paid_at=payment_record.paid_at or datetime.now()
+        )
+        db.session.add(inventory_payment)
+        changed = True
+
+    if changed:
+        db.session.commit()
 
 def parse_money(raw_value, field_name):
     try:
@@ -7428,6 +7483,7 @@ def ensure_application_schema():
     ensure_sms_reminders_table()
     ensure_inventory_schema()
     ensure_payments_table()
+    ensure_inventory_payments_table(migrate_legacy=False)
 
 try:
     with app.app_context():
@@ -7491,6 +7547,10 @@ def format_or_number(payment_record):
     """Display a receipt-style serial number without changing stored payment IDs."""
     paid_at = payment_record.paid_at or datetime.now()
     return f"PDC-{paid_at:%Y}-{payment_record.payment_id:07d}"
+
+def format_inventory_or_number(inventory_payment):
+    paid_at = inventory_payment.paid_at or datetime.now()
+    return f"PDC-INV-{paid_at:%Y}-{inventory_payment.inventory_payment_id:07d}"
 
 def get_transaction_payments(root_payment_id):
     return Payment.query.filter(
@@ -7609,13 +7669,7 @@ def get_payment_service_items(payment_record):
     return formatted_items
 
 def payment_is_inventory_sale(payment_record):
-    if (payment_record.description or '').lower().startswith('inventory sale:'):
-        return True
-    try:
-        service_items = json.loads(payment_record.service_items or '[]')
-    except (TypeError, json.JSONDecodeError):
-        service_items = []
-    return any(isinstance(item, dict) and item.get('key') == 'inventory_item' for item in service_items)
+    return record_has_inventory_sale_marker(payment_record)
 
 def procedure_name_from_report(procedure):
     procedures_done = []
@@ -7665,6 +7719,7 @@ def payments():
     """Record and review patient payments."""
     try:
         ensure_payments_table()
+        ensure_inventory_payments_table()
 
         selected_patient_id = request.args.get('patient_id', type=int)
         service_prices = get_service_price_list()
@@ -7709,8 +7764,17 @@ def payments():
                 'balance_display': format_money(balance) if total_amount > 0 else 'No priced services'
             })
 
-        all_payment_records = Payment.query.all()
-        payment_records = Payment.query.order_by(Payment.paid_at.desc(), Payment.payment_id.desc()).limit(100).all()
+        all_payment_records = [
+            payment_record
+            for payment_record in Payment.query.all()
+            if not payment_is_inventory_sale(payment_record)
+        ]
+        all_inventory_payment_records = InventoryPayment.query.all()
+        payment_records = sorted(
+            all_payment_records + all_inventory_payment_records,
+            key=lambda payment_record: (payment_record.paid_at or datetime.min, payment_record.payment_id or 0),
+            reverse=True
+        )[:100]
         formatted_payments = []
         payment_stats = {
             'procedure': {
@@ -7731,8 +7795,7 @@ def payments():
 
         for payment_record in all_payment_records:
             amount_paid = decimal_money(payment_record.amount_paid)
-            payment_source = 'inventory' if payment_is_inventory_sale(payment_record) else 'procedure'
-            payment_stats[payment_source]['total_collected'] += amount_paid
+            payment_stats['procedure']['total_collected'] += amount_paid
 
             root_id = payment_root_id(payment_record)
             if root_id in transaction_summaries_by_root:
@@ -7740,14 +7803,13 @@ def payments():
 
             transaction_summary = get_payment_transaction_summary(payment_record)
             transaction_summaries_by_root[root_id] = transaction_summary
-            root_source = 'inventory' if payment_is_inventory_sale(transaction_summary['payments'][0]) else 'procedure'
             if transaction_summary['remaining_balance'] <= 0:
-                payment_stats[root_source]['full_count'] += 1
+                payment_stats['procedure']['full_count'] += 1
             else:
-                payment_stats[root_source]['partial_count'] += 1
-                if root_source == 'inventory' or not transaction_summary['payments'][0].report_id:
-                    payment_stats[root_source]['outstanding_balance'] += transaction_summary['remaining_balance']
-                if root_source == 'procedure' and not payment_record.report_id:
+                payment_stats['procedure']['partial_count'] += 1
+                if not transaction_summary['payments'][0].report_id:
+                    payment_stats['procedure']['outstanding_balance'] += transaction_summary['remaining_balance']
+                if not payment_record.report_id:
                     outstanding_transactions.append({
                         'id': transaction_summary['original_receipt_id'],
                         'patient': payment_record.patient_name,
@@ -7760,25 +7822,48 @@ def payments():
                         'report_id': ''
                     })
 
+        for inventory_payment in all_inventory_payment_records:
+            payment_stats['inventory']['total_collected'] += decimal_money(inventory_payment.amount_paid)
+            payment_stats['inventory']['full_count'] += 1
+
         for payment_record in payment_records:
-            transaction_summary = get_payment_transaction_summary(payment_record)
-            payment_source = 'inventory' if payment_is_inventory_sale(payment_record) else 'procedure'
-            formatted_payments.append({
-                'raw_id': payment_record.payment_id,
-                'root_id': transaction_summary['root_id'],
-                'source': payment_source,
-                'id': payment_record.formatted_id(),
-                'original_id': transaction_summary['original_receipt_id'],
-                'patient': payment_record.patient_name,
-                'description': payment_record.description or 'Dental service',
-                'date': payment_record.paid_at.strftime('%B %d, %Y %I:%M %p') if payment_record.paid_at else 'N/A',
-                'method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
-                'type': transaction_summary['status'],
-                'amount': format_money(payment_record.amount_paid),
-                'balance': format_money(transaction_summary['remaining_balance']),
-                'can_add_payment': transaction_summary['remaining_balance'] > 0,
-                'status_class': 'paid' if transaction_summary['remaining_balance'] <= 0 else 'partial'
-            })
+            if isinstance(payment_record, InventoryPayment):
+                formatted_payments.append({
+                    'raw_id': payment_record.inventory_payment_id,
+                    'root_id': payment_record.inventory_payment_id,
+                    'source': 'inventory',
+                    'id': payment_record.formatted_id(),
+                    'original_id': payment_record.formatted_id(),
+                    'patient': payment_record.patient_name,
+                    'description': payment_record.description or 'Inventory sale',
+                    'date': payment_record.paid_at.strftime('%B %d, %Y %I:%M %p') if payment_record.paid_at else 'N/A',
+                    'method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
+                    'type': 'Fully Paid',
+                    'amount': format_money(payment_record.amount_paid),
+                    'balance': format_money(0),
+                    'can_add_payment': False,
+                    'status_class': 'paid',
+                    'receipt_url': url_for('inventory_payment_receipt', inventory_payment_id=payment_record.inventory_payment_id)
+                })
+            else:
+                transaction_summary = get_payment_transaction_summary(payment_record)
+                formatted_payments.append({
+                    'raw_id': payment_record.payment_id,
+                    'root_id': transaction_summary['root_id'],
+                    'source': 'procedure',
+                    'id': payment_record.formatted_id(),
+                    'original_id': transaction_summary['original_receipt_id'],
+                    'patient': payment_record.patient_name,
+                    'description': payment_record.description or 'Dental service',
+                    'date': payment_record.paid_at.strftime('%B %d, %Y %I:%M %p') if payment_record.paid_at else 'N/A',
+                    'method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
+                    'type': transaction_summary['status'],
+                    'amount': format_money(payment_record.amount_paid),
+                    'balance': format_money(transaction_summary['remaining_balance']),
+                    'can_add_payment': transaction_summary['remaining_balance'] > 0,
+                    'status_class': 'paid' if transaction_summary['remaining_balance'] <= 0 else 'partial',
+                    'receipt_url': url_for('payment_receipt', payment_id=payment_record.payment_id)
+                })
 
         outstanding_procedures = []
         procedure_report_outstanding = Decimal('0.00')
@@ -8050,6 +8135,80 @@ def payment_receipt(payment_id):
     except Exception as e:
         print(f"Error generating payment receipt: {e}")
         return f"Error generating payment receipt: {e}", 500
+
+@app.route('/inventory_payment_receipt/<int:inventory_payment_id>')
+def inventory_payment_receipt(inventory_payment_id):
+    """Generate a printable receipt for inventory sales from the separate ledger."""
+    try:
+        ensure_inventory_payments_table()
+
+        payment_record = InventoryPayment.query.get_or_404(inventory_payment_id)
+        patient = Patient.query.get(payment_record.patient_id) if payment_record.patient_id else None
+        service_items = get_payment_service_items(payment_record)
+
+        receipt = {
+            'raw_id': payment_record.inventory_payment_id,
+            'id': payment_record.formatted_id(),
+            'or_number': format_inventory_or_number(payment_record),
+            'patient_name': payment_record.patient_name,
+            'patient_id': f"PAT-{payment_record.patient_id:03d}" if payment_record.patient_id else "N/A",
+            'description': payment_record.description or 'Inventory sale',
+            'procedure_id': f"INV-{payment_record.inventory_payment_id:03d}",
+            'payment_date': payment_record.paid_at.strftime('%B %d, %Y') if payment_record.paid_at else 'N/A',
+            'payment_time': payment_record.paid_at.strftime('%I:%M %p') if payment_record.paid_at else 'N/A',
+            'payment_method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
+            'payment_type': 'Full Payment',
+            'original_receipt_id': payment_record.formatted_id(),
+            'is_original_receipt': True,
+            'reference_number': payment_record.reference_number or 'N/A',
+            'total_amount': format_money(payment_record.total_amount),
+            'total_amount_plain': format_money_plain(payment_record.total_amount),
+            'balance_before': format_money(payment_record.total_amount),
+            'amount_paid': format_money(payment_record.amount_paid),
+            'amount_paid_plain': format_money_plain(payment_record.amount_paid),
+            'amount_paid_words': pesos_to_words(payment_record.amount_paid),
+            'total_paid_to_date': format_money(payment_record.amount_paid),
+            'balance_after': format_money(0),
+            'current_balance': format_money(0),
+            'current_balance_plain': format_money_plain(0),
+            'current_status': 'Fully Paid',
+            'status': 'Full Payment',
+            'notes': payment_record.notes or 'None',
+            'received_by': payment_record.received_by or 'Unknown User',
+            'service_items': service_items,
+            'can_add_payment': False,
+            'remaining_balance_raw': '0.00',
+            'payment_history': [{
+                'id': payment_record.formatted_id(),
+                'date': payment_record.paid_at.strftime('%B %d, %Y %I:%M %p') if payment_record.paid_at else 'N/A',
+                'amount': format_money(payment_record.amount_paid),
+                'method': PAYMENT_METHOD_LABELS.get(payment_record.payment_method, payment_record.payment_method),
+                'raw_id': payment_record.inventory_payment_id
+            }]
+        }
+
+        current_user = session.get('real_name', session.get('username', 'Unknown User'))
+        print_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        log_user_action(
+            session.get('user_id'),
+            'Print Inventory Payment Receipt',
+            f'Opened inventory receipt {receipt["id"]} for {payment_record.patient_name}'
+        )
+
+        return render_template(
+            'print_payment_receipt.html',
+            receipt=receipt,
+            patient=patient,
+            procedure=None,
+            clinic=CLINIC_RECEIPT_INFO,
+            current_user=current_user,
+            print_datetime=print_datetime
+        )
+
+    except Exception as e:
+        print(f"Error generating inventory payment receipt: {e}")
+        return f"Error generating inventory payment receipt: {e}", 500
 
 @app.route('/add_payment_to_receipt/<int:payment_id>', methods=['POST'])
 def add_payment_to_receipt(payment_id):
