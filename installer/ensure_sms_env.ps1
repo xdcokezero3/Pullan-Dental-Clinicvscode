@@ -5,6 +5,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $requiredValues = [ordered]@{
+    "FLASK_DEBUG" = "false"
+    "LIFECYCLE_BACKUPS" = "false"
     "SMS_PROVIDER" = "infinireach"
     "SMS_REMINDER_WORKER" = "true"
     "SMS_WORKER_INTERVAL_SECONDS" = "60"

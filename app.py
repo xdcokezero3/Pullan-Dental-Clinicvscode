@@ -7819,7 +7819,8 @@ def get_lan_ip_addresses():
     return sorted(addresses) or ["YOUR_COMPUTER_IP"]
 
 def should_run_lifecycle_tasks(debug):
-    return not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+    lifecycle_backups_enabled = os.getenv("LIFECYCLE_BACKUPS", "false").lower() in ("1", "true", "yes", "on")
+    return lifecycle_backups_enabled and (not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
 
 def create_lifecycle_backup(reason):
     try:
