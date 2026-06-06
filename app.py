@@ -827,7 +827,7 @@ def user_logs():
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         page = int(request.args.get('page', 1))
-        per_page = 50
+        per_page = 20
         
         query = db.session.query(
             UserLog.log_id,
