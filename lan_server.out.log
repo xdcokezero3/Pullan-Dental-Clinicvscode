@@ -1,0 +1,12 @@
+Using local SQLite database: C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\instance\pullan_dental_local.db
+Creating database tables...
+Database tables created successfully!
+
+Pullan Dental Clinic is starting...
+Local access: http://127.0.0.1:5000
+LAN access:
+  http://192.168.100.14:5000
+Use the LAN access URL on the other computer connected to the same network.
+
+ * Serving Flask app 'db_connector'
+ * Debug mode: off

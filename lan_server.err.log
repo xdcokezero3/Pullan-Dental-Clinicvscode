@@ -1,0 +1,287 @@
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3195: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  stale_before = datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3202: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'updated_at': datetime.utcnow()
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.100.14:5000
+Press CTRL+C to quit
+192.168.100.14 - - [06/Jun/2026 18:05:35] "GET / HTTP/1.1" 302 -
+192.168.100.14 - - [06/Jun/2026 18:05:35] "GET /login HTTP/1.1" 200 -
+192.168.100.14 - - [06/Jun/2026 18:07:04] "GET / HTTP/1.1" 302 -
+192.168.100.14 - - [06/Jun/2026 18:07:04] "GET /login HTTP/1.1" 200 -
+192.168.100.14 - - [06/Jun/2026 18:07:04] "GET /static/css/login.css HTTP/1.1" 200 -
+192.168.100.14 - - [06/Jun/2026 18:07:04] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 200 -
+192.168.100.14 - - [06/Jun/2026 18:07:04] "GET /static/vendor/fontawesome/webfonts/fa-solid-900.woff2 HTTP/1.1" 200 -
+192.168.100.14 - - [06/Jun/2026 18:07:04] "GET /favicon.ico HTTP/1.1" 404 -
+192.168.100.3 - - [06/Jun/2026 18:07:12] "GET / HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:07:12] "GET /login HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:12] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:12] "GET /static/css/login.css HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:12] "GET /static/vendor/fontawesome/webfonts/fa-solid-900.woff2 HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:25] "GET / HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:07:25] "GET /login HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:25] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:25] "GET /static/css/login.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:26] "GET /static/vendor/fontawesome/webfonts/fa-solid-900.woff2 HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:30] "POST /login HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:07:30] "GET /dashboard HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:30] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:30] "GET /static/css/dashboard.css HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:33] "GET /inventory HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:33] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:33] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:33] "GET /static/css/inventory.css HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:34] "GET /procedures HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:34] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:34] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:34] "GET /payments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:34] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:34] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:36] "GET /patients HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:07:36] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:07:36] "GET /static/css/patients.css HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:02] "POST /add_patient HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:03] "GET /patients HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:03] "GET /static/css/patients.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:08:04] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:08:05] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:05] "GET /static/css/appointments.css HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:05] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3615: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+  patient = Patient.query.get(patient_id)
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:2491: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  updated_at=datetime.utcnow()
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3247: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+  appointment = Appointment.query.get(reminder.appointment_id)
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3189: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'updated_at': datetime.utcnow()
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3259: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+  reminder = SMSReminder.query.get(reminder_id)
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3117: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  send_started_at = datetime.utcnow() - timedelta(seconds=5)
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:3269: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  reminder.updated_at = datetime.utcnow()
+192.168.100.3 - - [06/Jun/2026 18:08:57] "POST /add_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:58] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:08:59] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:08:59] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:2505: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  existing_reminder.updated_at = datetime.utcnow()
+C:\Users\Rebecca\Desktop\Pullan-Dental-Clinicvscode\app.py:2405: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  return reminder.updated_at > datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
+192.168.100.3 - - [06/Jun/2026 18:09:37] "POST /reschedule_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:09:38] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:09:38] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:09:38] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:09:48] "POST /reschedule_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:10:00] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:10:00] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:00] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:00] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:30] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:10:30] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:30] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:30] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:41] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:10:41] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:41] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:41] "POST /send_test_sms HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:10:43] "POST /complete_appointment/1 HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:10:44] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:10:44] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:10:44] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:12] "POST /add_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:11:20] "POST /add_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:11:21] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:11:21] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:21] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:23] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:11:24] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:24] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:24] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:54] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:11:54] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:54] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:11:54] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:12:24] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:12:24] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:12:24] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:12:24] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:12:54] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:12:54] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:12:54] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:12:54] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:13:25] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:13:25] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:13:25] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:13:25] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:13:55] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:13:55] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:13:55] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:13:55] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:14:25] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:14:25] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:14:25] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:14:25] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:14:55] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:14:55] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:14:55] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:14:55] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:15:25] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:15:25] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:15:25] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:15:25] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:15:55] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:15:55] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:15:55] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:15:55] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:16:25] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:16:25] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:16:25] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:16:25] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:25] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:25] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:25] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:25] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:29] "GET / HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:21:29] "GET /login HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:29] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:29] "GET /static/css/login.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:29] "GET /static/vendor/fontawesome/webfonts/fa-solid-900.woff2 HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:35] "POST /login HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:21:35] "GET /dashboard HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:35] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:35] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:38] "GET /patients HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:38] "GET /static/css/patients.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:38] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:41] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:41] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:41] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:43] "POST /complete_appointment/2 HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:44] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:21:44] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:21:44] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:22:36] "POST /add_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:22:37] "POST /add_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:22:38] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:22:38] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:22:38] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:22:51] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:22:51] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:22:51] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:22:51] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:23:42] "POST /reschedule_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:23:43] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:23:43] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:23:43] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:23:50] "POST /reschedule_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:24:15] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:24:16] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:24:16] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:24:16] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:24:46] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:24:46] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:24:46] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:24:46] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:25:16] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:25:16] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:25:16] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:25:16] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:25:46] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:25:46] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:25:46] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:25:46] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:26:16] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:26:16] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:26:16] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:26:16] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:26:46] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:26:46] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:26:46] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:26:46] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:27:46] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:27:47] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:27:47] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:27:47] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:28:47] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:28:47] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:28:47] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:28:47] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:47] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:32:47] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:47] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:47] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:49] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:32:49] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:49] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:52] "POST /complete_appointment/3 HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:32:53] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:32:53] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:53] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:54] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:32:54] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:32:54] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:02] "GET / HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:33:02] "GET /login HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:02] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:02] "GET /static/css/login.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:02] "GET /static/vendor/fontawesome/webfonts/fa-solid-900.woff2 HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:17] "POST /login HTTP/1.1" 302 -
+192.168.100.3 - - [06/Jun/2026 18:33:17] "GET /dashboard HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:17] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:17] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:29] "GET /patients HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:30] "GET /static/css/patients.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:30] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:31] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:31] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:31] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:32] "GET /patients HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:32] "GET /static/css/patients.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:32] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:32] "GET /dashboard HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:32] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:32] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:33] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:33] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:33] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:34] "GET /patients HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:34] "GET /static/css/patients.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:34] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:34] "GET /dashboard HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:34] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:34] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:37] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:33:37] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:33:37] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:13] "POST /add_appointment HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:34:14] "GET /appointments HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:34:14] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:14] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:17] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:34:17] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:17] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:17] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:48] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:34:48] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:48] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:34:48] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:35:18] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:35:18] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:35:18] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:35:18] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:35:48] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:35:48] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:35:48] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:35:48] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:43:21] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:43:21] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:43:21] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:43:21] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:43:52] "GET /sms_reminders HTTP/1.1" 200 -
+192.168.100.3 - - [06/Jun/2026 18:43:52] "GET /static/css/dashboard.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:43:52] "GET /static/css/appointments.css HTTP/1.1" 304 -
+192.168.100.3 - - [06/Jun/2026 18:43:52] "GET /static/vendor/fontawesome/css/all.min.css HTTP/1.1" 304 -

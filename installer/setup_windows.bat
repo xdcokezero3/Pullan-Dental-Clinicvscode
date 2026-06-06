@@ -116,32 +116,18 @@ echo Creating launchers...
     echo powershell -NoProfile -ExecutionPolicy Bypass -File "%%~dp0installer\launch_lan.ps1"
 ) > "Run Pullan Dental Clinic LAN.bat"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$shell=New-Object -ComObject WScript.Shell; " ^
-  "$desktop=[Environment]::GetFolderPath('Desktop'); " ^
-  "$shortcut=$shell.CreateShortcut((Join-Path $desktop 'Pullan Dental Clinic.lnk')); " ^
-  "$shortcut.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic.bat'); " ^
-  "$shortcut.WorkingDirectory='%APP_DIR%'; " ^
-  "$shortcut.WindowStyle=7; " ^
-  "$shortcut.Save(); " ^
-  "$startMenu=Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\Pullan Dental Clinic'; " ^
-  "New-Item -ItemType Directory -Path $startMenu -Force | Out-Null; " ^
-  "$shortcut2=$shell.CreateShortcut((Join-Path $startMenu 'Pullan Dental Clinic.lnk')); " ^
-  "$shortcut2.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic.bat'); " ^
-  "$shortcut2.WorkingDirectory='%APP_DIR%'; " ^
-  "$shortcut2.WindowStyle=7; " ^
-  "$shortcut2.Save(); " ^
-  "$shortcut3=$shell.CreateShortcut((Join-Path $startMenu 'Pullan Dental Clinic LAN.lnk')); " ^
-  "$shortcut3.TargetPath=(Join-Path '%APP_DIR%' 'Run Pullan Dental Clinic LAN.bat'); " ^
-  "$shortcut3.WorkingDirectory='%APP_DIR%'; " ^
-  "$shortcut3.WindowStyle=7; " ^
-  "$shortcut3.Save();"
+powershell -NoProfile -ExecutionPolicy Bypass -File "installer\create_shortcuts.ps1" -AppDir "%APP_DIR%"
+if %ERRORLEVEL% NEQ 0 (
+    echo Failed to create shortcuts.
+    pause
+    exit /b 1
+)
 
 echo.
 echo Installation complete.
 echo.
 echo Desktop shortcut:
-echo   Pullan Dental Clinic
+echo   Pullan Dental Clinic ^(LAN^)
 echo.
 echo Installed folder:
 echo   %APP_DIR%

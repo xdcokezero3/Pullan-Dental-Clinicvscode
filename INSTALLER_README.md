@@ -60,13 +60,13 @@ Open that URL on another computer connected to the same network.
 
 ## Desktop Shortcut Behavior
 
-The desktop shortcut starts the server minimized, waits for the app to respond, then opens the browser directly to:
+The desktop shortcut uses the LAN launcher, starts the server minimized, waits for the app to respond, then opens the browser directly to the computer's LAN address when one is available:
 
 ```text
-http://127.0.0.1:5000/login
+http://192.168.x.x:5000/login
 ```
 
-Restore the minimized server window only when you need to see LAN IP addresses or logs.
+The shortcut uses `Pullan_LOGO.jpg` as its icon. Restore the minimized server window only when you need to see LAN IP addresses or logs.
 
 ## Requirements
 

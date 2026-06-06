@@ -2255,6 +2255,10 @@ SMS_PROVIDER = os.getenv('SMS_PROVIDER', 'console').lower()
 SMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME', 'PullanDental')
 SMS_WORKER_INTERVAL_SECONDS = int(os.getenv('SMS_WORKER_INTERVAL_SECONDS', '60'))
 SMS_SENDING_STALE_AFTER_MINUTES = int(os.getenv('SMS_SENDING_STALE_AFTER_MINUTES', '10'))
+SMS_RECIPIENT_COOLDOWN_SECONDS = int(os.getenv('SMS_RECIPIENT_COOLDOWN_SECONDS', '180'))
+INFINIREACH_PENDING_STATUSES = {'acked', 'queued', 'sending'}
+INFINIREACH_SENT_STATUSES = {'sent', 'delivered'}
+INFINIREACH_FAILED_STATUSES = {'failed', 'undelivered', 'rejected'}
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL') or os.getenv('REDIS_URL')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 celery_app = None
@@ -2369,14 +2373,43 @@ def appointment_start_datetime(appointment):
     minutes = start_minutes % 60
     return datetime.combine(appointment.appdate, datetime.min.time()) + timedelta(hours=hours, minutes=minutes)
 
-def build_sms_reminder_message(patient_name, appointment_date, appointment_time):
-    clinic_name = os.getenv('CLINIC_NAME', 'Pullan Dental Clinic')
+def format_sms_appointment_slot(appointment_date, appointment_time):
     formatted_date = appointment_date.strftime('%B %d, %Y') if appointment_date else 'your scheduled date'
+    return f"{formatted_date} at {appointment_time or 'your scheduled time'}"
+
+def patient_sms_first_name(patient_name):
+    parts = (patient_name or '').strip().split()
+    return parts[0] if parts else 'patient'
+
+def appointment_sms_reference(appointment_id):
+    return f"APT-{appointment_id:03d}" if appointment_id else "appointment"
+
+def build_appointment_sms_message(patient_name, appointment_date, appointment_time, notification_type='scheduled', old_date=None, old_time=None, appointment_id=None):
+    clinic_name = os.getenv('CLINIC_NAME', 'Pullan Dental Clinic')
+    new_slot = format_sms_appointment_slot(appointment_date, appointment_time)
+    patient_display_name = patient_sms_first_name(patient_name)
+    appointment_reference = appointment_sms_reference(appointment_id)
+
+    if notification_type == 'rescheduled':
+        old_slot = format_sms_appointment_slot(old_date, old_time)
+        return (
+            f"{clinic_name}: Hi {patient_display_name}, {appointment_reference} was rescheduled "
+            f"from {old_slot} to {new_slot}. Thank you."
+        )
+
+    if notification_type == 'reactivated':
+        return (
+            f"{clinic_name}: Hi {patient_display_name}, {appointment_reference} is active again "
+            f"on {new_slot}. Please arrive on time."
+        )
+
     return (
-        f"Hello {patient_name}, this is a reminder for your dental appointment at "
-        f"{clinic_name} on {formatted_date} at {appointment_time}. "
-        "Please arrive on time. Thank you."
+        f"{clinic_name}: Hi {patient_display_name}, {appointment_reference} is scheduled on "
+        f"{new_slot}. Please arrive on time."
     )
+
+def build_sms_reminder_message(patient_name, appointment_date, appointment_time):
+    return build_appointment_sms_message(patient_name, appointment_date, appointment_time)
 
 def sms_reminder_scheduled_time(appointment_start, now=None):
     """Schedule normal reminders one day before; send now for today/tomorrow appointments."""
@@ -2399,10 +2432,37 @@ def reminder_matches_schedule(reminder, mobile_number, message, scheduled_for):
         and datetimes_match(reminder.scheduled_for, scheduled_for)
     )
 
+def reminder_matches_message(reminder, mobile_number, message):
+    return reminder.mobile_number == mobile_number and reminder.message == message
+
 def reminder_is_recently_sending(reminder):
     if not reminder or reminder.status != 'Sending' or not reminder.updated_at:
         return False
     return reminder.updated_at > datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
+
+def sms_attempt_time(reminder):
+    return reminder.sent_at or reminder.scheduled_for
+
+def next_sms_scheduled_time_for_recipient(mobile_number, desired_for=None):
+    desired_for = desired_for or datetime.now()
+    if SMS_RECIPIENT_COOLDOWN_SECONDS <= 0:
+        return desired_for
+
+    reminders = SMSReminder.query.filter(
+        SMSReminder.mobile_number == mobile_number,
+        SMSReminder.scheduled_for.isnot(None)
+    ).all()
+    latest_attempt = None
+    for reminder in reminders:
+        attempt_time = sms_attempt_time(reminder)
+        if attempt_time and (latest_attempt is None or attempt_time > latest_attempt):
+            latest_attempt = attempt_time
+
+    if not latest_attempt:
+        return desired_for
+
+    next_allowed = latest_attempt + timedelta(seconds=SMS_RECIPIENT_COOLDOWN_SECONDS)
+    return next_allowed if next_allowed > desired_for else desired_for
 
 def close_unsent_sms_reminder(appointment_id, reason):
     ensure_sms_reminders_table()
@@ -2423,8 +2483,8 @@ def sms_reminder_response_summary(reminder):
         'error_message': reminder.error_message or ''
     }
 
-def create_or_update_sms_reminder(appointment, patient):
-    """Create one pending reminder per appointment when the patient has a valid PH mobile number."""
+def create_or_update_sms_reminder(appointment, patient, notification_type='scheduled', old_date=None, old_time=None):
+    """Queue one immediate appointment SMS per appointment when the patient has a valid PH mobile number."""
     try:
         ensure_sms_reminders_table()
         if not appointment or not patient:
@@ -2461,20 +2521,28 @@ def create_or_update_sms_reminder(appointment, patient):
         if not appointment_start:
             return None
 
-        scheduled_for = sms_reminder_scheduled_time(appointment_start)
-        message = build_sms_reminder_message(patient.patname, appointment.appdate, appointment.apptime)
+        message = build_appointment_sms_message(
+            patient.patname,
+            appointment.appdate,
+            appointment.apptime,
+            notification_type=notification_type,
+            old_date=old_date,
+            old_time=old_time,
+            appointment_id=appointment.appid
+        )
+        scheduled_for = next_sms_scheduled_time_for_recipient(normalized_number)
 
         if (
             existing_reminder
             and existing_reminder.status == 'Sent'
-            and reminder_matches_schedule(existing_reminder, normalized_number, message, scheduled_for)
+            and reminder_matches_message(existing_reminder, normalized_number, message)
         ):
             return existing_reminder
 
         if (
             existing_reminder
             and reminder_is_recently_sending(existing_reminder)
-            and reminder_matches_schedule(existing_reminder, normalized_number, message, scheduled_for)
+            and reminder_matches_message(existing_reminder, normalized_number, message)
         ):
             return existing_reminder
 
@@ -2640,11 +2708,21 @@ def parse_infinireach_sms_response(response_data):
     provider_message_id = (
         response_data.get('messageId')
         or response_data.get('message_id')
+        or response_data.get('_id')
         or response_data.get('id')
         or response_data.get('jobId')
         or ''
     )
-    return {'provider_message_id': str(provider_message_id)}
+    nested_message = response_data.get('message') if isinstance(response_data.get('message'), dict) else {}
+    provider_status = (
+        response_data.get('provider_status')
+        or response_data.get('status')
+        or nested_message.get('status')
+    )
+    return {
+        'provider_message_id': str(provider_message_id),
+        'provider_status': str(provider_status or '').lower()
+    }
 
 def parse_infinireach_history_response(response_data, expected_message):
     if not isinstance(response_data, dict):
@@ -2668,6 +2746,98 @@ def parse_infinireach_history_response(response_data, expected_message):
 
     return None
 
+def extract_infinireach_messages(response_data):
+    if isinstance(response_data, dict):
+        return [
+            message
+            for message in response_data.get('messages') or []
+            if isinstance(message, dict)
+        ]
+    if isinstance(response_data, list):
+        return [
+            message
+            for message in response_data
+            if isinstance(message, dict)
+        ]
+    return []
+
+def fetch_infinireach_messages_with_curl(api_key, query_params):
+    curl_path = shutil.which('curl.exe') or shutil.which('curl')
+    if not curl_path:
+        raise RuntimeError('InfiniReach message history lookup requires curl on this computer.')
+
+    request_url = 'https://api.infinireach.io/api/v1/messages?' + urllib.parse.urlencode(query_params)
+    command = [
+        curl_path,
+        '--silent',
+        '--show-error',
+        '--location',
+        '--max-time',
+        '20',
+        '--header',
+        f'X-API-Key: {api_key}',
+        '--header',
+        'Accept: application/json',
+        '--header',
+        f'User-Agent: {os.getenv("SMS_HTTP_USER_AGENT", "curl/8.4.0")}',
+        request_url,
+        '--write-out',
+        '\n%{http_code}'
+    ]
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=25,
+        shell=False
+    )
+    output = completed.stdout or ''
+    body, _, status_text = output.rpartition('\n')
+    status_text = status_text.strip()
+    body = body.strip()
+
+    if not status_text.isdigit():
+        body = output.strip()
+        status_code = 0
+    else:
+        status_code = int(status_text)
+
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or body or f'curl exited with code {completed.returncode}'
+        raise RuntimeError(redact_sms_secrets(detail[:900]))
+
+    if status_code >= 400:
+        raise RuntimeError(redact_sms_secrets(f'HTTP {status_code}: {body[:900]}'))
+
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f'InfiniReach message history response was unreadable: {redact_sms_secrets(body[:300])}') from error
+
+def fetch_infinireach_messages(api_key, query_params):
+    request_url = 'https://api.infinireach.io/api/v1/messages?' + urllib.parse.urlencode(query_params)
+    request_obj = urllib.request.Request(request_url, method='GET')
+    request_obj.add_header('X-API-Key', api_key)
+    request_obj.add_header('Accept', 'application/json')
+    request_obj.add_header('User-Agent', os.getenv('SMS_HTTP_USER_AGENT', 'curl/8.4.0'))
+
+    try:
+        with urllib.request.urlopen(request_obj, timeout=20) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as error:
+        error_detail = read_sms_provider_error(error)
+        if error.code == 403:
+            try:
+                return fetch_infinireach_messages_with_curl(api_key, query_params)
+            except Exception as fallback_error:
+                fallback_detail = redact_sms_secrets(str(fallback_error)[:900])
+                raise RuntimeError(f'InfiniReach message history lookup was blocked and curl fallback also failed: {fallback_detail}') from fallback_error
+        raise RuntimeError(f'InfiniReach message history lookup failed: {error_detail}') from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f'InfiniReach message history connection error: {read_sms_provider_error(error)}') from error
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f'InfiniReach message history returned an unreadable response: {error}') from error
+
 def find_recent_infinireach_message(api_key, from_number, provider_number, message, since_time):
     query_params = {
         'limit': '20',
@@ -2681,18 +2851,7 @@ def find_recent_infinireach_message(api_key, from_number, provider_number, messa
     if since_time:
         query_params['since'] = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    request_url = 'https://api.infinireach.io/api/v1/messages?' + urllib.parse.urlencode(query_params)
-    request_obj = urllib.request.Request(request_url, method='GET')
-    request_obj.add_header('X-API-Key', api_key)
-    request_obj.add_header('Accept', 'application/json')
-    request_obj.add_header('User-Agent', os.getenv('SMS_HTTP_USER_AGENT', 'curl/8.4.0'))
-
-    try:
-        with urllib.request.urlopen(request_obj, timeout=20) as response:
-            response_data = json.loads(response.read().decode('utf-8'))
-    except Exception as error:
-        raise RuntimeError(f'InfiniReach send timed out and message-history check failed: {read_sms_provider_error(error)}') from error
-
+    response_data = fetch_infinireach_messages(api_key, query_params)
     return parse_infinireach_history_response(response_data, message)
 
 def build_infinireach_external_id(from_number, provider_number, channel, message):
@@ -3195,7 +3354,8 @@ def reset_stale_sending_sms_reminders():
     stale_before = datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
     updated_count = SMSReminder.query.filter(
         SMSReminder.status == 'Sending',
-        SMSReminder.updated_at <= stale_before
+        SMSReminder.updated_at <= stale_before,
+        SMSReminder.provider_message_id.is_(None)
     ).update({
         'status': 'Pending',
         'error_message': f'Retrying after SMS send was stuck in Sending for more than {SMS_SENDING_STALE_AFTER_MINUTES} minutes.',
@@ -3204,6 +3364,44 @@ def reset_stale_sending_sms_reminders():
     if updated_count:
         db.session.commit()
     return updated_count
+
+def infinireach_status_from_send_result(result):
+    provider_status = (result.get('provider_status') or '').lower()
+    if provider_status in INFINIREACH_FAILED_STATUSES:
+        raise RuntimeError(f'InfiniReach reported SMS failed after accepting the request. Message ID: {result.get("provider_message_id") or "N/A"}.')
+    if provider_status in INFINIREACH_SENT_STATUSES:
+        return 'Sent', None
+    return 'Sending', 'InfiniReach accepted the SMS and is still processing delivery.'
+
+def apply_infinireach_message_status(reminder, message_record):
+    status = (message_record.get('status') or '').lower()
+    provider_message_id = str(message_record.get('_id') or message_record.get('id') or reminder.provider_message_id or '')
+    changed = False
+
+    if status in INFINIREACH_FAILED_STATUSES and reminder.status != 'Failed':
+        reminder.status = 'Failed'
+        reminder.error_message = f'InfiniReach later reported SMS failed. Message ID: {provider_message_id or "N/A"}.'
+        reminder.updated_at = datetime.utcnow()
+        changed = True
+    elif status in INFINIREACH_SENT_STATUSES:
+        if reminder.status != 'Sent':
+            reminder.status = 'Sent'
+            changed = True
+        if not reminder.sent_at:
+            reminder.sent_at = datetime.now()
+            changed = True
+        if reminder.error_message:
+            reminder.error_message = None
+            changed = True
+        if changed:
+            reminder.updated_at = datetime.utcnow()
+    elif status in INFINIREACH_PENDING_STATUSES and reminder.status != 'Sending':
+        reminder.status = 'Sending'
+        reminder.error_message = f'InfiniReach status: {status}. Waiting for final delivery result.'
+        reminder.updated_at = datetime.utcnow()
+        changed = True
+
+    return changed
 
 def reconcile_unconfirmed_infinireach_reminders():
     unconfirmed_reminders = SMSReminder.query.filter(
@@ -3229,7 +3427,57 @@ def reconcile_unconfirmed_infinireach_reminders():
 
     if changed:
         db.session.commit()
-    return len(unconfirmed_reminders)
+
+    tracked_reminders = SMSReminder.query.filter(
+        SMSReminder.provider == 'infinireach',
+        SMSReminder.provider_message_id.isnot(None),
+        SMSReminder.status.in_(('Sent', 'Sending'))
+    ).all()
+
+    tracked_reminders = [
+        reminder
+        for reminder in tracked_reminders
+        if not (reminder.provider_message_id or '').startswith('infinireach-timeout')
+    ]
+    if not tracked_reminders:
+        return len(unconfirmed_reminders)
+
+    api_key = os.getenv('INFINIREACH_API_KEY')
+    if not api_key:
+        return len(unconfirmed_reminders)
+
+    try:
+        response_data = fetch_infinireach_messages(api_key, {
+            'limit': '100',
+            'order': 'desc',
+            'conversation': 'false'
+        })
+    except Exception as error:
+        print(f"InfiniReach reconciliation skipped: {redact_sms_secrets(str(error)[:300])}")
+        return len(unconfirmed_reminders)
+
+    messages_by_id = {
+        str(message.get('_id') or message.get('id') or ''): message
+        for message in extract_infinireach_messages(response_data)
+    }
+
+    reconciled_count = 0
+    for reminder in tracked_reminders:
+        message_record = messages_by_id.get(str(reminder.provider_message_id or ''))
+        if not message_record:
+            continue
+        previous_status = reminder.status
+        if apply_infinireach_message_status(reminder, message_record):
+            reconciled_count += 1
+            if reminder.status == 'Failed' and previous_status != 'Failed':
+                log_user_action(None, 'SMS Reminder Failed', f'InfiniReach delivery failed for appointment APT-{reminder.appointment_id:03d}. Message ID: {reminder.provider_message_id}')
+            elif reminder.status == 'Sent' and previous_status != 'Sent':
+                log_user_action(None, 'SMS Reminder Sent', f'InfiniReach confirmed delivery for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
+
+    if reconciled_count:
+        db.session.commit()
+
+    return len(unconfirmed_reminders) + reconciled_count
 
 def process_due_sms_reminders():
     """Send due pending reminders; appointment_id uniqueness prevents duplicates."""
@@ -3262,13 +3510,18 @@ def process_due_sms_reminders():
 
             result = send_sms_via_provider(reminder.mobile_number, reminder.message)
             reminder.status = 'Sent'
+            reminder.error_message = None
+            if SMS_PROVIDER == 'infinireach':
+                reminder.status, reminder.error_message = infinireach_status_from_send_result(result)
             reminder.provider = SMS_PROVIDER
             reminder.provider_message_id = result.get('provider_message_id')
-            reminder.sent_at = datetime.now()
-            reminder.error_message = None
+            reminder.sent_at = datetime.now() if reminder.status == 'Sent' else None
             reminder.updated_at = datetime.utcnow()
             db.session.commit()
-            log_user_action(None, 'SMS Reminder Sent', f'Sent reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
+            if reminder.status == 'Sent':
+                log_user_action(None, 'SMS Reminder Sent', f'Sent reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
+            else:
+                log_user_action(None, 'SMS Reminder Sending', f'InfiniReach accepted reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}; waiting for delivery confirmation.')
         except Exception as e:
             db.session.rollback()
             reminder = SMSReminder.query.get(reminder_id)
@@ -3753,7 +4006,7 @@ def reactivate_appointment(appointment_id):
 
         patient = Patient.query.filter_by(patname=appointment.apppatient, is_deleted=False).first()
         if patient:
-            sms_reminder = create_or_update_sms_reminder(appointment, patient)
+            sms_reminder = create_or_update_sms_reminder(appointment, patient, notification_type='reactivated')
             if sms_reminder and sms_reminder.status == 'Pending' and sms_reminder.scheduled_for <= datetime.now():
                 process_due_sms_reminders()
         
@@ -3859,7 +4112,13 @@ def reschedule_appointment():
 
         patient = Patient.query.filter_by(patname=appointment.apppatient, is_deleted=False).first()
         if patient:
-            sms_reminder = create_or_update_sms_reminder(appointment, patient)
+            sms_reminder = create_or_update_sms_reminder(
+                appointment,
+                patient,
+                notification_type='rescheduled',
+                old_date=old_date,
+                old_time=old_time
+            )
             if sms_reminder and sms_reminder.status == 'Pending' and sms_reminder.scheduled_for <= datetime.now():
                 process_due_sms_reminders()
         
@@ -4750,6 +5009,12 @@ def notify_if_item_crossed_low_stock(item, previous_quantity, context):
     previous_quantity = previous_quantity if previous_quantity is not None else INVENTORY_LOW_STOCK_THRESHOLD
     current_quantity = item.invquantity or 0
     if previous_quantity >= INVENTORY_LOW_STOCK_THRESHOLD and current_quantity < INVENTORY_LOW_STOCK_THRESHOLD:
+        return send_low_stock_inventory_alert(item, context)
+    return ''
+
+def notify_if_item_is_low_stock(item, context):
+    current_quantity = item.invquantity or 0
+    if current_quantity < INVENTORY_LOW_STOCK_THRESHOLD:
         return send_low_stock_inventory_alert(item, context)
     return ''
 
@@ -6590,8 +6855,8 @@ def add_procedure():
         db.session.commit()
 
         sms_warnings = [
-            warning for inventory_item, previous_quantity in low_stock_alerts
-            for warning in [notify_if_item_crossed_low_stock(inventory_item, previous_quantity, 'procedure inventory use')]
+            warning for inventory_item, _previous_quantity in low_stock_alerts
+            for warning in [notify_if_item_is_low_stock(inventory_item, 'procedure inventory use')]
             if warning
         ]
         

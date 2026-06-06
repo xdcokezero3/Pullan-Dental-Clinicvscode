@@ -23,6 +23,7 @@ $itemsToCopy = @(
     "requirements.txt",
     ".env",
     ".env.example",
+    "Pullan_LOGO.jpg",
     "start_lan.bat",
     "LAN_SETUP.md",
     "static",
