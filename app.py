@@ -198,6 +198,42 @@ def create_database_backup_file(reason="manual", user_id=None):
         "size": f"{file_size:.2f} MB"
     }
 
+def backup_file_metadata(backup_file):
+    """Return display metadata for a backup file, accepting restored/copied files too."""
+    if not backup_file.lower().endswith(('.sql', '.sqlite', '.db')):
+        return None
+
+    file_path = os.path.join(BACKUP_DIRECTORY, backup_file)
+    if not os.path.isfile(file_path):
+        return None
+
+    backup_time = None
+    timestamp_match = re.search(r'backup_(\d{14})', backup_file)
+    if timestamp_match:
+        try:
+            backup_time = datetime.strptime(timestamp_match.group(1), '%Y%m%d%H%M%S')
+        except ValueError:
+            backup_time = None
+
+    if backup_time is None:
+        dated_match = re.search(r'(\d{4}-\d{2}-\d{2})_backup', backup_file)
+        if dated_match:
+            try:
+                backup_time = datetime.strptime(dated_match.group(1), '%Y-%m-%d')
+            except ValueError:
+                backup_time = None
+
+    if backup_time is None:
+        backup_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+
+    file_size = os.path.getsize(file_path) / (1024 * 1024)
+    return {
+        'filename': backup_file,
+        'timestamp': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
+        'sort_time': backup_time,
+        'size': f"{file_size:.2f} MB"
+    }
+
 def restore_sqlite_backup(backup_path):
     """Restore the local SQLite database from a file backup."""
     sqlite_path = get_sqlite_database_path()
@@ -1427,31 +1463,18 @@ def backup_restore():
     try:
         backups = []
         if os.path.exists(BACKUP_DIRECTORY):
-            backup_files = [
-                f for f in os.listdir(BACKUP_DIRECTORY)
-                if f.endswith(('.sql', '.sqlite', '.db'))
-            ]
-            for backup_file in backup_files:
+            for backup_file in os.listdir(BACKUP_DIRECTORY):
                 try:
-                    timestamp_match = re.search(r'backup_(\d{14})', backup_file)
-                    if not timestamp_match:
-                        continue
-                    timestamp_str = timestamp_match.group(1)
-                    backup_time = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S')
-                    
-                    file_path = os.path.join(BACKUP_DIRECTORY, backup_file)
-                    file_size = os.path.getsize(file_path) / (1024 * 1024)
-                    
-                    backups.append({
-                        'filename': backup_file,
-                        'timestamp': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        'size': f"{file_size:.2f} MB"
-                    })
+                    backup_metadata = backup_file_metadata(backup_file)
+                    if backup_metadata:
+                        backups.append(backup_metadata)
                 except Exception as e:
                     print(f"Error processing backup file {backup_file}: {e}")
                     continue
                     
-            backups.sort(key=lambda x: x['timestamp'], reverse=True)
+            backups.sort(key=lambda x: x['sort_time'], reverse=True)
+            for backup in backups:
+                backup.pop('sort_time', None)
         
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
@@ -2529,7 +2552,7 @@ def build_sms_reminder_message(patient_name, appointment_date, appointment_time)
     return build_appointment_sms_message(patient_name, appointment_date, appointment_time)
 
 def sms_reminder_scheduled_time(appointment_start, now=None):
-    """Schedule normal reminders one day before; send now for today/tomorrow appointments."""
+    """Schedule normal reminders one day before; send now only when that time has passed."""
     if not appointment_start:
         return None
 
@@ -2647,7 +2670,10 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
             old_time=old_time,
             appointment_id=appointment.appid
         )
-        scheduled_for = next_sms_scheduled_time_for_recipient(normalized_number)
+        scheduled_for = next_sms_scheduled_time_for_recipient(
+            normalized_number,
+            sms_reminder_scheduled_time(appointment_start)
+        )
 
         if (
             existing_reminder
@@ -8428,7 +8454,7 @@ def get_lan_ip_addresses():
     return sorted(addresses) or ["YOUR_COMPUTER_IP"]
 
 def should_run_startup_backup(debug):
-    startup_backups_enabled = os.getenv("DAILY_STARTUP_BACKUPS", "true").lower() in ("1", "true", "yes", "on")
+    startup_backups_enabled = os.getenv("DAILY_STARTUP_BACKUPS", "false").lower() in ("1", "true", "yes", "on")
     return startup_backups_enabled and (not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
 
 def create_startup_backup():
