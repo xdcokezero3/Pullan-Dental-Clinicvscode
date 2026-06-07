@@ -104,6 +104,11 @@
             color: #b3261e;
         }
 
+        .status-pill.skipped {
+            background-color: rgba(95, 99, 104, 0.12);
+            color: #5f6368;
+        }
+
         .muted {
             color: var(--text-light);
             font-size: 12px;
@@ -286,6 +291,13 @@
                     <div>
                         <h3>{{ failed_count }}</h3>
                         <p>Failed</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon"><i class="fas fa-ban"></i></span>
+                    <div>
+                        <h3>{{ skipped_count }}</h3>
+                        <p>Skipped</p>
                     </div>
                 </div>
             </div>

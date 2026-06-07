@@ -9,4 +9,4 @@ LAN access:
 Use the LAN access URL on the other computer connected to the same network.
 
  * Serving Flask app 'db_connector'
- * Debug mode: off
+ * Debug mode: on

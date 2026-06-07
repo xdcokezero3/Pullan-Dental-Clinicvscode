@@ -2210,12 +2210,11 @@ def edit_patient(patient_id):
     """Render edit patient page"""
     try:
         patient = Patient.query.get_or_404(patient_id)
-        
-        if patient.patdob:
-            patient.patdob = patient.patdob.strftime('%Y-%m-%d')
-        
-        return render_template('patients/patient_edit.html', patient=patient)
+        patient_dob_value = patient.patdob.strftime('%Y-%m-%d') if patient.patdob else ''
+
+        return render_template('patients/patient_edit.html', patient=patient, patient_dob_value=patient_dob_value)
     except Exception as e:
+        db.session.rollback()
         print(f"Error in edit_patient route: {e}")
         return f"Error loading patient edit form: {e}", 500
 
@@ -2395,13 +2394,13 @@ SMS_PROVIDER = os.getenv('SMS_PROVIDER', 'console').lower()
 SMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME', 'PullanDental')
 SMS_WORKER_INTERVAL_SECONDS = int(os.getenv('SMS_WORKER_INTERVAL_SECONDS', '60'))
 SMS_SENDING_STALE_AFTER_MINUTES = int(os.getenv('SMS_SENDING_STALE_AFTER_MINUTES', '10'))
-SMS_RECIPIENT_COOLDOWN_SECONDS = int(os.getenv('SMS_RECIPIENT_COOLDOWN_SECONDS', '180'))
 INFINIREACH_PENDING_STATUSES = {'acked', 'queued', 'sending'}
 INFINIREACH_SENT_STATUSES = {'sent', 'delivered'}
 INFINIREACH_FAILED_STATUSES = {'failed', 'undelivered', 'rejected'}
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL') or os.getenv('REDIS_URL')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 celery_app = None
+sms_processing_lock = threading.Lock()
 
 if Celery is not None and CELERY_BROKER_URL:
     celery_app = Celery(
@@ -2551,27 +2550,6 @@ def build_appointment_sms_message(patient_name, appointment_date, appointment_ti
 def build_sms_reminder_message(patient_name, appointment_date, appointment_time):
     return build_appointment_sms_message(patient_name, appointment_date, appointment_time)
 
-def sms_reminder_scheduled_time(appointment_start, now=None):
-    """Schedule normal reminders one day before; send now only when that time has passed."""
-    if not appointment_start:
-        return None
-
-    now = now or datetime.now()
-    one_day_before = appointment_start - timedelta(days=1)
-    return now if one_day_before <= now else one_day_before
-
-def datetimes_match(left, right):
-    if not left or not right:
-        return left == right
-    return abs((left - right).total_seconds()) < 1
-
-def reminder_matches_schedule(reminder, mobile_number, message, scheduled_for):
-    return (
-        reminder.mobile_number == mobile_number
-        and reminder.message == message
-        and datetimes_match(reminder.scheduled_for, scheduled_for)
-    )
-
 def reminder_matches_message(reminder, mobile_number, message):
     return reminder.mobile_number == mobile_number and reminder.message == message
 
@@ -2579,30 +2557,6 @@ def reminder_is_recently_sending(reminder):
     if not reminder or reminder.status != 'Sending' or not reminder.updated_at:
         return False
     return reminder.updated_at > datetime.utcnow() - timedelta(minutes=SMS_SENDING_STALE_AFTER_MINUTES)
-
-def sms_attempt_time(reminder):
-    return reminder.sent_at or reminder.scheduled_for
-
-def next_sms_scheduled_time_for_recipient(mobile_number, desired_for=None):
-    desired_for = desired_for or datetime.now()
-    if SMS_RECIPIENT_COOLDOWN_SECONDS <= 0:
-        return desired_for
-
-    reminders = SMSReminder.query.filter(
-        SMSReminder.mobile_number == mobile_number,
-        SMSReminder.scheduled_for.isnot(None)
-    ).all()
-    latest_attempt = None
-    for reminder in reminders:
-        attempt_time = sms_attempt_time(reminder)
-        if attempt_time and (latest_attempt is None or attempt_time > latest_attempt):
-            latest_attempt = attempt_time
-
-    if not latest_attempt:
-        return desired_for
-
-    next_allowed = latest_attempt + timedelta(seconds=SMS_RECIPIENT_COOLDOWN_SECONDS)
-    return next_allowed if next_allowed > desired_for else desired_for
 
 def close_unsent_sms_reminder(appointment_id, reason):
     ensure_sms_reminders_table()
@@ -2624,12 +2578,13 @@ def sms_reminder_response_summary(reminder):
     }
 
 def create_or_update_sms_reminder(appointment, patient, notification_type='scheduled', old_date=None, old_time=None):
-    """Queue one immediate appointment SMS per appointment when the patient has a valid PH mobile number."""
+    """Queue one immediate SMS per active upcoming appointment."""
     try:
         ensure_sms_reminders_table()
         if not appointment or not patient:
             return None
 
+        now = datetime.now()
         normalized_number = normalize_ph_mobile_number(patient.patcontact)
         appointment_start = appointment_start_datetime(appointment)
         existing_reminder = SMSReminder.query.filter_by(appointment_id=appointment.appid).first()
@@ -2670,10 +2625,6 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
             old_time=old_time,
             appointment_id=appointment.appid
         )
-        scheduled_for = next_sms_scheduled_time_for_recipient(
-            normalized_number,
-            sms_reminder_scheduled_time(appointment_start)
-        )
 
         if (
             existing_reminder
@@ -2689,6 +2640,38 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
         ):
             return existing_reminder
 
+        if appointment_start <= now:
+            skip_reason = 'SMS reminder skipped because the appointment already started or passed.'
+            if not existing_reminder:
+                existing_reminder = SMSReminder(
+                    appointment_id=appointment.appid,
+                    patient_id=patient.patId,
+                    patient_name=patient.patname,
+                    mobile_number=normalized_number,
+                    message=message,
+                    scheduled_for=now,
+                    status='Skipped',
+                    provider=SMS_PROVIDER,
+                    error_message=skip_reason,
+                    updated_at=datetime.utcnow()
+                )
+                db.session.add(existing_reminder)
+            else:
+                existing_reminder.patient_id = patient.patId
+                existing_reminder.patient_name = patient.patname
+                existing_reminder.mobile_number = normalized_number
+                existing_reminder.message = message
+                existing_reminder.scheduled_for = now
+                existing_reminder.status = 'Skipped'
+                existing_reminder.provider = SMS_PROVIDER
+                existing_reminder.error_message = skip_reason
+                existing_reminder.sent_at = None
+                existing_reminder.provider_message_id = None
+                existing_reminder.updated_at = datetime.utcnow()
+
+            db.session.commit()
+            return existing_reminder
+
         if not existing_reminder:
             existing_reminder = SMSReminder(
                 appointment_id=appointment.appid,
@@ -2696,7 +2679,7 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
                 patient_name=patient.patname,
                 mobile_number=normalized_number,
                 message=message,
-                scheduled_for=scheduled_for,
+                scheduled_for=now,
                 status='Pending',
                 provider=SMS_PROVIDER,
                 updated_at=datetime.utcnow()
@@ -2707,7 +2690,7 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
             existing_reminder.patient_name = patient.patname
             existing_reminder.mobile_number = normalized_number
             existing_reminder.message = message
-            existing_reminder.scheduled_for = scheduled_for
+            existing_reminder.scheduled_for = now
             existing_reminder.status = 'Pending'
             existing_reminder.provider = SMS_PROVIDER
             existing_reminder.error_message = None
@@ -2723,6 +2706,35 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
         print(f"Error creating SMS reminder: {e}")
         log_user_action(session.get('user_id'), 'SMS Reminder Error', str(e))
         return None
+
+def check_all_appointment_sms_reminders(process_due=True):
+    """Refresh reminder rows for all active upcoming appointments, then send due SMS."""
+    ensure_sms_reminders_table()
+    today = datetime.now().date()
+    appointments_to_check = Appointment.query.filter(
+        Appointment.status == 'active',
+        Appointment.appdate >= today
+    ).order_by(Appointment.appdate.asc(), Appointment.appid.asc()).all()
+
+    checked_count = 0
+    reminder_count = 0
+    for appointment in appointments_to_check:
+        patient = Patient.query.filter_by(patname=appointment.apppatient, is_deleted=False).first()
+        if not patient:
+            continue
+
+        checked_count += 1
+        reminder = create_or_update_sms_reminder(appointment, patient)
+        if reminder:
+            reminder_count += 1
+
+    if process_due:
+        process_due_sms_reminders()
+
+    return {
+        'checked': checked_count,
+        'reminders': reminder_count
+    }
 
 def read_sms_provider_error(error):
     """Return a useful provider error without exposing credentials."""
@@ -3508,6 +3520,46 @@ def reset_stale_sending_sms_reminders():
         db.session.commit()
     return updated_count
 
+def normalize_pending_sms_reminders_for_immediate_send():
+    """Move valid delayed pending reminders to now and close inactive ones."""
+    now = datetime.now()
+    reminders = SMSReminder.query.filter(SMSReminder.status == 'Pending').all()
+
+    updated_count = 0
+    for reminder in reminders:
+        appointment = Appointment.query.get(reminder.appointment_id)
+        appointment_status = (getattr(appointment, 'status', '') or 'active').strip().lower() if appointment else ''
+        appointment_start = appointment_start_datetime(appointment) if appointment else None
+
+        if appointment_status in ('cancelled', 'completed'):
+            reminder.status = 'Failed'
+            reminder.error_message = f'Appointment is {appointment_status}; reminder not sent.'
+            reminder.updated_at = datetime.utcnow()
+            updated_count += 1
+            continue
+
+        if not appointment_start:
+            continue
+
+        if appointment_start <= now:
+            reminder.status = 'Skipped'
+            reminder.error_message = 'SMS reminder skipped because the appointment already started or passed.'
+            reminder.updated_at = datetime.utcnow()
+            updated_count += 1
+            continue
+
+        if reminder.scheduled_for <= now:
+            continue
+
+        reminder.scheduled_for = now
+        reminder.updated_at = datetime.utcnow()
+        updated_count += 1
+
+    if updated_count:
+        db.session.commit()
+
+    return updated_count
+
 def infinireach_status_from_send_result(result):
     provider_status = (result.get('provider_status') or '').lower()
     if provider_status in INFINIREACH_FAILED_STATUSES:
@@ -3624,57 +3676,68 @@ def reconcile_unconfirmed_infinireach_reminders():
 
 def process_due_sms_reminders():
     """Send due pending reminders; appointment_id uniqueness prevents duplicates."""
-    ensure_sms_reminders_table()
-    reconcile_unconfirmed_infinireach_reminders()
-    reset_stale_sending_sms_reminders()
-    now = datetime.now()
-    due_reminders = SMSReminder.query.filter(
-        SMSReminder.status == 'Pending',
-        SMSReminder.scheduled_for <= now
-    ).all()
+    with sms_processing_lock:
+        ensure_sms_reminders_table()
+        reconcile_unconfirmed_infinireach_reminders()
+        reset_stale_sending_sms_reminders()
+        normalize_pending_sms_reminders_for_immediate_send()
+        now = datetime.now()
+        due_reminders = SMSReminder.query.filter(
+            SMSReminder.status == 'Pending',
+            SMSReminder.scheduled_for <= now
+        ).all()
 
-    for reminder in due_reminders:
-        reminder_id = reminder.reminder_id
-        appointment = Appointment.query.get(reminder.appointment_id)
-        if appointment and getattr(appointment, 'status', 'active') in ('cancelled', 'completed'):
-            reminder.status = 'Failed'
-            reminder.error_message = f'Appointment is {appointment.status}; reminder not sent.'
-            reminder.updated_at = datetime.utcnow()
-            db.session.commit()
-            continue
-
-        if not claim_sms_reminder_for_sending(reminder_id):
-            continue
-
-        try:
-            reminder = SMSReminder.query.get(reminder_id)
-            if not reminder:
-                continue
-
-            result = send_sms_via_provider(reminder.mobile_number, reminder.message)
-            reminder.status = 'Sent'
-            reminder.error_message = None
-            if SMS_PROVIDER == 'infinireach':
-                reminder.status, reminder.error_message = infinireach_status_from_send_result(result)
-            reminder.provider = SMS_PROVIDER
-            reminder.provider_message_id = result.get('provider_message_id')
-            reminder.sent_at = datetime.now() if reminder.status == 'Sent' else None
-            reminder.updated_at = datetime.utcnow()
-            db.session.commit()
-            if reminder.status == 'Sent':
-                log_user_action(None, 'SMS Reminder Sent', f'Sent reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
-            else:
-                log_user_action(None, 'SMS Reminder Sending', f'InfiniReach accepted reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}; waiting for delivery confirmation.')
-        except Exception as e:
-            db.session.rollback()
-            reminder = SMSReminder.query.get(reminder_id)
-            if reminder:
+        reminder_ids_to_send = []
+        for reminder in due_reminders:
+            appointment = Appointment.query.get(reminder.appointment_id)
+            if appointment and getattr(appointment, 'status', 'active') in ('cancelled', 'completed'):
                 reminder.status = 'Failed'
-                reminder.error_message = str(e)
-                reminder.provider = SMS_PROVIDER
+                reminder.error_message = f'Appointment is {appointment.status}; reminder not sent.'
                 reminder.updated_at = datetime.utcnow()
                 db.session.commit()
-            log_user_action(None, 'SMS Reminder Failed', f'Appointment APT-{reminder.appointment_id:03d}: {e}')
+                continue
+
+            appointment_start = appointment_start_datetime(appointment) if appointment else None
+            if appointment_start and appointment_start <= now:
+                reminder.status = 'Skipped'
+                reminder.error_message = 'SMS reminder skipped because the appointment already started or passed.'
+                reminder.updated_at = datetime.utcnow()
+                db.session.commit()
+                continue
+
+            if claim_sms_reminder_for_sending(reminder.reminder_id):
+                reminder_ids_to_send.append(reminder.reminder_id)
+
+        for reminder_id in reminder_ids_to_send:
+            try:
+                reminder = SMSReminder.query.get(reminder_id)
+                if not reminder:
+                    continue
+
+                result = send_sms_via_provider(reminder.mobile_number, reminder.message)
+                reminder.status = 'Sent'
+                reminder.error_message = None
+                if SMS_PROVIDER == 'infinireach':
+                    reminder.status, reminder.error_message = infinireach_status_from_send_result(result)
+                reminder.provider = SMS_PROVIDER
+                reminder.provider_message_id = result.get('provider_message_id')
+                reminder.sent_at = datetime.now() if reminder.status == 'Sent' else None
+                reminder.updated_at = datetime.utcnow()
+                db.session.commit()
+                if reminder.status == 'Sent':
+                    log_user_action(None, 'SMS Reminder Sent', f'Sent reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}')
+                else:
+                    log_user_action(None, 'SMS Reminder Sending', f'InfiniReach accepted reminder for appointment APT-{reminder.appointment_id:03d} to {reminder.mobile_number}; waiting for delivery confirmation.')
+            except Exception as e:
+                db.session.rollback()
+                reminder = SMSReminder.query.get(reminder_id)
+                if reminder:
+                    reminder.status = 'Failed'
+                    reminder.error_message = str(e)
+                    reminder.provider = SMS_PROVIDER
+                    reminder.updated_at = datetime.utcnow()
+                    db.session.commit()
+                    log_user_action(None, 'SMS Reminder Failed', f'Appointment APT-{reminder.appointment_id:03d}: {e}')
 
 def process_due_sms_reminders_in_background():
     try:
@@ -3713,6 +3776,8 @@ def sms_reminder_worker():
 def start_sms_reminder_worker():
     if os.getenv('SMS_REMINDER_WORKER', 'true').lower() not in ('1', 'true', 'yes', 'on'):
         return
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
     if getattr(app, '_sms_reminder_worker_started', False):
         return
 
@@ -3748,6 +3813,7 @@ def sms_reminders():
         sending_count = SMSReminder.query.filter_by(status='Sending').count()
         sent_count = SMSReminder.query.filter_by(status='Sent').count()
         failed_count = SMSReminder.query.filter_by(status='Failed').count()
+        skipped_count = SMSReminder.query.filter_by(status='Skipped').count()
         current_date = datetime.now().strftime("%A, %B %d, %Y")
 
         return render_template(
@@ -3756,6 +3822,7 @@ def sms_reminders():
             pending_count=pending_count,
             sent_count=sent_count,
             failed_count=failed_count,
+            skipped_count=skipped_count,
             provider=SMS_PROVIDER,
             provider_status=get_sms_provider_config_status(),
             test_result=request.args.get('test_result', ''),
@@ -3772,11 +3839,11 @@ def sms_reminders():
 def send_due_sms_reminders():
     """Manually run the due SMS reminder sender."""
     try:
-        process_due_sms_reminders()
+        check_all_appointment_sms_reminders()
         log_user_action(
             session.get('user_id'),
             'Process SMS Reminders',
-            'Admin manually processed due SMS reminders'
+            'Admin manually checked all appointment SMS reminders and processed due reminders'
         )
         return redirect(url_for('sms_reminders'))
     except Exception as e:
@@ -4096,8 +4163,8 @@ def add_appointment():
         db.session.add(new_appointment)
         db.session.commit()
         sms_reminder = create_or_update_sms_reminder(new_appointment, patient)
-        if sms_reminder and sms_reminder.status == 'Pending' and sms_reminder.scheduled_for <= datetime.now():
-            process_due_sms_reminders()
+        check_all_appointment_sms_reminders()
+        sms_reminder = SMSReminder.query.filter_by(appointment_id=new_appointment.appid).first()
         
         log_user_action(
             session.get('user_id'),
