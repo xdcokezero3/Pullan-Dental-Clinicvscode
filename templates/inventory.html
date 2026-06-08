@@ -303,6 +303,61 @@
             color: #6c757d;
             padding: 10px 12px;
         }
+
+        .sale-cart {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            display: grid;
+            gap: 8px;
+            margin: 12px 0;
+            padding: 10px;
+        }
+
+        .sale-cart-row {
+            align-items: center;
+            border-bottom: 1px solid #eef2f7;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr auto auto auto;
+            padding: 8px 0;
+        }
+
+        .sale-cart-row:last-child {
+            border-bottom: 0;
+        }
+
+        .sale-cart-name {
+            color: #212529;
+            font-weight: 600;
+        }
+
+        .sale-cart-meta {
+            color: #6c757d;
+            display: block;
+            font-size: 12px;
+        }
+
+        .price-grid {
+            display: grid;
+            gap: 12px;
+            max-height: 420px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .price-row {
+            align-items: center;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr 140px;
+        }
+
+        @media (max-width: 760px) {
+            .sale-cart-row,
+            .price-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -363,6 +418,7 @@
                         <button id="printInventoryBtn" class="secondary-btn"><i class="fas fa-print"></i> Print Report</button>
                         <button id="sellItemBtn" class="secondary-btn"><i class="fas fa-cash-register"></i> Sell Item</button>
                         {% if session.get('access_level') == 'admin' %}
+                        <button id="inventoryPricesBtn" class="secondary-btn"><i class="fas fa-peso-sign"></i> Item Prices</button>
                         <button id="adminNumberBtn" class="secondary-btn"><i class="fas fa-mobile-screen"></i> Admin Number</button>
                         {% endif %}
                         <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>
@@ -382,6 +438,15 @@
                     <i class="fas fa-check-circle"></i>
                     {{ success }}
                 </div>
+                {% endif %}
+
+                {% if inventory_warnings %}
+                {% for warning in inventory_warnings %}
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    {{ warning }}
+                </div>
+                {% endfor %}
                 {% endif %}
                 
                 <!-- Status Filters -->
@@ -462,6 +527,8 @@
                                 <th>Item Name</th>
                                 <th>Category</th>
                                 <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Date Added</th>
                                 <th>Expiry Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -477,6 +544,8 @@
                                 <td>{{ item.name }}{% if not item.is_active %} <small class="text-muted">(Inactive)</small>{% endif %}</td>
                                 <td>{{ item.type or 'N/A' }}</td>
                                 <td>{{ item.quantity }}</td>
+                                <td>{{ item.price_display }}</td>
+                                <td>{{ item.date_added }}</td>
                                 <td>{{ item.expiry if item.expiry != 'N/A' else 'No Expiry' }}</td>
                                 <td>
                                     {% if not item.is_active %}
@@ -576,6 +645,19 @@
                             <input type="number" id="itemQuantity" name="quantity" min="0" required>
                         </div>
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="itemPrice">Sale Price</label>
+                            <input type="number" id="itemPrice" name="price" min="0" step="0.01" value="0.00">
+                            <small>Used when selling this item.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="itemInitialQuantity">Quantity Added</label>
+                            <input type="number" id="itemInitialQuantity" min="0" readonly>
+                            <small>Saved from the original quantity added.</small>
+                        </div>
+                    </div>
                     
                     <div class="form-row">
                         <div class="form-group">
@@ -663,22 +745,6 @@
             <div class="modal-body">
                 <form id="saleForm">
                     <div class="form-group">
-                        <label for="saleItem">Item*</label>
-                        <div class="search-select" data-search-select>
-                            <input type="text" class="search-select-input" placeholder="Search item..." autocomplete="off" required>
-                            <div class="search-select-menu"></div>
-                            <select id="saleItem" name="item_id" required>
-                                <option value="">Select item</option>
-                                {% for item in sale_items %}
-                                <option value="{{ item.raw_id }}" data-stock="{{ item.quantity }}">
-                                    {{ item.id }} - {{ item.name }} - Stock: {{ item.quantity }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
                         <label for="salePatient">Client*</label>
                         <div class="search-select" data-search-select>
                             <input type="text" class="search-select-input" placeholder="Search client..." autocomplete="off" required>
@@ -692,6 +758,27 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label for="saleItem">Item*</label>
+                        <div class="search-select" data-search-select>
+                            <input type="text" class="search-select-input" placeholder="Search item..." autocomplete="off">
+                            <div class="search-select-menu"></div>
+                            <select id="saleItem">
+                                <option value="">Select item</option>
+                                {% for item in sale_items %}
+                                <option value="{{ item.raw_id }}"
+                                        data-id="{{ item.id }}"
+                                        data-name="{{ item.name }}"
+                                        data-stock="{{ item.quantity }}"
+                                        data-price="{{ item.price }}"
+                                        data-type="{{ item.type or 'N/A' }}">
+                                    {{ item.id }} - {{ item.name }} - {{ item.price_display }} - Stock: {{ item.quantity }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="saleQuantity">Quantity*</label>
@@ -699,10 +786,18 @@
                             <small id="saleStockHint">Choose an item to see available stock.</small>
                         </div>
                         <div class="form-group">
-                            <label for="saleUnitPrice">Unit Price*</label>
-                            <input type="number" id="saleUnitPrice" name="unit_price" min="0.01" step="0.01" required>
+                            <label for="saleUnitPrice">Unit Price</label>
+                            <input type="number" id="saleUnitPrice" min="0" step="0.01" readonly>
+                            <small>Set prices from Item Prices.</small>
                         </div>
                     </div>
+
+                    <div class="form-actions" style="border-top: 0; margin-top: 0; padding-top: 0;">
+                        <button type="button" id="addSaleItemBtn" class="secondary-btn"><i class="fas fa-plus"></i> Add Item</button>
+                    </div>
+
+                    <div id="saleCart" class="sale-cart"></div>
+                    <input type="hidden" id="saleItemsInput" name="sale_items">
 
                     <div class="form-row">
                         <div class="form-group">
@@ -742,6 +837,38 @@
     </div>
 
     {% if session.get('access_level') == 'admin' %}
+    <!-- Inventory Price Modal -->
+    <div id="inventoryPricesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Inventory Prices</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="inventoryPricesForm">
+                    <div class="price-grid">
+                        {% for item in price_items %}
+                        <div class="price-row">
+                            <label for="price_{{ item.raw_id }}">
+                                <strong>{{ item.name }}</strong>
+                                <small>{{ item.id }} | Stock: {{ item.quantity }}</small>
+                            </label>
+                            <input type="number" id="price_{{ item.raw_id }}" name="price_{{ item.raw_id }}" min="0" step="0.01" value="{{ item.price }}" required>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelInventoryPricesBtn" class="secondary-btn">Cancel</button>
+                        <button type="submit" id="saveInventoryPricesBtn" class="primary-btn">
+                            <span class="btn-text">Save Prices</span>
+                            <span class="btn-loading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Number Modal -->
     <div id="adminNumberModal" class="modal">
         <div class="modal-content">
@@ -1030,14 +1157,18 @@
             const addFirstItemBtn = document.getElementById('addFirstItemBtn');
             const sellItemBtn = document.getElementById('sellItemBtn');
             const adminNumberBtn = document.getElementById('adminNumberBtn');
+            const inventoryPricesBtn = document.getElementById('inventoryPricesBtn');
             const saleModal = document.getElementById('saleModal');
             const adminNumberModal = document.getElementById('adminNumberModal');
+            const inventoryPricesModal = document.getElementById('inventoryPricesModal');
             
             // Open add item modal
             function openAddModal() {
                 document.getElementById('modalTitle').textContent = 'Add New Item';
                 document.getElementById('inventoryForm').reset();
                 document.getElementById('itemId').value = '';
+                document.getElementById('itemPrice').value = '0.00';
+                document.getElementById('itemInitialQuantity').value = '';
                 currentEditingItemId = null;
                 
                 // Reset validation display
@@ -1062,7 +1193,10 @@
             if (sellItemBtn && saleModal) {
                 sellItemBtn.addEventListener('click', function() {
                     document.getElementById('saleForm').reset();
+                    saleCartItems.clear();
+                    renderSaleCart();
                     document.getElementById('saleQuantity').value = '1';
+                    document.getElementById('saleUnitPrice').value = '';
                     document.getElementById('saleStockHint').textContent = 'Choose an item to see available stock.';
                     updateSaleTotal();
                     saleModal.style.display = 'block';
@@ -1074,6 +1208,13 @@
                 adminNumberBtn.addEventListener('click', function() {
                     adminNumberModal.style.display = 'block';
                     setTimeout(() => document.getElementById('adminNumber').focus(), 100);
+                });
+            }
+
+            if (inventoryPricesBtn && inventoryPricesModal) {
+                inventoryPricesBtn.addEventListener('click', function() {
+                    inventoryPricesModal.style.display = 'block';
+                    setTimeout(() => inventoryPricesModal.querySelector('input')?.focus(), 100);
                 });
             }
 
@@ -1108,6 +1249,13 @@
             if (cancelAdminNumberBtn) {
                 cancelAdminNumberBtn.addEventListener('click', function() {
                     document.getElementById('adminNumberModal').style.display = 'none';
+                });
+            }
+
+            const cancelInventoryPricesBtn = document.getElementById('cancelInventoryPricesBtn');
+            if (cancelInventoryPricesBtn) {
+                cancelInventoryPricesBtn.addEventListener('click', function() {
+                    document.getElementById('inventoryPricesModal').style.display = 'none';
                 });
             }
 
@@ -1176,6 +1324,7 @@
                                 // Add new row or refresh if needed
                                 addInventoryRow(data.item);
                             }
+                            upsertSaleOption(data.item);
                             
                             // Update stats if provided
                             if (data.stats) {
@@ -1203,10 +1352,31 @@
                 return `PHP ${numberValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
             }
 
+            const saleCartItems = new Map();
+
+            function saleOptionData() {
+                const selected = saleItem.options[saleItem.selectedIndex];
+                if (!selected || !selected.value) return null;
+                return {
+                    item_id: selected.value,
+                    id: selected.dataset.id,
+                    name: selected.dataset.name,
+                    stock: Number(selected.dataset.stock || 0),
+                    price: Number(selected.dataset.price || 0),
+                    type: selected.dataset.type || 'N/A'
+                };
+            }
+
             function updateSaleTotal() {
-                const quantity = Number(document.getElementById('saleQuantity').value || 0);
-                const unitPrice = Number(document.getElementById('saleUnitPrice').value || 0);
-                document.getElementById('saleTotal').textContent = money(quantity * unitPrice);
+                let total = 0;
+                saleCartItems.forEach((item) => {
+                    total += item.quantity * item.price;
+                });
+                document.getElementById('saleTotal').textContent = money(total);
+                document.getElementById('saleItemsInput').value = JSON.stringify(Array.from(saleCartItems.values()).map((item) => ({
+                    item_id: item.item_id,
+                    quantity: item.quantity
+                })));
             }
 
             const saleItem = document.getElementById('saleItem');
@@ -1214,17 +1384,62 @@
             const saleUnitPrice = document.getElementById('saleUnitPrice');
             const salePaymentMethod = document.getElementById('salePaymentMethod');
             const saleReference = document.getElementById('saleReference');
+            const saleCart = document.getElementById('saleCart');
+
+            function upsertSaleOption(item) {
+                if (!saleItem || !item || !item.is_active) return;
+                let option = saleItem.querySelector(`option[value="${item.raw_id}"]`);
+                if (Number(item.quantity) <= 0 || (item.status || '').toLowerCase().includes('expired')) {
+                    if (option) option.remove();
+                    return;
+                }
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = item.raw_id;
+                    saleItem.appendChild(option);
+                }
+                option.dataset.id = item.id;
+                option.dataset.name = item.name;
+                option.dataset.stock = item.quantity;
+                option.dataset.price = item.price;
+                option.dataset.type = item.type || 'N/A';
+                option.textContent = `${item.id} - ${item.name} - ${item.price_display} - Stock: ${item.quantity}`;
+            }
+
+            function renderSaleCart() {
+                if (!saleCart) return;
+                if (!saleCartItems.size) {
+                    saleCart.innerHTML = '<div class="search-select-empty">No items added to this sale.</div>';
+                    updateSaleTotal();
+                    return;
+                }
+
+                saleCart.innerHTML = Array.from(saleCartItems.values()).map((item) => `
+                    <div class="sale-cart-row">
+                        <div>
+                            <span class="sale-cart-name">${escapeHtml(item.name)}</span>
+                            <span class="sale-cart-meta">${escapeHtml(item.id)} | ${escapeHtml(item.type)} | Stock: ${item.stock}</span>
+                        </div>
+                        <span>${item.quantity} x ${money(item.price)}</span>
+                        <strong>${money(item.quantity * item.price)}</strong>
+                        <button type="button" class="deactivate-btn" data-remove-sale-item="${escapeHtml(item.item_id)}" title="Remove item">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `).join('');
+                updateSaleTotal();
+            }
 
             if (saleItem) {
                 saleItem.addEventListener('change', function() {
-                    const selected = saleItem.options[saleItem.selectedIndex];
-                    const stock = Number(selected ? selected.dataset.stock : 0);
+                    const item = saleOptionData();
+                    const stock = item ? item.stock : 0;
                     saleQuantity.max = stock || '';
+                    saleUnitPrice.value = item ? item.price.toFixed(2) : '';
                     document.getElementById('saleStockHint').textContent = stock ? `Available stock: ${stock}` : 'Choose an item to see available stock.';
                     if (stock && Number(saleQuantity.value) > stock) {
                         saleQuantity.value = stock;
                     }
-                    updateSaleTotal();
                 });
             }
 
@@ -1237,12 +1452,48 @@
                     } else if (quantity < 1 && saleQuantity.value !== '') {
                         saleQuantity.value = 1;
                     }
-                    updateSaleTotal();
                 });
             }
 
-            if (saleUnitPrice) {
-                saleUnitPrice.addEventListener('input', updateSaleTotal);
+            const addSaleItemBtn = document.getElementById('addSaleItemBtn');
+            if (addSaleItemBtn) {
+                addSaleItemBtn.addEventListener('click', function() {
+                    const item = saleOptionData();
+                    if (!item) {
+                        showAlert('error', 'Please choose an inventory item.');
+                        return;
+                    }
+                    if (item.price <= 0) {
+                        showAlert('error', `Please set a sale price for ${item.name} before adding it.`);
+                        return;
+                    }
+
+                    const quantity = Number(saleQuantity.value || 0);
+                    const existingQuantity = saleCartItems.has(item.item_id) ? saleCartItems.get(item.item_id).quantity : 0;
+                    if (!Number.isInteger(quantity) || quantity < 1 || existingQuantity + quantity > item.stock) {
+                        showAlert('error', `Please enter a quantity from 1 to ${item.stock - existingQuantity} for ${item.name}.`);
+                        return;
+                    }
+
+                    saleCartItems.set(item.item_id, {
+                        ...item,
+                        quantity: existingQuantity + quantity
+                    });
+                    renderSaleCart();
+                    saleItem.value = '';
+                    saleItem.dispatchEvent(new Event('change', { bubbles: true }));
+                    saleQuantity.value = '1';
+                    document.querySelector('#saleModal .search-select-input[placeholder="Search item..."]').value = '';
+                });
+            }
+
+            if (saleCart) {
+                saleCart.addEventListener('click', function(event) {
+                    const removeButton = event.target.closest('[data-remove-sale-item]');
+                    if (!removeButton) return;
+                    saleCartItems.delete(removeButton.dataset.removeSaleItem);
+                    renderSaleCart();
+                });
             }
 
             function syncSaleReferenceRequirement() {
@@ -1261,6 +1512,12 @@
                 saleForm.addEventListener('submit', function(e) {
                     e.preventDefault();
 
+                    if (!saleCartItems.size) {
+                        showAlert('error', 'Please add at least one item to the sale.');
+                        return;
+                    }
+                    updateSaleTotal();
+
                     const saveBtn = document.getElementById('saveSaleBtn');
                     const btnText = saveBtn.querySelector('.btn-text');
                     const btnLoading = saveBtn.querySelector('.btn-loading');
@@ -1276,16 +1533,21 @@
                     .then(data => {
                         if (data.success) {
                             document.getElementById('saleModal').style.display = 'none';
-                            updateInventoryRow(data.item.raw_id, data.item);
-                            const soldOption = document.querySelector(`#saleItem option[value="${data.item.raw_id}"]`);
-                            if (soldOption) {
-                                if (Number(data.item.quantity) > 0) {
-                                    soldOption.dataset.stock = data.item.quantity;
-                                    soldOption.textContent = `${data.item.id} - ${data.item.name} - Stock: ${data.item.quantity}`;
-                                } else {
-                                    soldOption.remove();
+                            (data.items || []).forEach((item) => {
+                                updateInventoryRow(item.raw_id, item);
+                                const soldOption = document.querySelector(`#saleItem option[value="${item.raw_id}"]`);
+                                if (soldOption) {
+                                    if (Number(item.quantity) > 0) {
+                                        soldOption.dataset.stock = item.quantity;
+                                        soldOption.dataset.price = item.price;
+                                        soldOption.textContent = `${item.id} - ${item.name} - ${item.price_display} - Stock: ${item.quantity}`;
+                                    } else {
+                                        soldOption.remove();
+                                    }
                                 }
-                            }
+                            });
+                            saleCartItems.clear();
+                            renderSaleCart();
                             if (data.stats) {
                                 updateInventoryStats(data.stats);
                             }
@@ -1338,6 +1600,51 @@
                     .catch(error => {
                         console.error('Error:', error);
                         showAlert('error', 'Unable to save admin number.');
+                    })
+                    .finally(() => {
+                        btnText.style.display = 'inline';
+                        btnLoading.style.display = 'none';
+                        saveBtn.disabled = false;
+                    });
+                });
+            }
+
+            const inventoryPricesForm = document.getElementById('inventoryPricesForm');
+            if (inventoryPricesForm) {
+                inventoryPricesForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const saveBtn = document.getElementById('saveInventoryPricesBtn');
+                    const btnText = saveBtn.querySelector('.btn-text');
+                    const btnLoading = saveBtn.querySelector('.btn-loading');
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline';
+                    saveBtn.disabled = true;
+
+                    fetch('/update_inventory_prices', {
+                        method: 'POST',
+                        body: new FormData(inventoryPricesForm)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            (data.items || []).forEach((item) => {
+                                updateInventoryRow(item.raw_id, item);
+                                const saleOption = document.querySelector(`#saleItem option[value="${item.raw_id}"]`);
+                                if (saleOption) {
+                                    saleOption.dataset.price = item.price;
+                                    saleOption.textContent = `${item.id} - ${item.name} - ${item.price_display} - Stock: ${item.quantity}`;
+                                }
+                            });
+                            document.getElementById('inventoryPricesModal').style.display = 'none';
+                            showAlert('success', 'Inventory prices saved.');
+                        } else {
+                            showAlert('error', data.error || 'Unable to save inventory prices.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('error', 'Unable to save inventory prices.');
                     })
                     .finally(() => {
                         btnText.style.display = 'inline';
@@ -1552,6 +1859,15 @@
                             <strong>Quantity:</strong> ${item.quantity}
                         </div>
                         <div class="detail-row">
+                            <strong>Sale Price:</strong> ${item.price_display || money(item.price)}
+                        </div>
+                        <div class="detail-row">
+                            <strong>Date Added:</strong> ${item.date_added_display || item.date_added || 'N/A'}
+                        </div>
+                        <div class="detail-row">
+                            <strong>Quantity Added:</strong> ${item.initial_quantity || item.quantity}
+                        </div>
+                        <div class="detail-row">
                             <strong>Expiry Date:</strong> ${expiryDisplay}
                         </div>
                         <div class="detail-row">
@@ -1579,6 +1895,8 @@
                 document.getElementById('itemName').value = item.name;
                 document.getElementById('itemType').value = item.type;
                 document.getElementById('itemQuantity').value = item.quantity;
+                document.getElementById('itemPrice').value = item.price || '0.00';
+                document.getElementById('itemInitialQuantity').value = item.initial_quantity || item.quantity || 0;
                 document.getElementById('itemExpiry').value = item.expiry_date || '';
                 document.getElementById('minQuantity').value = item.min_quantity;
                 document.getElementById('itemRemarks').value = item.remarks || '';
@@ -1692,7 +2010,7 @@
             function createInventoryRow(item) {
                 const row = document.createElement('tr');
                 row.setAttribute('data-id', item.raw_id);
-                row.setAttribute('data-type', item.type.toLowerCase().replace(' ', '_'));
+                row.setAttribute('data-type', String(item.type || 'unknown').toLowerCase().replace(' ', '_'));
                 row.setAttribute('data-name', item.name.toLowerCase());
                 
                 // Apply CSS classes based on backend status
@@ -1737,8 +2055,10 @@
                 row.innerHTML = `
                     <td>${item.id}</td>
                     <td>${itemName}</td>
-                    <td>${item.type}</td>
+                    <td>${item.type || 'N/A'}</td>
                     <td>${item.quantity}</td>
+                    <td>${item.price_display || money(item.price)}</td>
+                    <td>${item.date_added || 'N/A'}</td>
                     <td>${expiryDisplay}</td>
                     <td>${statusBadge}</td>
                     <td>

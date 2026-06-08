@@ -4358,7 +4358,31 @@ def set_app_setting(setting_key, setting_value):
 def get_inventory_admin_number():
     return get_app_setting(INVENTORY_ADMIN_NUMBER_KEY, '')
 
+def ensure_inventory_schema():
+    Inventory.__table__.create(bind=db.engine, checkfirst=True)
+    columns = {column['name'] for column in inspect(db.engine).get_columns(Inventory.__tablename__)}
+    changed = False
+
+    if 'invprice' not in columns:
+        db.session.execute(text('ALTER TABLE inventory ADD COLUMN invprice NUMERIC(10, 2) DEFAULT 0'))
+        changed = True
+    if 'invcreatedat' not in columns:
+        db.session.execute(text('ALTER TABLE inventory ADD COLUMN invcreatedat TIMESTAMP'))
+        changed = True
+    if 'invinitialquantity' not in columns:
+        db.session.execute(text('ALTER TABLE inventory ADD COLUMN invinitialquantity INTEGER DEFAULT 0'))
+        changed = True
+
+    if changed:
+        db.session.commit()
+
+    db.session.execute(text('UPDATE inventory SET invprice = 0 WHERE invprice IS NULL'))
+    db.session.execute(text('UPDATE inventory SET invcreatedat = CURRENT_TIMESTAMP WHERE invcreatedat IS NULL'))
+    db.session.execute(text('UPDATE inventory SET invinitialquantity = COALESCE(invquantity, 0) WHERE invinitialquantity IS NULL OR invinitialquantity = 0'))
+    db.session.commit()
+
 def get_inventory_stats():
+    ensure_inventory_schema()
     active_items = Inventory.query.filter_by(is_deleted=False).all()
     return {
         'total_items': len(active_items),
@@ -4370,12 +4394,18 @@ def get_inventory_stats():
 def format_inventory_item(item):
     is_expired = item.invdoe and item.invdoe < datetime.now().date()
     quantity = item.invquantity or 0
+    price = decimal_money(item.invprice or 0)
     return {
         'id': f"INV-{item.invid:03d}",
         'name': item.invname,
         'type': item.invtype,
         'quantity': quantity,
+        'price': f"{price:.2f}",
+        'price_display': format_money(price),
         'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
+        'date_added': item.invcreatedat.strftime('%Y-%m-%d') if item.invcreatedat else "N/A",
+        'date_added_display': item.invcreatedat.strftime('%B %d, %Y') if item.invcreatedat else "N/A",
+        'initial_quantity': item.invinitialquantity or quantity,
         'min_quantity': INVENTORY_LOW_STOCK_THRESHOLD,
         'status': "Expired" if is_expired else ("Low Stock" if quantity < INVENTORY_LOW_STOCK_THRESHOLD else "OK"),
         'remarks': item.invremarks or "",
@@ -4414,10 +4444,69 @@ def notify_if_item_crossed_low_stock(item, previous_quantity, context):
         return send_low_stock_inventory_alert(item, context)
     return ''
 
+def expiration_alert_setting_key(item):
+    expiry_key = item.invdoe.isoformat() if item.invdoe else 'no-expiry'
+    return f'inventory_expired_alert_{item.invid}_{expiry_key}'
+
+def send_expired_inventory_alert(item):
+    admin_number = get_inventory_admin_number()
+    if not admin_number:
+        return 'No admin mobile number is saved for expiration alerts.'
+
+    normalized_number = normalize_plus63_mobile_number(admin_number)
+    if not normalized_number:
+        return PLUS63_MOBILE_VALIDATION_MESSAGE
+
+    date_added = item.invcreatedat.strftime('%B %d, %Y') if item.invcreatedat else 'not recorded'
+    expiry_date = item.invdoe.strftime('%B %d, %Y') if item.invdoe else 'not recorded'
+    quantity_added = item.invinitialquantity if item.invinitialquantity is not None else (item.invquantity or 0)
+    message = (
+        f"Pullan Dental Clinic inventory expiration alert: {item.invname} is expired. "
+        f"Added on: {date_added}. Expiration date: {expiry_date}. "
+        f"Quantity added to system: {quantity_added}. Current stock: {item.invquantity or 0}."
+    )
+    try:
+        send_sms_via_provider(normalized_number, message)
+        set_app_setting(expiration_alert_setting_key(item), datetime.utcnow().isoformat())
+        log_user_action(
+            session.get('user_id'),
+            'Inventory Expiration SMS',
+            f'Sent expiration alert for {item.invname} to {normalized_number}'
+        )
+        return ''
+    except Exception as e:
+        return f"Expiration SMS could not be sent: {redact_sms_secrets(str(e)[:300])}"
+
+def send_due_inventory_expiration_alerts():
+    ensure_inventory_schema()
+    warnings = []
+    expired_items = Inventory.query.filter(
+        Inventory.is_deleted == False,
+        Inventory.invdoe.isnot(None),
+        Inventory.invdoe < date.today()
+    ).all()
+
+    for item in expired_items:
+        if get_app_setting(expiration_alert_setting_key(item), ''):
+            continue
+        warning = send_expired_inventory_alert(item)
+        if warning:
+            warnings.append(warning)
+
+    return warnings
+
+try:
+    with app.app_context():
+        ensure_inventory_schema()
+except Exception as e:
+    print(f"Inventory schema check failed: {e}")
+
 @app.route('/inventory')
 def inventory():
     """Render the inventory management page with status filtering"""
     try:
+        ensure_inventory_schema()
+        expiration_warnings = send_due_inventory_expiration_alerts()
         status_filter = request.args.get('status', 'active')
         
         if status_filter == 'active':
@@ -4447,10 +4536,12 @@ def inventory():
             Inventory.invquantity > 0,
             or_(Inventory.invdoe.is_(None), Inventory.invdoe >= date.today())
         ).order_by(Inventory.invname.asc()).all()
+        price_items = Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all()
         
         return render_template('inventory.html', 
                               inventory_items=formatted_items,
                               sale_items=[format_inventory_item(item) for item in sale_items],
+                              price_items=[format_inventory_item(item) for item in price_items],
                               patients=patients_list,
                               inventory_admin_number=get_inventory_admin_number(),
                               total_items=total_items,
@@ -4461,7 +4552,8 @@ def inventory():
                               status_filter=status_filter,
                               active_count=active_count,
                               inactive_count=inactive_count,
-                              total_count=total_count)
+                              total_count=total_count,
+                              inventory_warnings=expiration_warnings)
     except Exception as e:
         print(f"Error in inventory route: {e}")
         return f"Error loading inventory: {e}", 500
@@ -4470,6 +4562,7 @@ def inventory():
 def get_inventory_item(item_id):
     """Get details of a specific inventory item"""
     try:
+        ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
         formatted_item = {
@@ -4477,7 +4570,12 @@ def get_inventory_item(item_id):
             'name': item.invname, 
             'type': item.invtype,
             'quantity': item.invquantity or 0,
+            'price': f"{decimal_money(item.invprice or 0):.2f}",
+            'price_display': format_money(item.invprice or 0),
             'expiry_date': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "",
+            'date_added': item.invcreatedat.strftime('%Y-%m-%d') if item.invcreatedat else "",
+            'date_added_display': item.invcreatedat.strftime('%B %d, %Y') if item.invcreatedat else "N/A",
+            'initial_quantity': item.invinitialquantity or (item.invquantity or 0),
             'min_quantity': INVENTORY_LOW_STOCK_THRESHOLD,
             'status': item.status,
             'remarks': item.invremarks or "",
@@ -4494,10 +4592,16 @@ def get_inventory_item(item_id):
 def add_inventory():
     """Add a new inventory item"""
     try:
+        ensure_inventory_schema()
+        quantity = int(request.form.get('quantity', 0))
+        price = decimal_money(request.form.get('price') or 0)
         new_item = Inventory(
             invname=request.form.get('name'),
             invtype=request.form.get('type'),
-            invquantity=int(request.form.get('quantity', 0)),
+            invquantity=quantity,
+            invprice=price,
+            invcreatedat=datetime.utcnow(),
+            invinitialquantity=quantity,
             invremarks=request.form.get('remarks', ''),
             is_deleted=False
         )
@@ -4518,6 +4622,9 @@ def add_inventory():
         formatted_item = format_inventory_item(new_item)
         inventory_stats = get_inventory_stats()
         sms_warning = notify_if_item_crossed_low_stock(new_item, INVENTORY_LOW_STOCK_THRESHOLD, 'new inventory item')
+        if new_item.invdoe and new_item.invdoe < date.today():
+            expiration_warning = send_expired_inventory_alert(new_item)
+            sms_warning = " ".join(warning for warning in [sms_warning, expiration_warning] if warning)
         
         return jsonify({
             "success": True, 
@@ -4534,14 +4641,21 @@ def add_inventory():
 def update_inventory(item_id):
     """Update an inventory item"""
     try:
+        ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
         old_name = item.invname
         old_quantity = item.invquantity
+        old_expiry = item.invdoe
         
         item.invname = request.form.get('name')
         item.invtype = request.form.get('type')
         item.invquantity = int(request.form.get('quantity', 0))
+        item.invprice = decimal_money(request.form.get('price') or 0)
+        if not item.invcreatedat:
+            item.invcreatedat = datetime.utcnow()
+        if not item.invinitialquantity:
+            item.invinitialquantity = item.invquantity
         item.invremarks = request.form.get('remarks', '')
         
         expiry_date = request.form.get('expiry_date')
@@ -4561,6 +4675,9 @@ def update_inventory(item_id):
         formatted_item = format_inventory_item(item)
         inventory_stats = get_inventory_stats()
         sms_warning = notify_if_item_crossed_low_stock(item, old_quantity, 'inventory update')
+        if item.invdoe and item.invdoe < date.today() and old_expiry != item.invdoe:
+            expiration_warning = send_expired_inventory_alert(item)
+            sms_warning = " ".join(warning for warning in [sms_warning, expiration_warning] if warning)
         
         return jsonify({
             "success": True, 
@@ -4577,6 +4694,7 @@ def update_inventory(item_id):
 def deactivate_inventory(item_id):
     """Deactivate an inventory item (soft delete)"""
     try:
+        ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
         item.is_deleted = True
@@ -4588,17 +4706,7 @@ def deactivate_inventory(item_id):
             f'Deactivated inventory item: {item.invname} (Quantity: {item.invquantity})'
         )
         
-        active_items = Inventory.query.filter_by(is_deleted=False).all()
-        total_items = len(active_items)
-        low_stock = sum(1 for item_stat in active_items if item_stat.invquantity < 5)
-        expired = sum(1 for item_stat in active_items if item_stat.invdoe and item_stat.invdoe < datetime.now().date())
-        
-        inventory_stats = {
-            'total_items': total_items,
-            'low_stock': low_stock,
-            'expired': expired,
-            'total_value': total_items * 10
-        }
+        inventory_stats = get_inventory_stats()
         
         return jsonify({"success": True, "stats": inventory_stats, "message": "Item deactivated successfully"})
     except Exception as e:
@@ -4610,6 +4718,7 @@ def deactivate_inventory(item_id):
 def reactivate_inventory(item_id):
     """Reactivate an inventory item (restore from soft delete)"""
     try:
+        ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
         
         item.is_deleted = False
@@ -4621,17 +4730,7 @@ def reactivate_inventory(item_id):
             f'Reactivated inventory item: {item.invname} (Quantity: {item.invquantity})'
         )
         
-        active_items = Inventory.query.filter_by(is_deleted=False).all()
-        total_items = len(active_items)
-        low_stock = sum(1 for item_stat in active_items if item_stat.invquantity < 5)
-        expired = sum(1 for item_stat in active_items if item_stat.invdoe and item_stat.invdoe < datetime.now().date())
-        
-        inventory_stats = {
-            'total_items': total_items,
-            'low_stock': low_stock,
-            'expired': expired,
-            'total_value': total_items * 10
-        }
+        inventory_stats = get_inventory_stats()
         
         return jsonify({"success": True, "stats": inventory_stats, "message": "Item reactivated successfully"})
     except Exception as e:
@@ -4661,57 +4760,111 @@ def update_inventory_admin_number():
         print(f"Error updating inventory admin number: {e}")
         return jsonify({"success": False, "error": str(e)})
 
+@app.route('/update_inventory_prices', methods=['POST'])
+@admin_required
+def update_inventory_prices():
+    """Allow admins to update inventory item sale prices."""
+    try:
+        ensure_inventory_schema()
+        updated_items = []
+        for item in Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all():
+            raw_price = request.form.get(f'price_{item.invid}')
+            if raw_price is None:
+                continue
+            price = decimal_money(raw_price)
+            if price < 0:
+                return jsonify({"success": False, "error": "Inventory prices cannot be negative."})
+            item.invprice = price
+            updated_items.append(format_inventory_item(item))
+
+        db.session.commit()
+        log_user_action(
+            session.get('user_id'),
+            'Update Inventory Prices',
+            f'Updated prices for {len(updated_items)} inventory items'
+        )
+        return jsonify({"success": True, "items": updated_items})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating inventory prices: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/sell_inventory_item', methods=['POST'])
 def sell_inventory_item():
-    """Sell an inventory item to a patient, reduce stock, and create a full payment receipt."""
+    """Sell one or more inventory items to a patient, reduce stock, and create a full payment receipt."""
     try:
+        ensure_inventory_schema()
         ensure_payments_table()
 
-        item_id = request.form.get('item_id', type=int)
         patient_id = request.form.get('patient_id', type=int)
-        quantity = request.form.get('quantity', type=int)
         payment_method = (request.form.get('payment_method') or '').strip()
         reference_number = (request.form.get('reference_number') or '').strip()
         notes = (request.form.get('notes') or '').strip()
 
-        if not item_id:
-            return jsonify({"success": False, "error": "Please choose an inventory item."})
         if not patient_id:
             return jsonify({"success": False, "error": "Please choose a client."})
-        if not quantity or quantity < 1:
-            return jsonify({"success": False, "error": "Sale quantity must be at least 1."})
         if payment_method not in PAYMENT_METHOD_LABELS:
             return jsonify({"success": False, "error": "Please choose a valid payment method."})
         if payment_method in ('gcash', 'bank_transfer') and not reference_number:
             return jsonify({"success": False, "error": "Reference number is required for GCash and bank transfer payments."})
 
-        unit_price = parse_money(request.form.get('unit_price'), 'unit price')
-        sale_total = (unit_price * Decimal(quantity)).quantize(MONEY_QUANT)
-        item = Inventory.query.filter_by(invid=item_id, is_deleted=False).first()
-        if not item:
-            return jsonify({"success": False, "error": "Selected inventory item was not found or is inactive."})
-        if item.invdoe and item.invdoe < date.today():
-            return jsonify({"success": False, "error": f"{item.invname} is expired and cannot be sold."})
-
-        current_quantity = item.invquantity or 0
-        if quantity > current_quantity:
-            return jsonify({
-                "success": False,
-                "error": f"Not enough stock for {item.invname}. Available: {current_quantity}, requested: {quantity}."
-            })
+        try:
+            submitted_items = json.loads(request.form.get('sale_items') or '[]')
+        except (TypeError, json.JSONDecodeError):
+            return jsonify({"success": False, "error": "Please add at least one item to the sale."})
+        if not isinstance(submitted_items, list) or not submitted_items:
+            return jsonify({"success": False, "error": "Please add at least one item to the sale."})
 
         patient = Patient.query.get_or_404(patient_id)
-        previous_quantity = current_quantity
-        item.invquantity = current_quantity - quantity
+        inventory_usage = []
+        service_items = []
+        sale_total = Decimal('0.00')
 
-        description = f"Inventory sale: {item.invname} x{quantity}"
-        service_items = [{
-            'key': 'inventory_item',
-            'name': description,
-            'quantity': f"{Decimal(quantity):.2f}",
-            'unit_price': f"{unit_price:.2f}",
-            'line_total': f"{sale_total:.2f}"
-        }]
+        for submitted_item in submitted_items:
+            if not isinstance(submitted_item, dict):
+                continue
+
+            try:
+                item_id = int(submitted_item.get('item_id'))
+                quantity = int(submitted_item.get('quantity'))
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Please enter a valid quantity for each sale item."})
+
+            if quantity < 1:
+                return jsonify({"success": False, "error": "Sale quantity must be at least 1 for every item."})
+
+            item = Inventory.query.filter_by(invid=item_id, is_deleted=False).first()
+            if not item:
+                return jsonify({"success": False, "error": "One selected inventory item was not found or is inactive."})
+            if item.invdoe and item.invdoe < date.today():
+                return jsonify({"success": False, "error": f"{item.invname} is expired and cannot be sold."})
+
+            current_quantity = item.invquantity or 0
+            if quantity > current_quantity:
+                return jsonify({
+                    "success": False,
+                    "error": f"Not enough stock for {item.invname}. Available: {current_quantity}, requested: {quantity}."
+                })
+
+            unit_price = decimal_money(item.invprice or 0)
+            if unit_price <= 0:
+                return jsonify({"success": False, "error": f"Please set a sale price for {item.invname} before selling it."})
+
+            line_total = (unit_price * Decimal(quantity)).quantize(MONEY_QUANT)
+            sale_total += line_total
+            inventory_usage.append((item, quantity, current_quantity))
+            service_items.append({
+                'key': 'inventory_item',
+                'name': f"{item.invname} x{quantity}",
+                'quantity': f"{Decimal(quantity):.2f}",
+                'unit_price': f"{unit_price:.2f}",
+                'line_total': f"{line_total:.2f}"
+            })
+
+        if not service_items:
+            return jsonify({"success": False, "error": "Please add at least one valid item to the sale."})
+
+        description = "Inventory sale: " + ", ".join(item['name'] for item in service_items)
         new_payment = Payment(
             patient_id=patient.patId,
             patient_name=patient.patname,
@@ -4730,26 +4883,36 @@ def sell_inventory_item():
             paid_at=datetime.now()
         )
 
+        low_stock_alerts = []
+        for item, quantity, previous_quantity in inventory_usage:
+            item.invquantity = previous_quantity - quantity
+            low_stock_alerts.append((item, previous_quantity))
+
         db.session.add(new_payment)
         db.session.flush()
         sync_transaction_payment_status(new_payment.payment_id)
         db.session.commit()
 
-        sms_warning = notify_if_item_crossed_low_stock(item, previous_quantity, 'inventory sale')
+        sms_warnings = [
+            warning for item, previous_quantity in low_stock_alerts
+            for warning in [notify_if_item_crossed_low_stock(item, previous_quantity, 'inventory sale')]
+            if warning
+        ]
+        updated_items = [format_inventory_item(item) for item, _, _ in inventory_usage]
         log_user_action(
             session.get('user_id'),
             'Inventory Sale',
-            f'Sold {item.invname} x{quantity} to {patient.patname} for {format_money(sale_total)}'
-            + (f' | SMS warning: {sms_warning}' if sms_warning else '')
+            f'Sold {", ".join(item["name"] for item in service_items)} to {patient.patname} for {format_money(sale_total)}'
+            + (f' | SMS warnings: {"; ".join(sms_warnings)}' if sms_warnings else '')
         )
 
         return jsonify({
             "success": True,
             "message": "Inventory sale recorded successfully.",
-            "item": format_inventory_item(item),
+            "items": updated_items,
             "stats": get_inventory_stats(),
             "receipt_url": url_for('payment_receipt', payment_id=new_payment.payment_id),
-            "sms_warning": sms_warning
+            "sms_warning": " ".join(sms_warnings)
         })
     except ValueError as e:
         db.session.rollback()
@@ -7212,20 +7375,21 @@ def create_lifecycle_backup(reason):
         print(f"Automatic {reason} backup failed: {e}")
 
 if __name__ == "__main__":
-    host = os.getenv("APP_HOST", "127.0.0.1")
+    host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "true").lower() in ("1", "true", "yes", "on")
     run_lifecycle_backups = should_run_lifecycle_tasks(debug)
 
     print("\nPullan Dental Clinic is starting...")
     print(f"Local access: http://127.0.0.1:{port}")
+    print("LAN access:")
+    for ip_address in get_lan_ip_addresses():
+        print(f"  http://{ip_address}:{port}")
     if host == "0.0.0.0":
-        print("LAN access:")
-        for ip_address in get_lan_ip_addresses():
-            print(f"  http://{ip_address}:{port}")
         print("Use the LAN access URL on the other computer connected to the same network.\n")
     else:
         print(f"Configured host access: http://{host}:{port}")
+        print("Set APP_HOST=0.0.0.0 if other devices cannot connect to the LAN URL.")
         print("")
 
     if run_lifecycle_backups:

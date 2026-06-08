@@ -330,7 +330,10 @@ class Inventory(db.Model):
     invname = db.Column(db.String(100), nullable=False)
     invtype = db.Column(db.String(50))
     invquantity = db.Column(db.Integer, default=0)
+    invprice = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     invdoe = db.Column(db.Date)  # Date of Expiry
+    invcreatedat = db.Column(db.DateTime, default=datetime.utcnow)
+    invinitialquantity = db.Column(db.Integer, default=0)
     invremarks = db.Column(db.Text)
     is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     
@@ -343,7 +346,10 @@ class Inventory(db.Model):
             'invname': self.invname,
             'invtype': self.invtype,
             'invquantity': self.invquantity,
+            'invprice': float(self.invprice or 0),
             'invdoe': self.invdoe.isoformat() if self.invdoe else None,
+            'invcreatedat': self.invcreatedat.isoformat() if self.invcreatedat else None,
+            'invinitialquantity': self.invinitialquantity,
             'invremarks': self.invremarks,
             'is_deleted': self.is_deleted
         }
@@ -360,7 +366,7 @@ class Inventory(db.Model):
             return 'Inactive'
         elif self.invdoe and self.invdoe < datetime.now().date():
             return 'Expired'
-        elif self.invquantity < 5:
+        elif (self.invquantity or 0) < 5:
             return 'Low Stock'
         else:
             return 'OK'
