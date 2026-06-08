@@ -416,9 +416,7 @@
                     <p class="date">{{ current_date }}</p>
                     <div class="header-actions">
                         <button id="printInventoryBtn" class="secondary-btn"><i class="fas fa-print"></i> Print Report</button>
-                        <button id="sellItemBtn" class="secondary-btn"><i class="fas fa-cash-register"></i> Sell Item</button>
                         {% if session.get('access_level') == 'admin' %}
-                        <button id="inventoryPricesBtn" class="secondary-btn"><i class="fas fa-peso-sign"></i> Item Prices</button>
                         <button id="adminNumberBtn" class="secondary-btn"><i class="fas fa-mobile-screen"></i> Admin Number</button>
                         {% endif %}
                         <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>

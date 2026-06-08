@@ -460,6 +460,69 @@
         .price-grid {
             display: grid;
             gap: 12px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .price-row {
+            align-items: center;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr 140px;
+        }
+
+        .price-row small {
+            color: var(--text-light);
+            display: block;
+            font-weight: 400;
+            margin-top: 3px;
+        }
+
+        .payment-mode-title {
+            background: none;
+            border: 0;
+            color: var(--text-color);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font: inherit;
+            padding: 0;
+            text-align: left;
+        }
+
+        .payment-mode-title:hover {
+            color: var(--primary-color);
+        }
+
+        .mode-hidden {
+            display: none !important;
+        }
+
+        .inventory-cart {
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 12px;
+        }
+
+        .inventory-cart-row {
+            align-items: center;
+            border-bottom: 1px solid #eef2f7;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr auto auto auto;
+            padding: 8px 0;
+        }
+
+        .inventory-cart-row:last-child {
+            border-bottom: 0;
+        }
+
+        .inventory-cart-name {
+            font-weight: 600;
         }
 
         @media (max-width: 1100px) {
@@ -530,36 +593,41 @@
             </div>
 
             <div class="dashboard-overview">
-                <h1><i class="fas fa-receipt"></i> Payments</h1>
+                <h1>
+                    <button type="button" id="paymentModeTitle" class="payment-mode-title" title="Switch payment type">
+                        <i class="fas fa-receipt"></i>
+                        <span id="paymentModeTitleText">Procedure Payments</span>
+                    </button>
+                </h1>
                 <p class="date">{{ current_date }}</p>
 
                 <div class="stats-row">
                     <div class="stat-card">
                         <span class="stat-icon"><i class="fas fa-wallet"></i></span>
                         <div class="stat-info">
-                            <h3>{{ total_collected }}</h3>
-                            <p>Recent Collected</p>
+                            <h3 id="statCollected">{{ total_collected }}</h3>
+                            <p id="statCollectedLabel">Procedure Recent Collected</p>
                         </div>
                     </div>
                     <button type="button" class="stat-card interactive" id="openOutstandingMenu">
                         <span class="stat-icon"><i class="fas fa-file-invoice-dollar"></i></span>
                         <div class="stat-info">
-                            <h3>{{ outstanding_balance }}</h3>
-                            <p>Outstanding Balance</p>
+                            <h3 id="statOutstanding">{{ outstanding_balance }}</h3>
+                            <p id="statOutstandingLabel">Procedure Outstanding Balance</p>
                         </div>
                     </button>
                     <div class="stat-card">
                         <span class="stat-icon"><i class="fas fa-circle-half-stroke"></i></span>
                         <div class="stat-info">
-                            <h3>{{ partial_count }}</h3>
-                            <p>Partial Payments</p>
+                            <h3 id="statPartial">{{ partial_count }}</h3>
+                            <p id="statPartialLabel">Procedure Partial Payments</p>
                         </div>
                     </div>
                     <div class="stat-card">
                         <span class="stat-icon"><i class="fas fa-circle-check"></i></span>
                         <div class="stat-info">
-                            <h3>{{ full_count }}</h3>
-                            <p>Full Payments</p>
+                            <h3 id="statFull">{{ full_count }}</h3>
+                            <p id="statFullLabel">Procedure Full Payments</p>
                         </div>
                     </div>
                 </div>
@@ -567,9 +635,9 @@
                 <div class="payments-grid">
                     <div class="panel">
                         <div class="service-builder-header">
-                            <h2 class="panel-title"><i class="fas fa-plus-circle"></i> Record Payment</h2>
+                            <h2 class="panel-title"><i class="fas fa-plus-circle"></i> <span id="recordPaymentTitle">Record Procedure Payment</span></h2>
                             {% if session.get('access_level') == 'admin' %}
-                            <button type="button" class="icon-btn secondary" id="openPriceEditor" title="Edit service prices">
+                            <button type="button" class="icon-btn secondary" id="openPriceEditor" title="Edit prices">
                                 <i class="fas fa-peso-sign"></i>
                             </button>
                             {% endif %}
@@ -593,7 +661,7 @@
                                 </div>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group procedure-mode-field">
                                 <label class="form-label" for="report_id">Procedure</label>
                                 <div class="search-select" data-search-select>
                                     <input type="text" class="form-control search-select-input" placeholder="Search procedure..." autocomplete="off">
@@ -614,7 +682,7 @@
                                 </div>
                             </div>
 
-                            <div class="service-builder">
+                            <div class="service-builder procedure-mode-field">
                                 <div class="service-builder-header">
                                     <span class="service-builder-title">Service Charges</span>
                                     <button type="button" class="icon-btn primary" id="addServiceBtn" title="Add service">
@@ -623,6 +691,48 @@
                                 </div>
                                 <div id="serviceRows" class="service-rows"></div>
                                 <input type="hidden" id="service_items" name="service_items">
+                            </div>
+
+                            <div id="inventoryPaymentFields" class="service-builder mode-hidden">
+                                <div class="service-builder-header">
+                                    <span class="service-builder-title">Inventory Items</span>
+                                    <button type="button" class="icon-btn primary" id="addInventoryPaymentItem" title="Add inventory item">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="inventoryPaymentItem">Item</label>
+                                    <div class="search-select" data-search-select>
+                                        <input type="text" class="form-control search-select-input" placeholder="Search item..." autocomplete="off">
+                                        <div class="search-select-menu"></div>
+                                        <select id="inventoryPaymentItem" class="form-control">
+                                            <option value="">Select item</option>
+                                            {% for item in sale_items %}
+                                            <option value="{{ item.raw_id }}"
+                                                    data-id="{{ item.id }}"
+                                                    data-name="{{ item.name }}"
+                                                    data-stock="{{ item.quantity }}"
+                                                    data-price="{{ item.price }}"
+                                                    data-type="{{ item.type or 'N/A' }}">
+                                                {{ item.id }} - {{ item.name }} - {{ item.price_display }} - Stock: {{ item.quantity }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="inventoryPaymentQuantity">Quantity</label>
+                                        <input type="number" id="inventoryPaymentQuantity" class="form-control" min="1" value="1">
+                                        <div class="muted" id="inventoryPaymentStockHint">Choose an item to see stock.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="inventoryPaymentPrice">Unit Price</label>
+                                        <input type="number" id="inventoryPaymentPrice" class="form-control" readonly>
+                                    </div>
+                                </div>
+                                <div id="inventoryPaymentCart" class="inventory-cart"></div>
+                                <input type="hidden" id="inventory_sale_items" name="sale_items">
                             </div>
 
                             <div class="form-group">
@@ -641,7 +751,7 @@
                                 </div>
                             </div>
 
-                            <div class="balance-preview">
+                            <div class="balance-preview procedure-mode-field">
                                 <div class="balance-row">
                                     <span>Known paid balance</span>
                                     <strong id="knownPaid">PHP 0.00</strong>
@@ -653,7 +763,7 @@
                             </div>
 
                             <div class="form-row">
-                                <div class="form-group">
+                                <div class="form-group procedure-mode-field">
                                     <label class="form-label" for="payment_type">Payment Type</label>
                                     <select id="payment_type" name="payment_type" class="form-control" required>
                                         <option value="partial">Partial Payment</option>
@@ -695,7 +805,7 @@
 
                     <div class="panel">
                         <div class="service-builder-header">
-                            <h2 class="panel-title"><i class="fas fa-file-invoice-dollar"></i> Payments Menu</h2>
+                            <h2 class="panel-title"><i class="fas fa-file-invoice-dollar"></i> <span id="paymentsMenuTitle">Procedure Payments Menu</span></h2>
                             {% if payments and payments|length > 0 %}
                             <button type="button" class="btn btn-secondary" id="printRecentPayments">
                                 <i class="fas fa-print"></i> Print
@@ -725,7 +835,7 @@
                                 </thead>
                                 <tbody id="paymentRows">
                                     {% for payment in payments %}
-                                    <tr data-search="{{ payment.id }} {{ payment.patient }} {{ payment.description }} {{ payment.method }} {{ payment.type }} {{ payment.amount }} {{ payment.date }}">
+                                    <tr data-payment-source="{{ payment.source }}" data-search="{{ payment.id }} {{ payment.patient }} {{ payment.description }} {{ payment.method }} {{ payment.type }} {{ payment.amount }} {{ payment.date }}">
                                         <td>
                                             <strong>{{ payment.id }}</strong>
                                             {% if payment.id != payment.original_id %}
@@ -856,10 +966,42 @@
             </form>
         </div>
     </div>
+
+    <div class="modal-backdrop" id="inventoryPriceEditorModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-peso-sign"></i> Inventory Item Prices</h2>
+                <button type="button" class="icon-btn secondary" id="closeInventoryPriceEditor" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="inventoryPricesForm">
+                <div class="price-grid">
+                    {% for item in price_items %}
+                    <div class="price-row">
+                        <label class="form-label" for="price_{{ item.raw_id }}">
+                            {{ item.name }}
+                            <small>{{ item.id }} | Stock: {{ item.quantity }}</small>
+                        </label>
+                        <input type="number" id="price_{{ item.raw_id }}" name="price_{{ item.raw_id }}" class="form-control" min="0" step="0.01" value="{{ item.price }}" required>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn btn-secondary" id="cancelInventoryPriceEditor"><i class="fas fa-times"></i> Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Item Prices</button>
+                </div>
+            </form>
+        </div>
+    </div>
     {% endif %}
 
     <script>
         const servicePriceList = {{ service_prices|tojson }};
+        const paymentStats = {
+            procedure: {{ procedure_payment_stats|tojson }},
+            inventory: {{ inventory_payment_stats|tojson }}
+        };
         const paymentForm = document.getElementById('paymentForm');
         const patientSelect = document.getElementById('patient_id');
         const procedureSelect = document.getElementById('report_id');
@@ -881,10 +1023,37 @@
         const openPriceEditor = document.getElementById('openPriceEditor');
         const closePriceEditor = document.getElementById('closePriceEditor');
         const cancelPriceEditor = document.getElementById('cancelPriceEditor');
+        const inventoryPriceEditorModal = document.getElementById('inventoryPriceEditorModal');
+        const closeInventoryPriceEditor = document.getElementById('closeInventoryPriceEditor');
+        const cancelInventoryPriceEditor = document.getElementById('cancelInventoryPriceEditor');
+        const inventoryPricesForm = document.getElementById('inventoryPricesForm');
         const printRecentPayments = document.getElementById('printRecentPayments');
         const recentPaymentsTable = document.getElementById('recentPaymentsTable');
         const outstandingBalanceTable = document.getElementById('outstandingBalanceTable');
         const openOutstandingMenu = document.getElementById('openOutstandingMenu');
+        const paymentModeTitle = document.getElementById('paymentModeTitle');
+        const paymentModeTitleText = document.getElementById('paymentModeTitleText');
+        const recordPaymentTitle = document.getElementById('recordPaymentTitle');
+        const paymentsMenuTitle = document.getElementById('paymentsMenuTitle');
+        const statCollected = document.getElementById('statCollected');
+        const statOutstanding = document.getElementById('statOutstanding');
+        const statPartial = document.getElementById('statPartial');
+        const statFull = document.getElementById('statFull');
+        const statCollectedLabel = document.getElementById('statCollectedLabel');
+        const statOutstandingLabel = document.getElementById('statOutstandingLabel');
+        const statPartialLabel = document.getElementById('statPartialLabel');
+        const statFullLabel = document.getElementById('statFullLabel');
+        const outstandingTab = document.querySelector('[data-payment-view="outstandingBalanceView"]');
+        const inventoryPaymentFields = document.getElementById('inventoryPaymentFields');
+        const inventoryPaymentItem = document.getElementById('inventoryPaymentItem');
+        const inventoryPaymentQuantity = document.getElementById('inventoryPaymentQuantity');
+        const inventoryPaymentPrice = document.getElementById('inventoryPaymentPrice');
+        const inventoryPaymentStockHint = document.getElementById('inventoryPaymentStockHint');
+        const inventoryPaymentCart = document.getElementById('inventoryPaymentCart');
+        const inventorySaleItemsInput = document.getElementById('inventory_sale_items');
+        const addInventoryPaymentItem = document.getElementById('addInventoryPaymentItem');
+        const inventoryCartItems = new Map();
+        let paymentMode = 'procedure';
 
         function escapeHtml(value) {
             return String(value || '')
@@ -959,10 +1128,150 @@
 
         const patientSearchSelect = createSearchSelect(patientSelect);
         const procedureSearchSelect = createSearchSelect(procedureSelect);
+        const inventoryPaymentSearchSelect = createSearchSelect(inventoryPaymentItem);
 
         function money(value) {
             const numberValue = Number(value || 0);
             return `PHP ${numberValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        function currentInventoryOptionData() {
+            const selected = inventoryPaymentItem.options[inventoryPaymentItem.selectedIndex];
+            if (!selected || !selected.value) return null;
+            return {
+                item_id: selected.value,
+                id: selected.dataset.id,
+                name: selected.dataset.name,
+                stock: Number(selected.dataset.stock || 0),
+                price: Number(selected.dataset.price || 0),
+                type: selected.dataset.type || 'N/A'
+            };
+        }
+
+        function renderInventoryCart() {
+            if (!inventoryPaymentCart) return;
+
+            if (!inventoryCartItems.size) {
+                inventoryPaymentCart.innerHTML = '<div class="search-select-empty">No inventory items added.</div>';
+            } else {
+                inventoryPaymentCart.innerHTML = Array.from(inventoryCartItems.values()).map((item) => `
+                    <div class="inventory-cart-row">
+                        <div>
+                            <span class="inventory-cart-name">${escapeHtml(item.name)}</span>
+                            <div class="muted">${escapeHtml(item.id)} | ${escapeHtml(item.type)} | Stock: ${item.stock}</div>
+                        </div>
+                        <span>${item.quantity} x ${money(item.price)}</span>
+                        <strong>${money(item.quantity * item.price)}</strong>
+                        <button type="button" class="icon-btn danger" data-remove-inventory-payment-item="${escapeHtml(item.item_id)}" title="Remove item">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `).join('');
+            }
+
+            const total = Array.from(inventoryCartItems.values()).reduce((sum, item) => sum + (item.quantity * item.price), 0);
+            inventorySaleItemsInput.value = JSON.stringify(Array.from(inventoryCartItems.values()).map((item) => ({
+                item_id: item.item_id,
+                quantity: item.quantity
+            })));
+            totalAmountInput.value = total ? total.toFixed(2) : '';
+            amountPaidInput.value = total ? total.toFixed(2) : '';
+            descriptionInput.value = inventoryCartItems.size
+                ? `Inventory sale: ${Array.from(inventoryCartItems.values()).map((item) => `${item.name} x${item.quantity}`).join(', ')}`
+                : '';
+        }
+
+        function syncInventoryPicker() {
+            const item = currentInventoryOptionData();
+            const stock = item ? item.stock : 0;
+            inventoryPaymentQuantity.max = stock || '';
+            inventoryPaymentQuantity.value = inventoryPaymentQuantity.value || '1';
+            inventoryPaymentPrice.value = item ? item.price.toFixed(2) : '';
+            inventoryPaymentStockHint.textContent = stock ? `Available stock: ${stock}` : 'Choose an item to see stock.';
+            if (stock && Number(inventoryPaymentQuantity.value) > stock) {
+                inventoryPaymentQuantity.value = stock;
+            }
+        }
+
+        function addInventoryCartItem() {
+            const item = currentInventoryOptionData();
+            if (!item) {
+                alert('Please choose an inventory item.');
+                return;
+            }
+            if (item.price <= 0) {
+                alert(`Please set a price for ${item.name} with the peso icon in Inventory Payments before selling it.`);
+                return;
+            }
+
+            const quantity = Number(inventoryPaymentQuantity.value || 0);
+            const existingQuantity = inventoryCartItems.has(item.item_id) ? inventoryCartItems.get(item.item_id).quantity : 0;
+            const remainingStock = item.stock - existingQuantity;
+            if (!Number.isInteger(quantity) || quantity < 1 || quantity > remainingStock) {
+                alert(`Please enter a quantity from 1 to ${remainingStock} for ${item.name}.`);
+                return;
+            }
+
+            inventoryCartItems.set(item.item_id, {
+                ...item,
+                quantity: existingQuantity + quantity
+            });
+            renderInventoryCart();
+            inventoryPaymentItem.value = '';
+            inventoryPaymentItem.dispatchEvent(new Event('change', { bubbles: true }));
+            inventoryPaymentQuantity.value = '1';
+            if (inventoryPaymentSearchSelect) inventoryPaymentSearchSelect.syncInput();
+        }
+
+        function setPaymentMode(nextMode) {
+            paymentMode = nextMode;
+            const isInventory = paymentMode === 'inventory';
+            paymentModeTitleText.textContent = isInventory ? 'Inventory Payments' : 'Procedure Payments';
+            recordPaymentTitle.textContent = isInventory ? 'Record Inventory Payment' : 'Record Procedure Payment';
+            paymentsMenuTitle.textContent = isInventory ? 'Inventory Payments Menu' : 'Procedure Payments Menu';
+            const activeStats = paymentStats[paymentMode];
+            statCollected.textContent = activeStats.total_collected;
+            statOutstanding.textContent = activeStats.outstanding_balance;
+            statPartial.textContent = activeStats.partial_count;
+            statFull.textContent = activeStats.full_count;
+            statCollectedLabel.textContent = isInventory ? 'Inventory Recent Collected' : 'Procedure Recent Collected';
+            statOutstandingLabel.textContent = isInventory ? 'Inventory Outstanding Balance' : 'Procedure Outstanding Balance';
+            statPartialLabel.textContent = isInventory ? 'Inventory Partial Payments' : 'Procedure Partial Payments';
+            statFullLabel.textContent = isInventory ? 'Inventory Full Payments' : 'Procedure Full Payments';
+            if (outstandingTab) {
+                outstandingTab.classList.toggle('mode-hidden', isInventory);
+            }
+            if (openPriceEditor) openPriceEditor.title = isInventory ? 'Edit inventory item prices' : 'Edit service prices';
+            inventoryPaymentFields.classList.toggle('mode-hidden', !isInventory);
+            document.querySelectorAll('.procedure-mode-field').forEach((field) => {
+                field.classList.toggle('mode-hidden', isInventory);
+                field.querySelectorAll('input, select, textarea, button').forEach((control) => {
+                    control.disabled = isInventory;
+                });
+            });
+            inventoryPaymentFields.querySelectorAll('input, select, textarea, button').forEach((control) => {
+                control.disabled = !isInventory;
+            });
+            amountPaidInput.readOnly = isInventory;
+            paymentTypeSelect.value = isInventory ? 'full' : paymentTypeSelect.value;
+
+            if (isInventory) {
+                procedureSelect.value = '';
+                if (procedureSearchSelect) procedureSearchSelect.syncInput();
+                knownPaid.textContent = money(0);
+                remainingAfter.textContent = money(0);
+                renderInventoryCart();
+            } else {
+                inventoryCartItems.clear();
+                renderInventoryCart();
+                amountPaidInput.readOnly = false;
+                setServiceRows([]);
+                updateRemaining();
+            }
+            filterRecentPayments();
+            if (isInventory) {
+                showPaymentView('recentPaymentsView');
+            }
         }
 
         function todayValue() {
@@ -1162,6 +1471,26 @@
         amountPaidInput.addEventListener('input', updateRemaining);
         paymentTypeSelect.addEventListener('change', updateRemaining);
         paymentMethodSelect.addEventListener('change', syncReferenceRequirement);
+        paymentModeTitle.addEventListener('click', () => {
+            setPaymentMode(paymentMode === 'procedure' ? 'inventory' : 'procedure');
+        });
+        inventoryPaymentItem.addEventListener('change', syncInventoryPicker);
+        inventoryPaymentQuantity.addEventListener('input', () => {
+            const maxQuantity = Number(inventoryPaymentQuantity.max);
+            const quantity = Number(inventoryPaymentQuantity.value);
+            if (maxQuantity && quantity > maxQuantity) {
+                inventoryPaymentQuantity.value = maxQuantity;
+            } else if (quantity < 1 && inventoryPaymentQuantity.value !== '') {
+                inventoryPaymentQuantity.value = 1;
+            }
+        });
+        addInventoryPaymentItem.addEventListener('click', addInventoryCartItem);
+        inventoryPaymentCart.addEventListener('click', (event) => {
+            const removeButton = event.target.closest('[data-remove-inventory-payment-item]');
+            if (!removeButton) return;
+            inventoryCartItems.delete(removeButton.dataset.removeInventoryPaymentItem);
+            renderInventoryCart();
+        });
         addServiceBtn.addEventListener('click', () => createServiceRow({ key: 'special_case' }));
         serviceRows.addEventListener('change', (event) => {
             const row = event.target.closest('.service-row');
@@ -1187,11 +1516,21 @@
         });
 
         if (openPriceEditor && priceEditorModal) {
-            openPriceEditor.addEventListener('click', () => priceEditorModal.classList.add('show'));
+            openPriceEditor.addEventListener('click', () => {
+                if (paymentMode === 'inventory' && inventoryPriceEditorModal) {
+                    inventoryPriceEditorModal.classList.add('show');
+                } else {
+                    priceEditorModal.classList.add('show');
+                }
+            });
         }
         [closePriceEditor, cancelPriceEditor].forEach((button) => {
             if (!button || !priceEditorModal) return;
             button.addEventListener('click', () => priceEditorModal.classList.remove('show'));
+        });
+        [closeInventoryPriceEditor, cancelInventoryPriceEditor].forEach((button) => {
+            if (!button || !inventoryPriceEditorModal) return;
+            button.addEventListener('click', () => inventoryPriceEditorModal.classList.remove('show'));
         });
         if (priceEditorModal) {
             priceEditorModal.addEventListener('click', (event) => {
@@ -1200,8 +1539,81 @@
                 }
             });
         }
+        if (inventoryPriceEditorModal) {
+            inventoryPriceEditorModal.addEventListener('click', (event) => {
+                if (event.target === inventoryPriceEditorModal) {
+                    inventoryPriceEditorModal.classList.remove('show');
+                }
+            });
+        }
+        if (inventoryPricesForm) {
+            inventoryPricesForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                try {
+                    const response = await fetch('/update_inventory_prices', {
+                        method: 'POST',
+                        body: new FormData(inventoryPricesForm)
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        alert(result.error || 'Unable to save inventory prices.');
+                        return;
+                    }
+                    (result.items || []).forEach((item) => {
+                        const option = inventoryPaymentItem.querySelector(`option[value="${item.raw_id}"]`);
+                        if (!option) return;
+                        option.dataset.price = item.price;
+                        option.textContent = `${item.id} - ${item.name} - ${item.price_display} - Stock: ${item.quantity}`;
+                    });
+                    inventoryPriceEditorModal.classList.remove('show');
+                } catch (error) {
+                    alert('Unable to save inventory prices.');
+                }
+            });
+        }
 
-        paymentForm.addEventListener('submit', (event) => {
+        paymentForm.addEventListener('submit', async (event) => {
+            if (paymentMode === 'inventory') {
+                event.preventDefault();
+
+                if (!patientSelect.value) {
+                    alert('Please choose a patient.');
+                    patientSelect.focus();
+                    return;
+                }
+                if (!inventoryCartItems.size) {
+                    alert('Please add at least one inventory item.');
+                    return;
+                }
+
+                renderInventoryCart();
+                const formData = new FormData();
+                formData.append('patient_id', patientSelect.value);
+                formData.append('payment_method', paymentMethodSelect.value);
+                formData.append('reference_number', referenceInput.value);
+                formData.append('notes', document.getElementById('notes').value);
+                formData.append('sale_items', inventorySaleItemsInput.value);
+
+                try {
+                    const response = await fetch('/sell_inventory_item', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        if (result.receipt_url) {
+                            window.open(result.receipt_url, '_blank');
+                        }
+                        window.location.href = '{{ url_for("payments") }}';
+                    } else {
+                        alert(result.error || 'Unable to save inventory payment.');
+                    }
+                } catch (error) {
+                    alert('Unable to save inventory payment.');
+                }
+                return;
+            }
+
             const items = collectServiceItems();
             if (!items.length) {
                 event.preventDefault();
@@ -1215,29 +1627,39 @@
             setTimeout(() => {
                 serviceRows.innerHTML = '';
                 createServiceRow();
+                inventoryCartItems.clear();
+                renderInventoryCart();
                 paymentDateInput.value = todayValue();
                 syncProcedureOptions();
                 syncReferenceRequirement();
+                if (paymentMode === 'inventory') {
+                    setPaymentMode('inventory');
+                }
                 updateRemaining();
             }, 0);
         });
 
-        if (paymentSearch) {
-            paymentSearch.addEventListener('input', () => {
-                const keyword = paymentSearch.value.toLowerCase().trim();
-                const rows = Array.from(document.querySelectorAll('#paymentRows tr'));
-                let visibleRows = 0;
+        function filterRecentPayments() {
+            if (!paymentSearch) return;
+            const keyword = paymentSearch.value.toLowerCase().trim();
+            const rows = Array.from(document.querySelectorAll('#paymentRows tr'));
+            let visibleRows = 0;
 
-                rows.forEach((row) => {
-                    const isVisible = row.dataset.search.toLowerCase().includes(keyword);
-                    row.style.display = isVisible ? '' : 'none';
-                    if (isVisible) visibleRows += 1;
-                });
-
-                if (emptySearch) {
-                    emptySearch.style.display = rows.length && visibleRows === 0 ? 'block' : 'none';
-                }
+            rows.forEach((row) => {
+                const sourceMatches = row.dataset.paymentSource === paymentMode;
+                const searchMatches = row.dataset.search.toLowerCase().includes(keyword);
+                const isVisible = sourceMatches && searchMatches;
+                row.style.display = isVisible ? '' : 'none';
+                if (isVisible) visibleRows += 1;
             });
+
+            if (emptySearch) {
+                emptySearch.style.display = rows.length && visibleRows === 0 ? 'block' : 'none';
+            }
+        }
+
+        if (paymentSearch) {
+            paymentSearch.addEventListener('input', filterRecentPayments);
         }
 
         function sortTableByHeader(table, header, columnIndex) {
@@ -1294,7 +1716,11 @@
         });
 
         if (openOutstandingMenu) {
-            openOutstandingMenu.addEventListener('click', () => showPaymentView('outstandingBalanceView'));
+            openOutstandingMenu.addEventListener('click', () => {
+                if (paymentMode === 'procedure') {
+                    showPaymentView('outstandingBalanceView');
+                }
+            });
         }
 
         document.querySelectorAll('.pay-outstanding').forEach((button) => {
@@ -1357,6 +1783,7 @@
         createServiceRow();
         syncProcedureOptions();
         syncReferenceRequirement();
+        setPaymentMode('procedure');
         updateRemaining();
     </script>
 </body>

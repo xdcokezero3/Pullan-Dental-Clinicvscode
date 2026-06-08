@@ -4537,6 +4537,7 @@ def inventory():
             or_(Inventory.invdoe.is_(None), Inventory.invdoe >= date.today())
         ).order_by(Inventory.invname.asc()).all()
         price_items = Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all()
+        price_items = Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all()
         
         return render_template('inventory.html', 
                               inventory_items=formatted_items,
@@ -6753,6 +6754,15 @@ def get_payment_service_items(payment_record):
 
     return formatted_items
 
+def payment_is_inventory_sale(payment_record):
+    if (payment_record.description or '').lower().startswith('inventory sale:'):
+        return True
+    try:
+        service_items = json.loads(payment_record.service_items or '[]')
+    except (TypeError, json.JSONDecodeError):
+        service_items = []
+    return any(isinstance(item, dict) and item.get('key') == 'inventory_item' for item in service_items)
+
 def procedure_name_from_report(procedure):
     procedures_done = []
     if procedure.repcleaning:
@@ -6807,6 +6817,13 @@ def payments():
         patients_list = Patient.query.filter_by(is_deleted=False).order_by(Patient.patname.asc()).all()
         all_patients = Patient.query.all()
         patient_by_name = {patient.patname: patient for patient in all_patients}
+        ensure_inventory_schema()
+        sale_items = Inventory.query.filter(
+            Inventory.is_deleted == False,
+            Inventory.invquantity > 0,
+            or_(Inventory.invdoe.is_(None), Inventory.invdoe >= date.today())
+        ).order_by(Inventory.invname.asc()).all()
+        price_items = Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all()
 
         reports = Report.query.order_by(Report.repdate.desc(), Report.repid.desc()).all()
         report_payment_summaries = build_report_payment_summaries()
@@ -6841,15 +6858,27 @@ def payments():
         all_payment_records = Payment.query.all()
         payment_records = Payment.query.order_by(Payment.paid_at.desc(), Payment.payment_id.desc()).limit(100).all()
         formatted_payments = []
-        total_collected = Decimal('0.00')
-        full_count = 0
-        partial_count = 0
+        payment_stats = {
+            'procedure': {
+                'total_collected': Decimal('0.00'),
+                'outstanding_balance': Decimal('0.00'),
+                'full_count': 0,
+                'partial_count': 0
+            },
+            'inventory': {
+                'total_collected': Decimal('0.00'),
+                'outstanding_balance': Decimal('0.00'),
+                'full_count': 0,
+                'partial_count': 0
+            }
+        }
         transaction_summaries_by_root = {}
         outstanding_transactions = []
 
         for payment_record in all_payment_records:
             amount_paid = decimal_money(payment_record.amount_paid)
-            total_collected += amount_paid
+            payment_source = 'inventory' if payment_is_inventory_sale(payment_record) else 'procedure'
+            payment_stats[payment_source]['total_collected'] += amount_paid
 
             root_id = payment_root_id(payment_record)
             if root_id in transaction_summaries_by_root:
@@ -6857,11 +6886,14 @@ def payments():
 
             transaction_summary = get_payment_transaction_summary(payment_record)
             transaction_summaries_by_root[root_id] = transaction_summary
+            root_source = 'inventory' if payment_is_inventory_sale(transaction_summary['payments'][0]) else 'procedure'
             if transaction_summary['remaining_balance'] <= 0:
-                full_count += 1
+                payment_stats[root_source]['full_count'] += 1
             else:
-                partial_count += 1
-                if not payment_record.report_id:
+                payment_stats[root_source]['partial_count'] += 1
+                if root_source == 'inventory' or not transaction_summary['payments'][0].report_id:
+                    payment_stats[root_source]['outstanding_balance'] += transaction_summary['remaining_balance']
+                if root_source == 'procedure' and not payment_record.report_id:
                     outstanding_transactions.append({
                         'id': transaction_summary['original_receipt_id'],
                         'patient': payment_record.patient_name,
@@ -6876,9 +6908,11 @@ def payments():
 
         for payment_record in payment_records:
             transaction_summary = get_payment_transaction_summary(payment_record)
+            payment_source = 'inventory' if payment_is_inventory_sale(payment_record) else 'procedure'
             formatted_payments.append({
                 'raw_id': payment_record.payment_id,
                 'root_id': transaction_summary['root_id'],
+                'source': payment_source,
                 'id': payment_record.formatted_id(),
                 'original_id': transaction_summary['original_receipt_id'],
                 'patient': payment_record.patient_name,
@@ -6893,10 +6927,12 @@ def payments():
             })
 
         outstanding_procedures = []
+        procedure_report_outstanding = Decimal('0.00')
         for procedure in formatted_reports:
             raw_balance = decimal_money(procedure['balance'] or 0)
             if raw_balance <= 0:
                 continue
+            procedure_report_outstanding += raw_balance
             outstanding_procedures.append({
                 'id': procedure['id'],
                 'patient': procedure['patient_name'],
@@ -6910,12 +6946,20 @@ def payments():
                 'receipt_payment_id': ''
             })
 
-        outstanding_balance = sum((decimal_money(item['balance_raw']) for item in outstanding_procedures), Decimal('0.00'))
-        outstanding_balance += sum(
-            (transaction_summary['remaining_balance'] for transaction_summary in transaction_summaries_by_root.values()
-             if transaction_summary['remaining_balance'] > 0 and not transaction_summary['payments'][0].report_id),
-            Decimal('0.00')
-        )
+        payment_stats['procedure']['outstanding_balance'] += procedure_report_outstanding
+
+        procedure_payment_stats = {
+            'total_collected': format_money(payment_stats['procedure']['total_collected']),
+            'outstanding_balance': format_money(payment_stats['procedure']['outstanding_balance']),
+            'full_count': payment_stats['procedure']['full_count'],
+            'partial_count': payment_stats['procedure']['partial_count']
+        }
+        inventory_payment_stats = {
+            'total_collected': format_money(payment_stats['inventory']['total_collected']),
+            'outstanding_balance': format_money(payment_stats['inventory']['outstanding_balance']),
+            'full_count': payment_stats['inventory']['full_count'],
+            'partial_count': payment_stats['inventory']['partial_count']
+        }
 
         current_date = datetime.now().strftime("%A, %B %d, %Y")
 
@@ -6926,12 +6970,16 @@ def payments():
             payments=formatted_payments,
             outstanding_items=outstanding_procedures + outstanding_transactions,
             payment_methods=PAYMENT_METHOD_LABELS,
+            sale_items=[format_inventory_item(item) for item in sale_items],
+            price_items=[format_inventory_item(item) for item in price_items],
             service_prices=service_prices,
             selected_patient_id=selected_patient_id,
-            total_collected=format_money(total_collected),
-            outstanding_balance=format_money(outstanding_balance),
-            full_count=full_count,
-            partial_count=partial_count,
+            total_collected=procedure_payment_stats['total_collected'],
+            outstanding_balance=procedure_payment_stats['outstanding_balance'],
+            full_count=procedure_payment_stats['full_count'],
+            partial_count=procedure_payment_stats['partial_count'],
+            procedure_payment_stats=procedure_payment_stats,
+            inventory_payment_stats=inventory_payment_stats,
             current_date=current_date
         )
 
