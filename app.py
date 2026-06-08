@@ -2226,6 +2226,15 @@ def is_valid_ph_mobile_number(raw_number):
 
 PH_MOBILE_VALIDATION_MESSAGE = "Please enter a valid Philippine mobile number: exactly 11 digits starting with 09."
 
+def normalize_plus63_mobile_number(raw_number):
+    """Normalize +63 Philippine mobile numbers while requiring +639XXXXXXXXX input."""
+    number = re.sub(r'\s+', '', raw_number or '')
+    if not re.fullmatch(r'\+639\d{9}', number):
+        return None
+    return number
+
+PLUS63_MOBILE_VALIDATION_MESSAGE = "Please enter a valid Philippine mobile number in +63 format, like +639171234567."
+
 def normalize_twilio_number(raw_number):
     """Normalize common phone formats to Twilio-friendly E.164 numbers."""
     number = (raw_number or '').strip()
@@ -4304,6 +4313,107 @@ def print_staff_report():
 # INVENTORY MANAGEMENT ROUTES - COMPLETE IMPLEMENTATION
 # ======================================================================
 
+def ensure_app_settings_table():
+    db.session.execute(text("""
+        CREATE TABLE IF NOT EXISTS app_settings (
+            setting_key VARCHAR(120) PRIMARY KEY,
+            setting_value TEXT,
+            updated_at TIMESTAMP
+        )
+    """))
+    db.session.commit()
+
+def get_app_setting(setting_key, default_value=''):
+    ensure_app_settings_table()
+    row = db.session.execute(
+        text("SELECT setting_value FROM app_settings WHERE setting_key = :setting_key"),
+        {'setting_key': setting_key}
+    ).fetchone()
+    return row[0] if row else default_value
+
+def set_app_setting(setting_key, setting_value):
+    ensure_app_settings_table()
+    existing = db.session.execute(
+        text("SELECT setting_key FROM app_settings WHERE setting_key = :setting_key"),
+        {'setting_key': setting_key}
+    ).fetchone()
+    params = {
+        'setting_key': setting_key,
+        'setting_value': setting_value,
+        'updated_at': datetime.utcnow()
+    }
+    if existing:
+        db.session.execute(text("""
+            UPDATE app_settings
+            SET setting_value = :setting_value, updated_at = :updated_at
+            WHERE setting_key = :setting_key
+        """), params)
+    else:
+        db.session.execute(text("""
+            INSERT INTO app_settings (setting_key, setting_value, updated_at)
+            VALUES (:setting_key, :setting_value, :updated_at)
+        """), params)
+    db.session.commit()
+
+def get_inventory_admin_number():
+    return get_app_setting(INVENTORY_ADMIN_NUMBER_KEY, '')
+
+def get_inventory_stats():
+    active_items = Inventory.query.filter_by(is_deleted=False).all()
+    return {
+        'total_items': len(active_items),
+        'low_stock': sum(1 for item in active_items if (item.invquantity or 0) < INVENTORY_LOW_STOCK_THRESHOLD),
+        'expired': sum(1 for item in active_items if item.invdoe and item.invdoe < datetime.now().date()),
+        'total_value': len(active_items) * 10
+    }
+
+def format_inventory_item(item):
+    is_expired = item.invdoe and item.invdoe < datetime.now().date()
+    quantity = item.invquantity or 0
+    return {
+        'id': f"INV-{item.invid:03d}",
+        'name': item.invname,
+        'type': item.invtype,
+        'quantity': quantity,
+        'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
+        'min_quantity': INVENTORY_LOW_STOCK_THRESHOLD,
+        'status': "Expired" if is_expired else ("Low Stock" if quantity < INVENTORY_LOW_STOCK_THRESHOLD else "OK"),
+        'remarks': item.invremarks or "",
+        'is_active': not item.is_deleted,
+        'raw_id': item.invid
+    }
+
+def send_low_stock_inventory_alert(item, context='Inventory update'):
+    admin_number = get_inventory_admin_number()
+    if not admin_number:
+        return 'No admin mobile number is saved for low stock alerts.'
+
+    normalized_number = normalize_plus63_mobile_number(admin_number)
+    if not normalized_number:
+        return PLUS63_MOBILE_VALIDATION_MESSAGE
+
+    message = (
+        f"Pullan Dental Clinic inventory alert: {item.invname} is low on stock. "
+        f"Remaining quantity: {item.invquantity or 0}. Source: {context}."
+    )
+    try:
+        send_sms_via_provider(normalized_number, message)
+        log_user_action(
+            session.get('user_id'),
+            'Inventory Low Stock SMS',
+            f'Sent low stock alert for {item.invname} to {normalized_number}'
+        )
+        return ''
+    except Exception as e:
+        return f"Low stock SMS could not be sent: {redact_sms_secrets(str(e)[:300])}"
+
+def notify_if_item_crossed_low_stock(item, previous_quantity, context):
+    previous_quantity = previous_quantity if previous_quantity is not None else INVENTORY_LOW_STOCK_THRESHOLD
+    current_quantity = item.invquantity or 0
+    if previous_quantity >= INVENTORY_LOW_STOCK_THRESHOLD and current_quantity < INVENTORY_LOW_STOCK_THRESHOLD:
+        return send_low_stock_inventory_alert(item, context)
+    return ''
+
 @app.route('/inventory')
 def inventory():
     """Render the inventory management page with status filtering"""
@@ -4317,28 +4427,13 @@ def inventory():
         else:
             inventory_items = Inventory.query.all()
         
-        formatted_items = []
-        for item in inventory_items:
-            is_expired = item.invdoe and item.invdoe < datetime.now().date()
-            
-            formatted_items.append({
-                'id': f"INV-{item.invid:03d}",
-                'name': item.invname,
-                'type': item.invtype,
-                'quantity': item.invquantity,
-                'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
-                'min_quantity': 5,
-                'status': "Expired" if is_expired else ("Low" if item.invquantity < 5 else "OK"),
-                'remarks': item.invremarks or "",
-                'is_active': not item.is_deleted,
-                'raw_id': item.invid
-            })
+        formatted_items = [format_inventory_item(item) for item in inventory_items]
         
         current_date = datetime.now().strftime("%A, %B %d, %Y")
         
         active_items = Inventory.query.filter_by(is_deleted=False).all()
         total_items = len(active_items)
-        low_stock = sum(1 for item in active_items if item.invquantity < 5)
+        low_stock = sum(1 for item in active_items if (item.invquantity or 0) < INVENTORY_LOW_STOCK_THRESHOLD)
         expired = sum(1 for item in active_items if item.invdoe and item.invdoe < datetime.now().date())
         
         total_value = sum(item.invquantity * 10 for item in active_items)
@@ -4346,9 +4441,18 @@ def inventory():
         active_count = Inventory.query.filter_by(is_deleted=False).count()
         inactive_count = Inventory.query.filter_by(is_deleted=True).count()
         total_count = active_count + inactive_count
+        patients_list = Patient.query.filter_by(is_deleted=False).order_by(Patient.patname.asc()).all()
+        sale_items = Inventory.query.filter(
+            Inventory.is_deleted == False,
+            Inventory.invquantity > 0,
+            or_(Inventory.invdoe.is_(None), Inventory.invdoe >= date.today())
+        ).order_by(Inventory.invname.asc()).all()
         
         return render_template('inventory.html', 
                               inventory_items=formatted_items,
+                              sale_items=[format_inventory_item(item) for item in sale_items],
+                              patients=patients_list,
+                              inventory_admin_number=get_inventory_admin_number(),
                               total_items=total_items,
                               low_stock_count=low_stock,
                               expired_count=expired,
@@ -4372,9 +4476,10 @@ def get_inventory_item(item_id):
             'id': f"INV-{item.invid:03d}",
             'name': item.invname, 
             'type': item.invtype,
-            'quantity': item.invquantity,
+            'quantity': item.invquantity or 0,
             'expiry_date': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "",
-            'min_quantity': 5,
+            'min_quantity': INVENTORY_LOW_STOCK_THRESHOLD,
+            'status': item.status,
             'remarks': item.invremarks or "",
             'is_active': not item.is_deleted,
             'raw_id': item.invid
@@ -4410,36 +4515,15 @@ def add_inventory():
             f'Added new inventory item: {new_item.invname} (Quantity: {new_item.invquantity})'
         )
         
-        active_items = Inventory.query.filter_by(is_deleted=False).all()
-        total_items = len(active_items)
-        low_stock = sum(1 for item in active_items if item.invquantity < 5)
-        expired = sum(1 for item in active_items if item.invdoe and item.invdoe < datetime.now().date())
-        
-        is_expired = new_item.invdoe and new_item.invdoe < datetime.now().date()
-        formatted_item = {
-            'id': f"INV-{new_item.invid:03d}",
-            'name': new_item.invname,
-            'type': new_item.invtype,
-            'quantity': new_item.invquantity,
-            'expiry': new_item.invdoe.strftime('%Y-%m-%d') if new_item.invdoe else "N/A",
-            'min_quantity': 5,
-            'status': "Expired" if is_expired else ("Low" if new_item.invquantity < 5 else "OK"),
-            'remarks': new_item.invremarks or "",
-            'is_active': True,
-            'raw_id': new_item.invid
-        }
-        
-        inventory_stats = {
-            'total_items': total_items,
-            'low_stock': low_stock,
-            'expired': expired,
-            'total_value': total_items * 10
-        }
+        formatted_item = format_inventory_item(new_item)
+        inventory_stats = get_inventory_stats()
+        sms_warning = notify_if_item_crossed_low_stock(new_item, INVENTORY_LOW_STOCK_THRESHOLD, 'new inventory item')
         
         return jsonify({
             "success": True, 
             "item": formatted_item,
-            "stats": inventory_stats
+            "stats": inventory_stats,
+            "sms_warning": sms_warning
         })
     except Exception as e:
         db.session.rollback()
@@ -4474,36 +4558,15 @@ def update_inventory(item_id):
             f'Updated inventory item: {old_name} -> {item.invname} (Quantity: {old_quantity} -> {item.invquantity})'
         )
         
-        active_items = Inventory.query.filter_by(is_deleted=False).all()
-        total_items = len(active_items)
-        low_stock = sum(1 for item_stat in active_items if item_stat.invquantity < 5)
-        expired = sum(1 for item_stat in active_items if item_stat.invdoe and item_stat.invdoe < datetime.now().date())
-        
-        is_expired = item.invdoe and item.invdoe < datetime.now().date()
-        formatted_item = {
-            'id': f"INV-{item.invid:03d}",
-            'name': item.invname,
-            'type': item.invtype,
-            'quantity': item.invquantity,
-            'expiry': item.invdoe.strftime('%Y-%m-%d') if item.invdoe else "N/A",
-            'min_quantity': 5,
-            'status': "Expired" if is_expired else ("Low" if item.invquantity < 5 else "OK"),
-            'remarks': item.invremarks or "",
-            'is_active': not item.is_deleted,
-            'raw_id': item.invid
-        }
-        
-        inventory_stats = {
-            'total_items': total_items,
-            'low_stock': low_stock,
-            'expired': expired,
-            'total_value': total_items * 10
-        }
+        formatted_item = format_inventory_item(item)
+        inventory_stats = get_inventory_stats()
+        sms_warning = notify_if_item_crossed_low_stock(item, old_quantity, 'inventory update')
         
         return jsonify({
             "success": True, 
             "item": formatted_item,
-            "stats": inventory_stats
+            "stats": inventory_stats,
+            "sms_warning": sms_warning
         })
     except Exception as e:
         db.session.rollback()
@@ -4574,6 +4637,126 @@ def reactivate_inventory(item_id):
     except Exception as e:
         db.session.rollback()
         print(f"Error in reactivate_inventory route: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update_inventory_admin_number', methods=['POST'])
+@admin_required
+def update_inventory_admin_number():
+    """Save the admin mobile number used for inventory low-stock SMS alerts."""
+    try:
+        raw_number = request.form.get('admin_number', '')
+        normalized_number = normalize_plus63_mobile_number(raw_number)
+        if not normalized_number:
+            return jsonify({"success": False, "error": PLUS63_MOBILE_VALIDATION_MESSAGE})
+
+        set_app_setting(INVENTORY_ADMIN_NUMBER_KEY, normalized_number)
+        log_user_action(
+            session.get('user_id'),
+            'Update Inventory Admin Number',
+            f'Saved inventory low stock admin number: {normalized_number}'
+        )
+        return jsonify({"success": True, "admin_number": normalized_number})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating inventory admin number: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/sell_inventory_item', methods=['POST'])
+def sell_inventory_item():
+    """Sell an inventory item to a patient, reduce stock, and create a full payment receipt."""
+    try:
+        ensure_payments_table()
+
+        item_id = request.form.get('item_id', type=int)
+        patient_id = request.form.get('patient_id', type=int)
+        quantity = request.form.get('quantity', type=int)
+        payment_method = (request.form.get('payment_method') or '').strip()
+        reference_number = (request.form.get('reference_number') or '').strip()
+        notes = (request.form.get('notes') or '').strip()
+
+        if not item_id:
+            return jsonify({"success": False, "error": "Please choose an inventory item."})
+        if not patient_id:
+            return jsonify({"success": False, "error": "Please choose a client."})
+        if not quantity or quantity < 1:
+            return jsonify({"success": False, "error": "Sale quantity must be at least 1."})
+        if payment_method not in PAYMENT_METHOD_LABELS:
+            return jsonify({"success": False, "error": "Please choose a valid payment method."})
+        if payment_method in ('gcash', 'bank_transfer') and not reference_number:
+            return jsonify({"success": False, "error": "Reference number is required for GCash and bank transfer payments."})
+
+        unit_price = parse_money(request.form.get('unit_price'), 'unit price')
+        sale_total = (unit_price * Decimal(quantity)).quantize(MONEY_QUANT)
+        item = Inventory.query.filter_by(invid=item_id, is_deleted=False).first()
+        if not item:
+            return jsonify({"success": False, "error": "Selected inventory item was not found or is inactive."})
+        if item.invdoe and item.invdoe < date.today():
+            return jsonify({"success": False, "error": f"{item.invname} is expired and cannot be sold."})
+
+        current_quantity = item.invquantity or 0
+        if quantity > current_quantity:
+            return jsonify({
+                "success": False,
+                "error": f"Not enough stock for {item.invname}. Available: {current_quantity}, requested: {quantity}."
+            })
+
+        patient = Patient.query.get_or_404(patient_id)
+        previous_quantity = current_quantity
+        item.invquantity = current_quantity - quantity
+
+        description = f"Inventory sale: {item.invname} x{quantity}"
+        service_items = [{
+            'key': 'inventory_item',
+            'name': description,
+            'quantity': f"{Decimal(quantity):.2f}",
+            'unit_price': f"{unit_price:.2f}",
+            'line_total': f"{sale_total:.2f}"
+        }]
+        new_payment = Payment(
+            patient_id=patient.patId,
+            patient_name=patient.patname,
+            report_id=None,
+            description=description[:255],
+            service_items=json.dumps(service_items),
+            total_amount=sale_total,
+            balance_before=sale_total,
+            amount_paid=sale_total,
+            balance_after=Decimal('0.00'),
+            payment_type='full',
+            payment_method=payment_method,
+            reference_number=reference_number or None,
+            notes=notes or None,
+            received_by=session.get('real_name', session.get('username', 'Unknown User')),
+            paid_at=datetime.now()
+        )
+
+        db.session.add(new_payment)
+        db.session.flush()
+        sync_transaction_payment_status(new_payment.payment_id)
+        db.session.commit()
+
+        sms_warning = notify_if_item_crossed_low_stock(item, previous_quantity, 'inventory sale')
+        log_user_action(
+            session.get('user_id'),
+            'Inventory Sale',
+            f'Sold {item.invname} x{quantity} to {patient.patname} for {format_money(sale_total)}'
+            + (f' | SMS warning: {sms_warning}' if sms_warning else '')
+        )
+
+        return jsonify({
+            "success": True,
+            "message": "Inventory sale recorded successfully.",
+            "item": format_inventory_item(item),
+            "stats": get_inventory_stats(),
+            "receipt_url": url_for('payment_receipt', payment_id=new_payment.payment_id),
+            "sms_warning": sms_warning
+        })
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error selling inventory item: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/filter_inventory/<filter_type>')
@@ -5769,9 +5952,12 @@ def add_procedure():
         db.session.add(new_procedure)
 
         used_inventory_summary = []
+        low_stock_alerts = []
         for inventory_item, used_quantity in inventory_usage:
+            previous_quantity = inventory_item.invquantity or 0
             inventory_item.invquantity = (inventory_item.invquantity or 0) - used_quantity
             used_inventory_summary.append(f"{inventory_item.invname} x{used_quantity}")
+            low_stock_alerts.append((inventory_item, previous_quantity))
         
         procedures_done = []
         for procedure_config in procedure_configs:
@@ -5843,6 +6029,12 @@ def add_procedure():
                 updated_teeth_summary.append(f"{procedure_config['label']}: {teeth_summary} to {procedure_config['condition']}")
 
         db.session.commit()
+
+        sms_warnings = [
+            warning for inventory_item, previous_quantity in low_stock_alerts
+            for warning in [notify_if_item_crossed_low_stock(inventory_item, previous_quantity, 'procedure inventory use')]
+            if warning
+        ]
         
         log_user_action(
             session.get('user_id'),
@@ -5850,6 +6042,7 @@ def add_procedure():
             f'Added procedure for {patient.patname}: {procedure_summary}'
             + (f' | Inventory used: {", ".join(used_inventory_summary)}' if used_inventory_summary else '')
             + (f' | Updated teeth: {"; ".join(updated_teeth_summary)}' if updated_teeth_summary else '')
+            + (f' | SMS warnings: {"; ".join(sms_warnings)}' if sms_warnings else '')
         )
         
         return jsonify({
@@ -6080,6 +6273,9 @@ PAYMENT_TYPE_LABELS = {
     'full': 'Full Payment'
 }
 
+INVENTORY_LOW_STOCK_THRESHOLD = 5
+INVENTORY_ADMIN_NUMBER_KEY = 'inventory_low_stock_admin_number'
+
 SERVICE_PRICE_LIST = [
     {'key': 'cleaning', 'label': 'Cleaning / Oral Prophylaxis', 'price': '1000.00'},
     {'key': 'extraction', 'label': 'Tooth Extraction', 'price': '1500.00'},
@@ -6303,6 +6499,17 @@ def get_payment_transaction_summary(payment_record):
         'status': 'Fully Paid' if remaining_balance <= 0 else 'Partial Payment'
     }
 
+def sync_transaction_payment_status(root_payment_id):
+    transaction_payments = get_transaction_payments(root_payment_id)
+    if not transaction_payments:
+        return
+
+    total_amount = decimal_money(transaction_payments[0].total_amount)
+    total_paid = sum((decimal_money(payment.amount_paid) for payment in transaction_payments), Decimal('0.00')).quantize(MONEY_QUANT)
+    final_type = 'full' if total_amount - total_paid <= 0 else 'partial'
+    for payment in transaction_payments:
+        payment.payment_type = final_type
+
 def parse_service_items(raw_items, fallback_description, fallback_amount, service_prices):
     try:
         submitted_items = json.loads(raw_items or '[]')
@@ -6474,14 +6681,35 @@ def payments():
         total_collected = Decimal('0.00')
         full_count = 0
         partial_count = 0
+        transaction_summaries_by_root = {}
+        outstanding_transactions = []
 
         for payment_record in all_payment_records:
             amount_paid = decimal_money(payment_record.amount_paid)
             total_collected += amount_paid
-            if decimal_money(payment_record.balance_after) <= 0:
+
+            root_id = payment_root_id(payment_record)
+            if root_id in transaction_summaries_by_root:
+                continue
+
+            transaction_summary = get_payment_transaction_summary(payment_record)
+            transaction_summaries_by_root[root_id] = transaction_summary
+            if transaction_summary['remaining_balance'] <= 0:
                 full_count += 1
             else:
                 partial_count += 1
+                if not payment_record.report_id:
+                    outstanding_transactions.append({
+                        'id': transaction_summary['original_receipt_id'],
+                        'patient': payment_record.patient_name,
+                        'description': payment_record.description or 'Dental service',
+                        'total': format_money(transaction_summary['total_amount']),
+                        'paid': format_money(transaction_summary['total_paid']),
+                        'balance': format_money(transaction_summary['remaining_balance']),
+                        'receipt_payment_id': root_id,
+                        'patient_id': payment_record.patient_id,
+                        'report_id': ''
+                    })
 
         for payment_record in payment_records:
             transaction_summary = get_payment_transaction_summary(payment_record)
@@ -6501,7 +6729,30 @@ def payments():
                 'status_class': 'paid' if transaction_summary['remaining_balance'] <= 0 else 'partial'
             })
 
-        outstanding_balance = sum((summary['balance'] for summary in report_payment_summaries.values()), Decimal('0.00'))
+        outstanding_procedures = []
+        for procedure in formatted_reports:
+            raw_balance = decimal_money(procedure['balance'] or 0)
+            if raw_balance <= 0:
+                continue
+            outstanding_procedures.append({
+                'id': procedure['id'],
+                'patient': procedure['patient_name'],
+                'description': procedure['description'],
+                'total': format_money(procedure['total_amount'] or 0),
+                'paid': format_money(procedure['paid'] or 0),
+                'balance': format_money(raw_balance),
+                'balance_raw': f"{raw_balance:.2f}",
+                'patient_id': procedure['patient_id'],
+                'report_id': procedure['raw_id'],
+                'receipt_payment_id': ''
+            })
+
+        outstanding_balance = sum((decimal_money(item['balance_raw']) for item in outstanding_procedures), Decimal('0.00'))
+        outstanding_balance += sum(
+            (transaction_summary['remaining_balance'] for transaction_summary in transaction_summaries_by_root.values()
+             if transaction_summary['remaining_balance'] > 0 and not transaction_summary['payments'][0].report_id),
+            Decimal('0.00')
+        )
 
         current_date = datetime.now().strftime("%A, %B %d, %Y")
 
@@ -6510,6 +6761,7 @@ def payments():
             patients=patients_list,
             procedures=formatted_reports,
             payments=formatted_payments,
+            outstanding_items=outstanding_procedures + outstanding_transactions,
             payment_methods=PAYMENT_METHOD_LABELS,
             service_prices=service_prices,
             selected_patient_id=selected_patient_id,
@@ -6634,6 +6886,8 @@ def add_payment():
         )
 
         db.session.add(new_payment)
+        db.session.flush()
+        sync_transaction_payment_status(payment_root_id(new_payment))
         db.session.commit()
 
         log_user_action(
@@ -6794,6 +7048,8 @@ def add_payment_to_receipt(payment_id):
         )
 
         db.session.add(new_payment)
+        db.session.flush()
+        sync_transaction_payment_status(root_id)
         db.session.commit()
 
         log_user_action(

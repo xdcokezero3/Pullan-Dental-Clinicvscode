@@ -258,6 +258,51 @@
             align-items: center;
             gap: 5px;
         }
+
+        .search-select {
+            position: relative;
+        }
+
+        .search-select select {
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+            width: 1px;
+        }
+
+        .search-select-menu {
+            background: white;
+            border: 1px solid #dbe3ed;
+            border-radius: 4px;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+            display: none;
+            left: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            z-index: 2000;
+        }
+
+        .search-select.open .search-select-menu {
+            display: block;
+        }
+
+        .search-select-option {
+            cursor: pointer;
+            padding: 10px 12px;
+        }
+
+        .search-select-option:hover {
+            background: #f1f5f9;
+        }
+
+        .search-select-empty {
+            color: #6c757d;
+            padding: 10px 12px;
+        }
     </style>
 </head>
 <body>
@@ -316,6 +361,10 @@
                     <p class="date">{{ current_date }}</p>
                     <div class="header-actions">
                         <button id="printInventoryBtn" class="secondary-btn"><i class="fas fa-print"></i> Print Report</button>
+                        <button id="sellItemBtn" class="secondary-btn"><i class="fas fa-cash-register"></i> Sell Item</button>
+                        {% if session.get('access_level') == 'admin' %}
+                        <button id="adminNumberBtn" class="secondary-btn"><i class="fas fa-mobile-screen"></i> Admin Number</button>
+                        {% endif %}
                         <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>
                     </div>
                 </div>
@@ -603,6 +652,122 @@
             </div>
         </div>
     </div>
+
+    <!-- Inventory Sale Modal -->
+    <div id="saleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Inventory Sale</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="saleForm">
+                    <div class="form-group">
+                        <label for="saleItem">Item*</label>
+                        <div class="search-select" data-search-select>
+                            <input type="text" class="search-select-input" placeholder="Search item..." autocomplete="off" required>
+                            <div class="search-select-menu"></div>
+                            <select id="saleItem" name="item_id" required>
+                                <option value="">Select item</option>
+                                {% for item in sale_items %}
+                                <option value="{{ item.raw_id }}" data-stock="{{ item.quantity }}">
+                                    {{ item.id }} - {{ item.name }} - Stock: {{ item.quantity }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="salePatient">Client*</label>
+                        <div class="search-select" data-search-select>
+                            <input type="text" class="search-select-input" placeholder="Search client..." autocomplete="off" required>
+                            <div class="search-select-menu"></div>
+                            <select id="salePatient" name="patient_id" required>
+                                <option value="">Select client</option>
+                                {% for patient in patients %}
+                                <option value="{{ patient.patId }}">PAT-{{ "%03d"|format(patient.patId) }} - {{ patient.patname }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="saleQuantity">Quantity*</label>
+                            <input type="number" id="saleQuantity" name="quantity" min="1" value="1" required>
+                            <small id="saleStockHint">Choose an item to see available stock.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="saleUnitPrice">Unit Price*</label>
+                            <input type="number" id="saleUnitPrice" name="unit_price" min="0.01" step="0.01" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="salePaymentMethod">Payment Method*</label>
+                            <select id="salePaymentMethod" name="payment_method" required>
+                                <option value="cash">Cash</option>
+                                <option value="gcash">GCash</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="saleReference">Reference Number</label>
+                            <input type="text" id="saleReference" name="reference_number" placeholder="Required for GCash/bank">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="saleNotes">Notes</label>
+                        <textarea id="saleNotes" name="notes" rows="3"></textarea>
+                    </div>
+
+                    <div class="detail-row">
+                        <strong>Total</strong>
+                        <span id="saleTotal">PHP 0.00</span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="cancelSaleBtn" class="secondary-btn">Cancel</button>
+                        <button type="submit" id="saveSaleBtn" class="primary-btn">
+                            <span class="btn-text">Save Sale</span>
+                            <span class="btn-loading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if session.get('access_level') == 'admin' %}
+    <!-- Admin Number Modal -->
+    <div id="adminNumberModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Low Stock Admin Number</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="adminNumberForm">
+                    <div class="form-group">
+                        <label for="adminNumber">Mobile Number*</label>
+                        <input type="tel" id="adminNumber" name="admin_number" value="{{ inventory_admin_number }}" placeholder="+639171234567" pattern="^\+639\d{9}$" required>
+                        <small>Use +63 Philippine mobile format.</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelAdminNumberBtn" class="secondary-btn">Cancel</button>
+                        <button type="submit" id="saveAdminNumberBtn" class="primary-btn">
+                            <span class="btn-text">Save Number</span>
+                            <span class="btn-loading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">
@@ -620,6 +785,73 @@
             let currentEditingItemId = null;
             let currentActionItemId = null;
             let currentAction = null; // 'deactivate' or 'reactivate'
+
+            function escapeHtml(value) {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function createSearchSelect(select) {
+                const wrapper = select.closest('[data-search-select]');
+                if (!wrapper) return null;
+
+                const input = wrapper.querySelector('.search-select-input');
+                const menu = wrapper.querySelector('.search-select-menu');
+
+                function optionText(option) {
+                    return option ? option.textContent.trim().replace(/\s+/g, ' ') : '';
+                }
+
+                function syncInput() {
+                    const selected = select.options[select.selectedIndex];
+                    input.value = selected && selected.value ? optionText(selected) : '';
+                }
+
+                function renderMenu() {
+                    const keyword = input.value.toLowerCase().trim();
+                    const matches = Array.from(select.options)
+                        .filter((option) => option.value)
+                        .filter((option) => optionText(option).toLowerCase().includes(keyword))
+                        .slice(0, 40);
+
+                    menu.innerHTML = matches.length
+                        ? matches.map((option) => `<div class="search-select-option" data-value="${escapeHtml(option.value)}">${escapeHtml(optionText(option))}</div>`).join('')
+                        : '<div class="search-select-empty">No matches found</div>';
+                }
+
+                input.addEventListener('input', () => {
+                    renderMenu();
+                    wrapper.classList.add('open');
+                });
+                input.addEventListener('focus', () => {
+                    renderMenu();
+                    wrapper.classList.add('open');
+                });
+                menu.addEventListener('mousedown', (event) => {
+                    const optionNode = event.target.closest('.search-select-option');
+                    if (!optionNode) return;
+                    event.preventDefault();
+                    select.value = optionNode.dataset.value;
+                    syncInput();
+                    wrapper.classList.remove('open');
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                document.addEventListener('click', (event) => {
+                    if (!wrapper.contains(event.target)) {
+                        wrapper.classList.remove('open');
+                    }
+                });
+                select.addEventListener('change', syncInput);
+                syncInput();
+
+                return { syncInput, renderMenu };
+            }
+
+            document.querySelectorAll('[data-search-select] select').forEach(createSearchSelect);
             
             // Print functionality
             document.getElementById('printInventoryBtn').addEventListener('click', function() {
@@ -796,6 +1028,10 @@
             const modals = document.querySelectorAll('.modal');
             const addItemBtn = document.getElementById('addItemBtn');
             const addFirstItemBtn = document.getElementById('addFirstItemBtn');
+            const sellItemBtn = document.getElementById('sellItemBtn');
+            const adminNumberBtn = document.getElementById('adminNumberBtn');
+            const saleModal = document.getElementById('saleModal');
+            const adminNumberModal = document.getElementById('adminNumberModal');
             
             // Open add item modal
             function openAddModal() {
@@ -823,6 +1059,24 @@
                 addFirstItemBtn.addEventListener('click', openAddModal);
             }
 
+            if (sellItemBtn && saleModal) {
+                sellItemBtn.addEventListener('click', function() {
+                    document.getElementById('saleForm').reset();
+                    document.getElementById('saleQuantity').value = '1';
+                    document.getElementById('saleStockHint').textContent = 'Choose an item to see available stock.';
+                    updateSaleTotal();
+                    saleModal.style.display = 'block';
+                    setTimeout(() => document.querySelector('#saleModal .search-select-input').focus(), 100);
+                });
+            }
+
+            if (adminNumberBtn && adminNumberModal) {
+                adminNumberBtn.addEventListener('click', function() {
+                    adminNumberModal.style.display = 'block';
+                    setTimeout(() => document.getElementById('adminNumber').focus(), 100);
+                });
+            }
+
             // Close modals
             document.querySelectorAll('.close-modal').forEach(closeBtn => {
                 closeBtn.addEventListener('click', function() {
@@ -845,6 +1099,17 @@
             document.getElementById('cancelBtn').addEventListener('click', function() {
                 document.getElementById('itemModal').style.display = 'none';
             });
+
+            document.getElementById('cancelSaleBtn').addEventListener('click', function() {
+                document.getElementById('saleModal').style.display = 'none';
+            });
+
+            const cancelAdminNumberBtn = document.getElementById('cancelAdminNumberBtn');
+            if (cancelAdminNumberBtn) {
+                cancelAdminNumberBtn.addEventListener('click', function() {
+                    document.getElementById('adminNumberModal').style.display = 'none';
+                });
+            }
 
             document.getElementById('cancelActionBtn').addEventListener('click', function() {
                 document.getElementById('confirmationModal').style.display = 'none';
@@ -900,7 +1165,8 @@
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            showAlert('success', isEdit ? 'Item updated successfully!' : 'Item added successfully!');
+                            const message = (isEdit ? 'Item updated successfully!' : 'Item added successfully!') + (data.sms_warning ? ` ${data.sms_warning}` : '');
+                            showAlert('success', message);
                             document.getElementById('itemModal').style.display = 'none';
                             
                             if (isEdit) {
@@ -925,6 +1191,155 @@
                     })
                     .finally(() => {
                         // Hide loading state
+                        btnText.style.display = 'inline';
+                        btnLoading.style.display = 'none';
+                        saveBtn.disabled = false;
+                    });
+                });
+            }
+
+            function money(value) {
+                const numberValue = Number(value || 0);
+                return `PHP ${numberValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
+
+            function updateSaleTotal() {
+                const quantity = Number(document.getElementById('saleQuantity').value || 0);
+                const unitPrice = Number(document.getElementById('saleUnitPrice').value || 0);
+                document.getElementById('saleTotal').textContent = money(quantity * unitPrice);
+            }
+
+            const saleItem = document.getElementById('saleItem');
+            const saleQuantity = document.getElementById('saleQuantity');
+            const saleUnitPrice = document.getElementById('saleUnitPrice');
+            const salePaymentMethod = document.getElementById('salePaymentMethod');
+            const saleReference = document.getElementById('saleReference');
+
+            if (saleItem) {
+                saleItem.addEventListener('change', function() {
+                    const selected = saleItem.options[saleItem.selectedIndex];
+                    const stock = Number(selected ? selected.dataset.stock : 0);
+                    saleQuantity.max = stock || '';
+                    document.getElementById('saleStockHint').textContent = stock ? `Available stock: ${stock}` : 'Choose an item to see available stock.';
+                    if (stock && Number(saleQuantity.value) > stock) {
+                        saleQuantity.value = stock;
+                    }
+                    updateSaleTotal();
+                });
+            }
+
+            if (saleQuantity) {
+                saleQuantity.addEventListener('input', function() {
+                    const maxQuantity = Number(saleQuantity.max);
+                    const quantity = Number(saleQuantity.value);
+                    if (maxQuantity && quantity > maxQuantity) {
+                        saleQuantity.value = maxQuantity;
+                    } else if (quantity < 1 && saleQuantity.value !== '') {
+                        saleQuantity.value = 1;
+                    }
+                    updateSaleTotal();
+                });
+            }
+
+            if (saleUnitPrice) {
+                saleUnitPrice.addEventListener('input', updateSaleTotal);
+            }
+
+            function syncSaleReferenceRequirement() {
+                const required = salePaymentMethod.value === 'gcash' || salePaymentMethod.value === 'bank_transfer';
+                saleReference.required = required;
+                saleReference.placeholder = required ? 'Enter transaction/reference number' : 'Optional for cash';
+            }
+
+            if (salePaymentMethod) {
+                salePaymentMethod.addEventListener('change', syncSaleReferenceRequirement);
+                syncSaleReferenceRequirement();
+            }
+
+            const saleForm = document.getElementById('saleForm');
+            if (saleForm) {
+                saleForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const saveBtn = document.getElementById('saveSaleBtn');
+                    const btnText = saveBtn.querySelector('.btn-text');
+                    const btnLoading = saveBtn.querySelector('.btn-loading');
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline';
+                    saveBtn.disabled = true;
+
+                    fetch('/sell_inventory_item', {
+                        method: 'POST',
+                        body: new FormData(saleForm)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('saleModal').style.display = 'none';
+                            updateInventoryRow(data.item.raw_id, data.item);
+                            const soldOption = document.querySelector(`#saleItem option[value="${data.item.raw_id}"]`);
+                            if (soldOption) {
+                                if (Number(data.item.quantity) > 0) {
+                                    soldOption.dataset.stock = data.item.quantity;
+                                    soldOption.textContent = `${data.item.id} - ${data.item.name} - Stock: ${data.item.quantity}`;
+                                } else {
+                                    soldOption.remove();
+                                }
+                            }
+                            if (data.stats) {
+                                updateInventoryStats(data.stats);
+                            }
+                            showAlert('success', data.message + (data.sms_warning ? ` ${data.sms_warning}` : ''));
+                            if (data.receipt_url) {
+                                window.open(data.receipt_url, '_blank');
+                            }
+                        } else {
+                            showAlert('error', data.error || 'Unable to record sale.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('error', 'Unable to record sale.');
+                    })
+                    .finally(() => {
+                        btnText.style.display = 'inline';
+                        btnLoading.style.display = 'none';
+                        saveBtn.disabled = false;
+                    });
+                });
+            }
+
+            const adminNumberForm = document.getElementById('adminNumberForm');
+            if (adminNumberForm) {
+                adminNumberForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const saveBtn = document.getElementById('saveAdminNumberBtn');
+                    const btnText = saveBtn.querySelector('.btn-text');
+                    const btnLoading = saveBtn.querySelector('.btn-loading');
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline';
+                    saveBtn.disabled = true;
+
+                    fetch('/update_inventory_admin_number', {
+                        method: 'POST',
+                        body: new FormData(adminNumberForm)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('adminNumber').value = data.admin_number;
+                            document.getElementById('adminNumberModal').style.display = 'none';
+                            showAlert('success', 'Admin number saved for low stock alerts.');
+                        } else {
+                            showAlert('error', data.error || 'Unable to save admin number.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('error', 'Unable to save admin number.');
+                    })
+                    .finally(() => {
                         btnText.style.display = 'inline';
                         btnLoading.style.display = 'none';
                         saveBtn.disabled = false;

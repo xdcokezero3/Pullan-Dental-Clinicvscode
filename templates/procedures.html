@@ -115,6 +115,51 @@
             box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
         }
 
+        .search-select {
+            position: relative;
+        }
+
+        .search-select select {
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+            width: 1px;
+        }
+
+        .search-select-menu {
+            background: var(--white);
+            border: 1px solid #dbe3ed;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: none;
+            left: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            z-index: 20;
+        }
+
+        .search-select.open .search-select-menu {
+            display: block;
+        }
+
+        .search-select-option {
+            cursor: pointer;
+            padding: 10px 12px;
+        }
+
+        .search-select-option:hover {
+            background-color: #f1f5f9;
+        }
+
+        .search-select-empty {
+            color: var(--text-light);
+            padding: 10px 12px;
+        }
+
         textarea.form-control {
             min-height: 95px;
             resize: vertical;
@@ -792,20 +837,24 @@
 
                         <div class="form-group">
                             <label class="form-label" for="patient_id">Patient Name</label>
-                            <select id="patient_id" name="patient_id" class="form-control" required>
-                                <option value="">Select patient</option>
-                                {% for patient in patients %}
-                                <option value="{{ patient.raw_id }}"
-                                        data-name="{{ patient.name }}"
-                                        data-id="{{ patient.id }}"
-                                        data-contact="{{ patient.contact }}"
-                                        data-age="{{ patient.age }}"
-                                        data-gender="{{ patient.gender }}"
-                                        {% if selected_patient_id == patient.raw_id %}selected{% endif %}>
-                                    {{ patient.name }} - {{ patient.id }}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="search-select" data-search-select>
+                                <input type="text" class="form-control search-select-input" placeholder="Search patient..." autocomplete="off">
+                                <div class="search-select-menu"></div>
+                                <select id="patient_id" name="patient_id" class="form-control" required>
+                                    <option value="">Select patient</option>
+                                    {% for patient in patients %}
+                                    <option value="{{ patient.raw_id }}"
+                                            data-name="{{ patient.name }}"
+                                            data-id="{{ patient.id }}"
+                                            data-contact="{{ patient.contact }}"
+                                            data-age="{{ patient.age }}"
+                                            data-gender="{{ patient.gender }}"
+                                            {% if selected_patient_id == patient.raw_id %}selected{% endif %}>
+                                        {{ patient.name }} - {{ patient.id }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
 
                         <div id="patientSummary" class="patient-summary" style="display: none;">
@@ -834,12 +883,16 @@
                             <div id="inventoryPicker" class="inventory-picker">
                                 <div class="form-group" style="margin-bottom: 0;">
                                     <label class="form-label" for="inventoryPickerSelect">Inventory Item</label>
-                                    <select id="inventoryPickerSelect" class="form-control">
-                                        <option value="">Select item</option>
-                                        {% for item in inventory_items %}
-                                        <option value="{{ item.raw_id }}">{{ item.name }} - Stock: {{ item.quantity }}</option>
-                                        {% endfor %}
-                                    </select>
+                                    <div class="search-select" data-search-select>
+                                        <input type="text" class="form-control search-select-input" placeholder="Search inventory..." autocomplete="off">
+                                        <div class="search-select-menu"></div>
+                                        <select id="inventoryPickerSelect" class="form-control">
+                                            <option value="">Select item</option>
+                                            {% for item in inventory_items %}
+                                            <option value="{{ item.raw_id }}">{{ item.name }} - Stock: {{ item.quantity }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="inventory-picker-actions">
                                     <input type="number" id="inventoryPickerQuantity" class="form-control" min="1" value="1" aria-label="Quantity used">
@@ -1229,6 +1282,65 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
+
+        function createSearchSelect(select) {
+            const wrapper = select.closest('[data-search-select]');
+            if (!wrapper) return null;
+
+            const input = wrapper.querySelector('.search-select-input');
+            const menu = wrapper.querySelector('.search-select-menu');
+
+            function optionText(option) {
+                return option ? option.textContent.trim().replace(/\s+/g, ' ') : '';
+            }
+
+            function syncInput() {
+                const selected = select.options[select.selectedIndex];
+                input.value = selected && selected.value ? optionText(selected) : '';
+            }
+
+            function renderMenu() {
+                const keyword = input.value.toLowerCase().trim();
+                const matches = Array.from(select.options)
+                    .filter((option) => !option.hidden)
+                    .filter((option) => option.value)
+                    .filter((option) => optionText(option).toLowerCase().includes(keyword))
+                    .slice(0, 40);
+
+                menu.innerHTML = matches.length
+                    ? matches.map((option) => `<div class="search-select-option" data-value="${escapeHtml(option.value)}">${escapeHtml(optionText(option))}</div>`).join('')
+                    : '<div class="search-select-empty">No matches found</div>';
+            }
+
+            input.addEventListener('input', () => {
+                renderMenu();
+                wrapper.classList.add('open');
+            });
+            input.addEventListener('focus', () => {
+                renderMenu();
+                wrapper.classList.add('open');
+            });
+            menu.addEventListener('mousedown', (event) => {
+                const optionNode = event.target.closest('.search-select-option');
+                if (!optionNode) return;
+                event.preventDefault();
+                select.value = optionNode.dataset.value;
+                syncInput();
+                wrapper.classList.remove('open');
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            document.addEventListener('click', (event) => {
+                if (!wrapper.contains(event.target)) {
+                    wrapper.classList.remove('open');
+                }
+            });
+            select.addEventListener('change', syncInput);
+            syncInput();
+
+            return { syncInput, renderMenu };
+        }
+
+        document.querySelectorAll('[data-search-select] select').forEach(createSearchSelect);
 
         function renderSelectedInventory() {
             if (!selectedInventoryList || !selectedInventoryEmpty) return;

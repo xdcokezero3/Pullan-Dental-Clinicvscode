@@ -47,11 +47,22 @@
         .stat-card {
             align-items: center;
             background-color: var(--white);
+            border: 0;
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
             display: flex;
             gap: 14px;
             padding: 18px;
+            text-align: left;
+            width: 100%;
+        }
+
+        .stat-card.interactive {
+            cursor: pointer;
+        }
+
+        .stat-card.interactive:hover {
+            transform: translateY(-1px);
         }
 
         .stat-icon {
@@ -105,6 +116,51 @@
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
             outline: none;
+        }
+
+        .search-select {
+            position: relative;
+        }
+
+        .search-select select {
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+            width: 1px;
+        }
+
+        .search-select-menu {
+            background: var(--white);
+            border: 1px solid #dbe3ed;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: none;
+            left: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            z-index: 20;
+        }
+
+        .search-select.open .search-select-menu {
+            display: block;
+        }
+
+        .search-select-option {
+            cursor: pointer;
+            padding: 10px 12px;
+        }
+
+        .search-select-option:hover {
+            background-color: #f1f5f9;
+        }
+
+        .search-select-empty {
+            color: var(--text-light);
+            padding: 10px 12px;
         }
 
         textarea.form-control {
@@ -314,10 +370,43 @@
         .receipt-link {
             align-items: center;
             color: var(--primary-color);
+            background: none;
+            border: 0;
+            cursor: pointer;
             display: inline-flex;
+            font-size: 14px;
             font-weight: 600;
             gap: 6px;
             text-decoration: none;
+        }
+
+        .panel-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .panel-tab {
+            background-color: #eef2f7;
+            border: 0;
+            border-radius: var(--border-radius);
+            color: var(--text-color);
+            cursor: pointer;
+            font-weight: 600;
+            padding: 9px 12px;
+        }
+
+        .panel-tab.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .payment-view {
+            display: none;
+        }
+
+        .payment-view.active {
+            display: block;
         }
 
         .empty-state {
@@ -452,13 +541,13 @@
                             <p>Recent Collected</p>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <button type="button" class="stat-card interactive" id="openOutstandingMenu">
                         <span class="stat-icon"><i class="fas fa-file-invoice-dollar"></i></span>
                         <div class="stat-info">
                             <h3>{{ outstanding_balance }}</h3>
                             <p>Outstanding Balance</p>
                         </div>
-                    </div>
+                    </button>
                     <div class="stat-card">
                         <span class="stat-icon"><i class="fas fa-circle-half-stroke"></i></span>
                         <div class="stat-info">
@@ -490,31 +579,39 @@
                         <form id="paymentForm" action="{{ url_for('add_payment') }}" method="POST">
                             <div class="form-group">
                                 <label class="form-label" for="patient_id">Patient</label>
-                                <select id="patient_id" name="patient_id" class="form-control" required>
-                                    <option value="">Select patient</option>
-                                    {% for patient in patients %}
-                                    <option value="{{ patient.patId }}" {% if selected_patient_id == patient.patId %}selected{% endif %}>
-                                        PAT-{{ "%03d"|format(patient.patId) }} - {{ patient.patname }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                                <div class="search-select" data-search-select>
+                                    <input type="text" class="form-control search-select-input" placeholder="Search patient..." autocomplete="off">
+                                    <div class="search-select-menu"></div>
+                                    <select id="patient_id" name="patient_id" class="form-control" required>
+                                        <option value="">Select patient</option>
+                                        {% for patient in patients %}
+                                        <option value="{{ patient.patId }}" {% if selected_patient_id == patient.patId %}selected{% endif %}>
+                                            PAT-{{ "%03d"|format(patient.patId) }} - {{ patient.patname }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label" for="report_id">Procedure</label>
-                                <select id="report_id" name="report_id" class="form-control">
-                                    <option value="" data-patient-id="" data-description="" data-total="" data-balance="">No linked procedure</option>
-                                    {% for procedure in procedures %}
-                                    <option value="{{ procedure.raw_id }}"
-                                            data-patient-id="{{ procedure.patient_id }}"
-                                            data-description="{{ procedure.description|e }}"
-                                            data-service-items="{{ procedure.service_items|tojson|forceescape }}"
-                                            data-total="{{ procedure.total_amount }}"
-                                            data-balance="{{ procedure.balance }}">
-                                        {{ procedure.id }} - {{ procedure.patient_name }} - {{ procedure.description }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                                <div class="search-select" data-search-select>
+                                    <input type="text" class="form-control search-select-input" placeholder="Search procedure..." autocomplete="off">
+                                    <div class="search-select-menu"></div>
+                                    <select id="report_id" name="report_id" class="form-control">
+                                        <option value="" data-patient-id="" data-description="" data-total="" data-balance="">No linked procedure</option>
+                                        {% for procedure in procedures %}
+                                        <option value="{{ procedure.raw_id }}"
+                                                data-patient-id="{{ procedure.patient_id }}"
+                                                data-description="{{ procedure.description|e }}"
+                                                data-service-items="{{ procedure.service_items|tojson|forceescape }}"
+                                                data-total="{{ procedure.total_amount }}"
+                                                data-balance="{{ procedure.balance }}">
+                                            {{ procedure.id }} - {{ procedure.patient_name }} - {{ procedure.description }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="service-builder">
@@ -598,15 +695,20 @@
 
                     <div class="panel">
                         <div class="service-builder-header">
-                            <h2 class="panel-title"><i class="fas fa-clock-rotate-left"></i> Recent Payments</h2>
+                            <h2 class="panel-title"><i class="fas fa-file-invoice-dollar"></i> Payments Menu</h2>
                             {% if payments and payments|length > 0 %}
                             <button type="button" class="btn btn-secondary" id="printRecentPayments">
                                 <i class="fas fa-print"></i> Print
                             </button>
                             {% endif %}
                         </div>
-                        <p class="panel-subtitle">Latest recorded payment transactions.</p>
+                        <div class="panel-tabs">
+                            <button type="button" class="panel-tab active" data-payment-view="recentPaymentsView">Recent Payments</button>
+                            <button type="button" class="panel-tab" data-payment-view="outstandingBalanceView">Outstanding Balance</button>
+                        </div>
 
+                        <div id="recentPaymentsView" class="payment-view active">
+                        <p class="panel-subtitle">Latest recorded payment transactions.</p>
                         {% if payments and payments|length > 0 %}
                         <div class="payments-table-wrap">
                             <table class="payments-table" id="recentPaymentsTable">
@@ -665,6 +767,62 @@
                             <p>Saved payments and receipt links will appear here.</p>
                         </div>
                         {% endif %}
+                        </div>
+
+                        <div id="outstandingBalanceView" class="payment-view">
+                            <p class="panel-subtitle">Clients with remaining balances. Choose Pay Balance to load the payment form.</p>
+                            {% if outstanding_items and outstanding_items|length > 0 %}
+                            <div class="payments-table-wrap">
+                                <table class="payments-table" id="outstandingBalanceTable">
+                                    <thead>
+                                        <tr>
+                                            <th data-sort="text">Client</th>
+                                            <th data-sort="text">Service</th>
+                                            <th data-sort="number">Paid</th>
+                                            <th data-sort="number">Balance</th>
+                                            <th data-sort="text"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in outstanding_items %}
+                                        <tr data-search="{{ item.patient }} {{ item.description }} {{ item.id }} {{ item.balance }}">
+                                            <td>
+                                                <strong>{{ item.patient }}</strong>
+                                                <div class="muted">{{ item.id }}</div>
+                                            </td>
+                                            <td>
+                                                {{ item.description }}
+                                                <div class="muted">Total: {{ item.total }}</div>
+                                            </td>
+                                            <td>{{ item.paid }}</td>
+                                            <td><strong>{{ item.balance }}</strong></td>
+                                            <td>
+                                                {% if item.report_id %}
+                                                <button type="button" class="receipt-link pay-outstanding"
+                                                        data-patient-id="{{ item.patient_id }}"
+                                                        data-report-id="{{ item.report_id }}"
+                                                        data-balance="{{ item.balance_raw }}">
+                                                    <i class="fas fa-plus-circle"></i> Pay Balance
+                                                </button>
+                                                {% elif item.receipt_payment_id %}
+                                                <a class="receipt-link" href="{{ url_for('payment_receipt', payment_id=item.receipt_payment_id) }}">
+                                                    <i class="fas fa-plus-circle"></i> Pay Balance
+                                                </a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-circle-check"></i>
+                                <h3>No outstanding balances</h3>
+                                <p>All recorded balances are fully paid.</p>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -725,6 +883,82 @@
         const cancelPriceEditor = document.getElementById('cancelPriceEditor');
         const printRecentPayments = document.getElementById('printRecentPayments');
         const recentPaymentsTable = document.getElementById('recentPaymentsTable');
+        const outstandingBalanceTable = document.getElementById('outstandingBalanceTable');
+        const openOutstandingMenu = document.getElementById('openOutstandingMenu');
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function createSearchSelect(select) {
+            const wrapper = select.closest('[data-search-select]');
+            if (!wrapper) return null;
+
+            const input = wrapper.querySelector('.search-select-input');
+            const menu = wrapper.querySelector('.search-select-menu');
+
+            function optionText(option) {
+                return option ? option.textContent.trim().replace(/\s+/g, ' ') : '';
+            }
+
+            function syncInput() {
+                const selected = select.options[select.selectedIndex];
+                input.value = selected && selected.value ? optionText(selected) : '';
+            }
+
+            function renderMenu() {
+                const keyword = input.value.toLowerCase().trim();
+                const matches = Array.from(select.options)
+                    .filter((option) => !option.hidden)
+                    .filter((option) => option.value || optionText(option))
+                    .filter((option) => optionText(option).toLowerCase().includes(keyword))
+                    .slice(0, 40);
+
+                if (!matches.length) {
+                    menu.innerHTML = '<div class="search-select-empty">No matches found</div>';
+                    return;
+                }
+
+                menu.innerHTML = matches.map((option) => (
+                    `<div class="search-select-option" data-value="${escapeHtml(option.value)}">${escapeHtml(optionText(option))}</div>`
+                )).join('');
+            }
+
+            input.addEventListener('input', () => {
+                renderMenu();
+                wrapper.classList.add('open');
+            });
+            input.addEventListener('focus', () => {
+                renderMenu();
+                wrapper.classList.add('open');
+            });
+            menu.addEventListener('mousedown', (event) => {
+                const optionNode = event.target.closest('.search-select-option');
+                if (!optionNode) return;
+                event.preventDefault();
+                select.value = optionNode.dataset.value;
+                syncInput();
+                wrapper.classList.remove('open');
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            document.addEventListener('click', (event) => {
+                if (!wrapper.contains(event.target)) {
+                    wrapper.classList.remove('open');
+                }
+            });
+            select.addEventListener('change', syncInput);
+            syncInput();
+
+            return { renderMenu, syncInput };
+        }
+
+        const patientSearchSelect = createSearchSelect(patientSelect);
+        const procedureSearchSelect = createSearchSelect(procedureSelect);
 
         function money(value) {
             const numberValue = Number(value || 0);
@@ -853,6 +1087,10 @@
             if (currentOption && currentOption.hidden) {
                 procedureSelect.value = '';
                 syncProcedureDetails();
+            }
+            if (procedureSearchSelect) {
+                procedureSearchSelect.syncInput();
+                procedureSearchSelect.renderMenu();
             }
         }
 
@@ -1035,6 +1273,45 @@
                 header.addEventListener('click', () => sortTableByHeader(recentPaymentsTable, header, index));
             });
         }
+
+        if (outstandingBalanceTable) {
+            outstandingBalanceTable.querySelectorAll('th').forEach((header, index) => {
+                header.addEventListener('click', () => sortTableByHeader(outstandingBalanceTable, header, index));
+            });
+        }
+
+        function showPaymentView(viewId) {
+            document.querySelectorAll('.payment-view').forEach((view) => {
+                view.classList.toggle('active', view.id === viewId);
+            });
+            document.querySelectorAll('.panel-tab').forEach((tab) => {
+                tab.classList.toggle('active', tab.dataset.paymentView === viewId);
+            });
+        }
+
+        document.querySelectorAll('.panel-tab').forEach((tab) => {
+            tab.addEventListener('click', () => showPaymentView(tab.dataset.paymentView));
+        });
+
+        if (openOutstandingMenu) {
+            openOutstandingMenu.addEventListener('click', () => showPaymentView('outstandingBalanceView'));
+        }
+
+        document.querySelectorAll('.pay-outstanding').forEach((button) => {
+            button.addEventListener('click', () => {
+                patientSelect.value = button.dataset.patientId || '';
+                patientSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                procedureSelect.value = button.dataset.reportId || '';
+                if (patientSearchSelect) patientSearchSelect.syncInput();
+                if (procedureSearchSelect) procedureSearchSelect.syncInput();
+                procedureSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                paymentTypeSelect.value = 'full';
+                amountPaidInput.value = button.dataset.balance || '';
+                updateRemaining();
+                paymentForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                amountPaidInput.focus();
+            });
+        });
 
         if (printRecentPayments && recentPaymentsTable) {
             printRecentPayments.addEventListener('click', () => {

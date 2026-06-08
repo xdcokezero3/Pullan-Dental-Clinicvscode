@@ -151,6 +151,51 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
         }
+
+        .search-select {
+            position: relative;
+        }
+
+        .search-select select {
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+            width: 1px;
+        }
+
+        .search-select-menu {
+            background: white;
+            border: 1px solid #dbe3ed;
+            border-radius: 8px;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+            display: none;
+            left: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            z-index: 3000;
+        }
+
+        .search-select.open .search-select-menu {
+            display: block;
+        }
+
+        .search-select-option {
+            cursor: pointer;
+            padding: 10px 12px;
+        }
+
+        .search-select-option:hover {
+            background: #f1f5f9;
+        }
+
+        .search-select-empty {
+            color: #6c757d;
+            padding: 10px 12px;
+        }
         
         /* Action buttons based on status */
         .action-complete {
@@ -804,12 +849,16 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="patient">Patient*</label>
-                            <select id="patient" name="patient_id" required>
-                                <option value="">Select Patient</option>
-                                {% for patient in all_patients %}
-                                <option value="{{ patient.patId }}">{{ patient.patname }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="search-select" data-search-select>
+                                <input type="text" class="search-select-input" placeholder="Search patient..." autocomplete="off" required>
+                                <div class="search-select-menu"></div>
+                                <select id="patient" name="patient_id" required>
+                                    <option value="">Select Patient</option>
+                                    {% for patient in all_patients %}
+                                    <option value="{{ patient.patId }}">{{ patient.patname }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
                         <div class="form-group">
                             <button type="button" id="selectExistingPatient" class="btn secondary-btn">
@@ -1253,6 +1302,66 @@
                 document.getElementById('appointmentId').value
             );
         }
+
+        function escapeSearchSelectHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function createSearchSelect(select) {
+            const wrapper = select.closest('[data-search-select]');
+            if (!wrapper) return;
+
+            const input = wrapper.querySelector('.search-select-input');
+            const menu = wrapper.querySelector('.search-select-menu');
+            const optionText = (option) => option ? option.textContent.trim().replace(/\s+/g, ' ') : '';
+            const syncInput = () => {
+                const selected = select.options[select.selectedIndex];
+                input.value = selected && selected.value ? optionText(selected) : '';
+            };
+            const renderMenu = () => {
+                const keyword = input.value.toLowerCase().trim();
+                const matches = Array.from(select.options)
+                    .filter((option) => option.value)
+                    .filter((option) => optionText(option).toLowerCase().includes(keyword))
+                    .slice(0, 40);
+
+                menu.innerHTML = matches.length
+                    ? matches.map((option) => `<div class="search-select-option" data-value="${escapeSearchSelectHtml(option.value)}">${escapeSearchSelectHtml(optionText(option))}</div>`).join('')
+                    : '<div class="search-select-empty">No matches found</div>';
+            };
+
+            input.addEventListener('input', () => {
+                renderMenu();
+                wrapper.classList.add('open');
+            });
+            input.addEventListener('focus', () => {
+                renderMenu();
+                wrapper.classList.add('open');
+            });
+            menu.addEventListener('mousedown', (event) => {
+                const optionNode = event.target.closest('.search-select-option');
+                if (!optionNode) return;
+                event.preventDefault();
+                select.value = optionNode.dataset.value;
+                syncInput();
+                wrapper.classList.remove('open');
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            document.addEventListener('click', (event) => {
+                if (!wrapper.contains(event.target)) {
+                    wrapper.classList.remove('open');
+                }
+            });
+            select.addEventListener('change', syncInput);
+            syncInput();
+        }
+
+        document.querySelectorAll('[data-search-select] select').forEach(createSearchSelect);
         
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {

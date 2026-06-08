@@ -486,7 +486,7 @@ class Payment(db.Model):
 
     @property
     def status(self):
-        return 'Full Payment' if float(self.balance_after or 0) <= 0 else 'Partial Payment'
+        return 'Full Payment' if self.payment_type == 'full' or float(self.balance_after or 0) <= 0 else 'Partial Payment'
 
 class ServicePrice(db.Model):
     __tablename__ = 'service_prices'
