@@ -2512,6 +2512,11 @@ def appointment_start_datetime(appointment):
     minutes = start_minutes % 60
     return datetime.combine(appointment.appdate, datetime.min.time()) + timedelta(hours=hours, minutes=minutes)
 
+def sms_reminder_scheduled_datetime(appointment_start):
+    if not appointment_start:
+        return None
+    return appointment_start - timedelta(days=2)
+
 def format_sms_appointment_slot(appointment_date, appointment_time):
     formatted_date = appointment_date.strftime('%B %d, %Y') if appointment_date else 'your scheduled date'
     return f"{formatted_date} at {appointment_time or 'your scheduled time'}"
@@ -2578,7 +2583,7 @@ def sms_reminder_response_summary(reminder):
     }
 
 def create_or_update_sms_reminder(appointment, patient, notification_type='scheduled', old_date=None, old_time=None):
-    """Queue one immediate SMS per active upcoming appointment."""
+    """Queue one SMS reminder 48 hours before an active upcoming appointment."""
     try:
         ensure_sms_reminders_table()
         if not appointment or not patient:
@@ -2616,6 +2621,7 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
         if not appointment_start:
             return None
 
+        scheduled_for = sms_reminder_scheduled_datetime(appointment_start)
         message = build_appointment_sms_message(
             patient.patname,
             appointment.appdate,
@@ -2679,7 +2685,7 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
                 patient_name=patient.patname,
                 mobile_number=normalized_number,
                 message=message,
-                scheduled_for=now,
+                scheduled_for=scheduled_for,
                 status='Pending',
                 provider=SMS_PROVIDER,
                 updated_at=datetime.utcnow()
@@ -2690,7 +2696,7 @@ def create_or_update_sms_reminder(appointment, patient, notification_type='sched
             existing_reminder.patient_name = patient.patname
             existing_reminder.mobile_number = normalized_number
             existing_reminder.message = message
-            existing_reminder.scheduled_for = now
+            existing_reminder.scheduled_for = scheduled_for
             existing_reminder.status = 'Pending'
             existing_reminder.provider = SMS_PROVIDER
             existing_reminder.error_message = None
@@ -3520,8 +3526,8 @@ def reset_stale_sending_sms_reminders():
         db.session.commit()
     return updated_count
 
-def normalize_pending_sms_reminders_for_immediate_send():
-    """Move valid delayed pending reminders to now and close inactive ones."""
+def normalize_pending_sms_reminder_schedules():
+    """Keep valid pending reminders scheduled 48 hours before and close inactive ones."""
     now = datetime.now()
     reminders = SMSReminder.query.filter(SMSReminder.status == 'Pending').all()
 
@@ -3541,6 +3547,10 @@ def normalize_pending_sms_reminders_for_immediate_send():
         if not appointment_start:
             continue
 
+        expected_scheduled_for = sms_reminder_scheduled_datetime(appointment_start)
+        if not expected_scheduled_for:
+            continue
+
         if appointment_start <= now:
             reminder.status = 'Skipped'
             reminder.error_message = 'SMS reminder skipped because the appointment already started or passed.'
@@ -3548,12 +3558,10 @@ def normalize_pending_sms_reminders_for_immediate_send():
             updated_count += 1
             continue
 
-        if reminder.scheduled_for <= now:
-            continue
-
-        reminder.scheduled_for = now
-        reminder.updated_at = datetime.utcnow()
-        updated_count += 1
+        if reminder.scheduled_for != expected_scheduled_for:
+            reminder.scheduled_for = expected_scheduled_for
+            reminder.updated_at = datetime.utcnow()
+            updated_count += 1
 
     if updated_count:
         db.session.commit()
@@ -3680,7 +3688,7 @@ def process_due_sms_reminders():
         ensure_sms_reminders_table()
         reconcile_unconfirmed_infinireach_reminders()
         reset_stale_sending_sms_reminders()
-        normalize_pending_sms_reminders_for_immediate_send()
+        normalize_pending_sms_reminder_schedules()
         now = datetime.now()
         due_reminders = SMSReminder.query.filter(
             SMSReminder.status == 'Pending',
