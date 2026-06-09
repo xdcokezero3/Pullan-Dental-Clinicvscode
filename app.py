@@ -50,7 +50,6 @@ BACKUP_DIRECTORY = os.path.join(os.getcwd(), 'backups')
 DEFAULT_DENTIST_NAME = 'Dr. Pullan'
 CLINIC_OPEN_TIME = '8:00 AM'
 CLINIC_CLOSE_TIME = '5:00 PM'
-DAILY_BACKUP_CHECK_INTERVAL_SECONDS = 30 * 60
 
 # Ensure backup directory exists
 if not os.path.exists(BACKUP_DIRECTORY):
@@ -112,36 +111,9 @@ def create_sqlite_backup(backup_path):
     db.engine.dispose()
     shutil.copy2(sqlite_path, backup_path)
 
-def create_daily_startup_backup():
-    """Create or refresh the current day's automatic backup when the app opens."""
-    os.makedirs(BACKUP_DIRECTORY, exist_ok=True)
-    current_date = datetime.now().strftime('%Y-%m-%d')
-
-    if is_sqlite_database():
-        backup_filename = f"{current_date}_backup.sqlite"
-        backup_path = os.path.join(BACKUP_DIRECTORY, backup_filename)
-        create_sqlite_backup(backup_path)
-        return {
-            'filename': backup_filename,
-            'path': backup_path,
-            'size': os.path.getsize(backup_path) / (1024 * 1024),
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-
-    backup = create_database_backup_file("backup", None)
-    dated_filename = f"{current_date}_backup.sql"
-    dated_path = os.path.join(BACKUP_DIRECTORY, dated_filename)
-    shutil.copy2(backup['path'], dated_path)
-    backup.update({
-        'filename': dated_filename,
-        'path': dated_path,
-        'size': os.path.getsize(dated_path) / (1024 * 1024),
-        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    })
-    return backup
-
 def create_database_backup_file(reason="manual", user_id=None):
     """Create a timestamped database backup and return display metadata."""
+    os.makedirs(BACKUP_DIRECTORY, exist_ok=True)
     safe_reason = re.sub(r'[^a-z0-9]+', '_', (reason or 'manual').lower()).strip('_') or 'manual'
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 
@@ -8528,48 +8500,24 @@ def get_lan_ip_addresses():
 
     return sorted(addresses) or ["YOUR_COMPUTER_IP"]
 
-def should_run_startup_backup(debug):
-    startup_backups_enabled = os.getenv("DAILY_STARTUP_BACKUPS", "false").lower() in ("1", "true", "yes", "on")
-    return startup_backups_enabled and (not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true")
+def should_create_startup_backup(debug):
+    """Run once per real app process, avoiding Flask debug reloader duplicates."""
+    return not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
 
 def create_startup_backup():
     try:
         with app.app_context():
-            backup = create_daily_startup_backup()
-        app._last_daily_backup_date = datetime.now().strftime('%Y-%m-%d')
+            backup = create_database_backup_file("startup", None)
         print(f"Automatic startup backup created: {backup['filename']}")
+        return backup
     except Exception as e:
         print(f"Automatic startup backup failed: {e}")
-
-def daily_backup_worker():
-    last_backup_date = getattr(app, '_last_daily_backup_date', None)
-    while True:
-        current_backup_date = datetime.now().strftime('%Y-%m-%d')
-        if current_backup_date != last_backup_date:
-            try:
-                with app.app_context():
-                    backup = create_daily_startup_backup()
-                last_backup_date = current_backup_date
-                print(f"Automatic daily backup created: {backup['filename']}")
-            except Exception as e:
-                print(f"Automatic daily backup failed: {e}")
-        time.sleep(DAILY_BACKUP_CHECK_INTERVAL_SECONDS)
-
-def start_daily_backup_worker(debug):
-    if not should_run_startup_backup(debug):
-        return
-    if getattr(app, '_daily_backup_worker_started', False):
-        return
-
-    app._daily_backup_worker_started = True
-    worker = threading.Thread(target=daily_backup_worker, daemon=True)
-    worker.start()
+        return None
 
 if __name__ == "__main__":
     host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "true").lower() in ("1", "true", "yes", "on")
-    run_startup_backup = should_run_startup_backup(debug)
 
     print("\nPullan Dental Clinic is starting...")
     print(f"Local access: http://127.0.0.1:{port}")
@@ -8583,9 +8531,8 @@ if __name__ == "__main__":
         print("Set APP_HOST=0.0.0.0 if other devices cannot connect to the LAN URL.")
         print("")
 
-    if run_startup_backup:
+    if should_create_startup_backup(debug):
         create_startup_backup()
-        start_daily_backup_worker(debug)
 
     start_sms_reminder_worker()
     app.run(host=host, port=port, debug=debug)
