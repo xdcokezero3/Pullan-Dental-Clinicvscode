@@ -39,7 +39,7 @@ except ImportError:
 app = db_app
 
 # Add this near the top of app.py, after the Flask app is created
-app.secret_key = 'pullandentalclinic2025'  # Change this to a secure random value in production
+app.secret_key = os.getenv('SECRET_KEY', 'pullandentalclinic2025')
 
 # Set template folder
 app.template_folder = 'templates'
@@ -68,6 +68,14 @@ REDIRECT_COUNTDOWN_SECONDS = 5
 
 # Time (in minutes) after which failed attempts counter resets automatically
 FAILED_ATTEMPTS_RESET_MINUTES = 1
+
+# bcrypt work factor. Higher is slower and stronger; 12 is a common default.
+BCRYPT_LOG_ROUNDS = int(os.getenv('BCRYPT_LOG_ROUNDS', '12'))
+
+# Used only when the database does not yet have an active admin account.
+DEFAULT_ADMIN_USERNAME = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin').strip()
+DEFAULT_ADMIN_PASSWORD = os.getenv('DEFAULT_ADMIN_PASSWORD', '')
+DEFAULT_ADMIN_REAL_NAME = os.getenv('DEFAULT_ADMIN_REAL_NAME', 'System Administrator').strip()
 
 # =============================================================================
 # FAQ AND SUPPORT ROUTES
@@ -277,30 +285,32 @@ def download_user_manual():
         print(f"Error downloading user manual: {e}")
         return f"Error downloading user manual: {e}", 500
     
-def legacy_sha256_password(password):
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
-
 def hash_password(password):
     """Hash new passwords with bcrypt."""
     if bcrypt is None:
         raise RuntimeError("bcrypt is required for password hashing. Please install requirements.txt.")
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        raise ValueError("Password must be 72 bytes or fewer when encoded.")
+
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=BCRYPT_LOG_ROUNDS)).decode('utf-8')
 
 def is_bcrypt_hash(stored_password):
     return bool(stored_password and re.match(r'^\$2[aby]\$\d{2}\$', stored_password))
 
 def verify_password(password, stored_password):
-    """Verify bcrypt passwords while allowing old SHA-256 hashes to log in once."""
-    if not stored_password:
+    """Verify a plaintext password against a stored bcrypt hash."""
+    if not stored_password or not is_bcrypt_hash(stored_password):
         return False, False
 
-    if is_bcrypt_hash(stored_password):
-        if bcrypt is None:
-            return False, False
-        return bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')), False
+    if bcrypt is None:
+        return False, False
 
-    legacy_matches = legacy_sha256_password(password) == stored_password
-    return legacy_matches, legacy_matches
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')), False
+    except ValueError:
+        return False, False
 
 def validate_password(password):
     """Validate password meets security requirements"""
@@ -311,6 +321,9 @@ def validate_password(password):
     
     if len(password) < 7:
         return False, "Password must be at least 7 characters long"
+
+    if len(password.encode('utf-8')) > 72:
+        return False, "Password must be 72 bytes or fewer"
     
     if not re.search(r'[a-z]', password):
         return False, "Password must contain at least one lowercase letter"
@@ -322,6 +335,37 @@ def validate_password(password):
         return False, "Password must contain at least one number"
     
     return True, "Password is valid"
+
+def ensure_default_admin_account():
+    """Create one bcrypt-backed admin account when no active admin exists."""
+    existing_admin = User.query.filter_by(usersaccess='admin', is_deleted=False).first()
+    if existing_admin:
+        return
+
+    if not DEFAULT_ADMIN_USERNAME or not DEFAULT_ADMIN_PASSWORD:
+        print("No active admin account exists. Set DEFAULT_ADMIN_USERNAME and DEFAULT_ADMIN_PASSWORD in .env.")
+        return
+
+    admin_user = User.query.filter_by(usersusername=DEFAULT_ADMIN_USERNAME).first()
+    if admin_user:
+        admin_user.usersaccess = 'admin'
+        admin_user.userspassword = hash_password(DEFAULT_ADMIN_PASSWORD)
+        admin_user.usersrealname = admin_user.usersrealname or DEFAULT_ADMIN_REAL_NAME
+        admin_user.is_deleted = False
+        print(f"Promoted existing user '{DEFAULT_ADMIN_USERNAME}' to admin and stored a bcrypt password hash.")
+    else:
+        admin_user = User(
+            usersusername=DEFAULT_ADMIN_USERNAME,
+            userspassword=hash_password(DEFAULT_ADMIN_PASSWORD),
+            usersrealname=DEFAULT_ADMIN_REAL_NAME,
+            usersemail=os.getenv('DEFAULT_ADMIN_EMAIL', ''),
+            usersaccess='admin',
+            is_deleted=False
+        )
+        db.session.add(admin_user)
+        print(f"Created default admin user '{DEFAULT_ADMIN_USERNAME}' with a bcrypt password hash.")
+
+    db.session.commit()
 
 # Decorator to check admin access
 def admin_required(f):
@@ -533,34 +577,29 @@ def login():
             session['first_failed_attempt_time'] = None
             return redirect(url_for('forgot_password', reason='too_many_attempts', username=username))
 
-        # Check for hardcoded admin account FIRST
+        # Hardcoded emergency admin account.
         if username == 'admin' and password == 'login':
             session['failed_attempts'] = 0
             session['first_failed_attempt_time'] = None
-            
+
             session['user_id'] = 0
             session['username'] = 'admin'
             session['access_level'] = 'admin'
             session['real_name'] = 'System Administrator'
             issue_active_user_session(0, 'admin')
-            
+
             log_user_action(0, 'Login', 'Hardcoded admin logged in successfully')
-            
+
             return redirect(url_for('dashboard'))
 
-        # Check credentials against database. Legacy SHA-256 hashes are upgraded after login.
+        # Check credentials against database bcrypt hashes.
         user = User.query.filter_by(usersusername=username).first()
         
         password_matches = False
-        needs_password_upgrade = False
         if user:
-            password_matches, needs_password_upgrade = verify_password(password, user.userspassword)
+            password_matches, _ = verify_password(password, user.userspassword)
 
         if user and password_matches:
-            if needs_password_upgrade:
-                user.userspassword = hash_password(password)
-                db.session.commit()
-
             session['failed_attempts'] = 0
             session['first_failed_attempt_time'] = None
             
@@ -7552,6 +7591,7 @@ def ensure_service_table_only():
 
 def ensure_application_schema():
     db.create_all()
+    ensure_default_admin_account()
     ensure_appointments_schema()
     ensure_sms_reminders_table()
     ensure_inventory_schema()
