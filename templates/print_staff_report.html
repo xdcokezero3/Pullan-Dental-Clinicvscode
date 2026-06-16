@@ -133,6 +133,12 @@
             color: white;
             border-color: #7b1fa2;
         }
+
+        .filter-item.dentist-filter {
+            background: #4caf50;
+            color: white;
+            border-color: #388e3c;
+        }
         
         .no-filters {
             color: #666;
@@ -234,6 +240,11 @@
         .access-user {
             background-color: #f3e5f5;
             color: #7b1fa2;
+        }
+
+        .access-dentist {
+            background-color: #e8f5e9;
+            color: #2e7d32;
         }
         
         .footer {
@@ -486,6 +497,10 @@
             <div class="stat-label">Administrators</div>
         </div>
         <div class="stat-item">
+            <div class="stat-number">{{ dentist_count or 0 }}</div>
+            <div class="stat-label">Dentists</div>
+        </div>
+        <div class="stat-item">
             <div class="stat-number">{{ user_count }}</div>
             <div class="stat-label">Users</div>
         </div>
@@ -515,6 +530,8 @@
                 <th>Contact</th>
                 <th>Address</th>
                 <th>Access Level</th>
+                <th>Hire Date</th>
+                <th>Schedule</th>
                 <th>Gender</th>
                 <th>Age</th>
                 <th>Status</th>
@@ -531,10 +548,12 @@
                 <td>{{ staff.address }}</td>
                 <td>
                     <span class="access-badge access-{{ staff.access_level.lower() }}">
-                        <i class="fas fa-{{ 'key' if staff.access_level.lower() == 'admin' else 'user' }}"></i>
+                        <i class="fas fa-{{ 'key' if staff.access_level.lower() == 'admin' else ('user-md' if staff.access_level.lower() == 'dentist' else 'user') }}"></i>
                         {{ staff.access_level }}
                     </span>
                 </td>
+                <td>{{ staff.hire_date }}</td>
+                <td>{{ staff.schedule }}</td>
                 <td>{{ staff.gender }}</td>
                 <td>{{ staff.age }}</td>
                 <td>

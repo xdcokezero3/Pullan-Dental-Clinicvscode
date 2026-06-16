@@ -116,6 +116,26 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .schedule-days {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        }
+
+        .schedule-days label {
+            align-items: center;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            display: flex;
+            gap: 8px;
+            margin-bottom: 0;
+            padding: 10px 12px;
+        }
+
+        .schedule-days input {
+            width: auto;
+        }
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -294,7 +314,9 @@
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
                 <li><a href="{{ url_for('payments') }}"><i class="fas fa-receipt"></i> Payments</a></li>
+                {% if can_view_dental_charts %}
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                {% endif %}
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
@@ -332,11 +354,12 @@
                         <p class="current-date">{{ current_date }}</p>
                     </div>
                     <div class="action-buttons">
-                        <!-- ADMIN ONLY: Action Buttons -->
-                        {% if session.get('access_level') == 'admin' %}
+                        <!-- Admin/Dentist: Edit, Admin: Status Actions -->
+                        {% if can_manage_staff %}
                         <button class="btn-primary" id="editStaffBtn" data-id="{{ staff.usersid }}">
                             <i class="fas fa-edit"></i> Edit Staff
                         </button>
+                        {% if session.get('access_level') == 'admin' %}
                         {% if staff.is_active %}
                             <button class="btn-warning" id="deactivateStaffBtn" data-id="{{ staff.usersid }}">
                                 <i class="fas fa-user-times"></i> Deactivate Staff
@@ -346,11 +369,12 @@
                                 <i class="fas fa-user-check"></i> Reactivate Staff
                             </button>
                         {% endif %}
+                        {% endif %}
                         {% else %}
                         <!-- Non-admin notice -->
                         <div class="admin-notice warning">
                             <i class="fas fa-info-circle"></i>
-                            <strong>View Only:</strong> You need administrator privileges to edit or manage this staff member.
+                            <strong>View Only:</strong> You need administrator or dentist privileges to edit this staff member.
                         </div>
                         {% endif %}
                     </div>
@@ -387,7 +411,7 @@
                     <!-- Profile Details in Tabs -->
                     <div class="profile-tabs">
                         <div class="tabs">
-                            {% if session.get('access_level') == 'admin' %}
+                            {% if can_manage_staff %}
                             <div class="tab active" data-tab="personal-info">Personal Information</div>
                             <div class="tab" data-tab="work-info">Work Information</div>
                             {% else %}
@@ -395,7 +419,7 @@
                             {% endif %}
                         </div>
                         
-                        {% if session.get('access_level') == 'admin' %}
+                        {% if can_manage_staff %}
                         <!-- Personal Information Tab -->
                         <div class="tab-content active" id="personal-info">
                             <div class="info-grid">
@@ -443,7 +467,7 @@
                         {% endif %}
                         
                         <!-- Work Information Tab -->
-                        <div class="tab-content {% if session.get('access_level') != 'admin' %}active{% endif %}" id="work-info">
+                        <div class="tab-content {% if not can_manage_staff %}active{% endif %}" id="work-info">
                             <div class="info-grid">
                                 <div class="info-section">
                                     <h3>Position Details</h3>
@@ -458,6 +482,20 @@
                                     <div class="info-item">
                                         <span class="info-label"><i class="fas fa-key"></i> Access Level:</span>
                                         <span class="info-value access-tag">{{ staff.usersaccess|capitalize }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-calendar-plus"></i> Hire Date:</span>
+                                        <span class="info-value">{{ staff.usershiredate.strftime('%B %d, %Y') if staff.usershiredate else 'Not provided' }}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label"><i class="fas fa-clock"></i> Schedule:</span>
+                                        <span class="info-value">
+                                            {% if staff.usersscheduledays %}
+                                                {{ staff.usersscheduledays|replace(',', ', ') }}
+                                            {% else %}
+                                                Not set
+                                            {% endif %}
+                                        </span>
                                     </div>
                                     <div class="info-item">
                                         <span class="info-label"><i class="fas fa-toggle-on"></i> Status:</span>
@@ -484,8 +522,8 @@
         </div>
     </div>
 
-<!-- ADMIN ONLY: Edit Staff Modal -->
-{% if session.get('access_level') == 'admin' %}
+<!-- Admin/Dentist: Edit Staff Modal -->
+{% if can_manage_staff %}
 <div id="editStaffModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -556,17 +594,38 @@
                     <div class="form-group">
                         <label for="access">Access Level</label>
                         <select id="access" name="access" required>
+                            {% if session.get('access_level') == 'admin' %}
                             <option value="admin">Admin</option>
+                            {% endif %}
+                            <option value="dentist">Dentist</option>
                             <option value="user">User</option>
                         </select>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="occupation">Occupation</label>
-                        <input type="text" id="occupation" name="occupation" required>
+                    <label for="occupation">Occupation</label>
+                    <input type="text" id="occupation" name="occupation" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="hire_date">Hire Date</label>
+                    <input type="date" id="hire_date" name="hire_date">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Schedule Days</label>
+                    <div class="schedule-days">
+                        <label><input type="checkbox" name="schedule_days" value="Monday"> Monday</label>
+                        <label><input type="checkbox" name="schedule_days" value="Tuesday"> Tuesday</label>
+                        <label><input type="checkbox" name="schedule_days" value="Wednesday"> Wednesday</label>
+                        <label><input type="checkbox" name="schedule_days" value="Thursday"> Thursday</label>
+                        <label><input type="checkbox" name="schedule_days" value="Friday"> Friday</label>
                     </div>
                 </div>
+            </div>
             </form>
         </div>
         <div class="modal-footer">
@@ -626,14 +685,22 @@
  * Pullan Dental - Staff Details JavaScript (Complete with Admin Checks)
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if user is admin
+    // Check staff permissions
     const isAdmin = {{ 'true' if session.get('access_level') == 'admin' else 'false' }};
+    const canManageStaff = {{ 'true' if can_manage_staff else 'false' }};
     
     // DOM Elements
     const tabs = document.querySelectorAll('.tab');
     const tabContents = document.querySelectorAll('.tab-content');
     
     let currentStaffId = {{ staff.usersid }}; // Get the current staff ID from template
+
+    function setScheduleDays(selectedDays = []) {
+        const selectedSet = new Set(selectedDays);
+        document.querySelectorAll('input[name="schedule_days"]').forEach((checkbox) => {
+            checkbox.checked = selectedSet.has(checkbox.value);
+        });
+    }
     
     // Tab Switching (always available)
     tabs.forEach(tab => {
@@ -654,8 +721,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // ADMIN ONLY FUNCTIONALITY
-    if (isAdmin) {
+    // Admin/Dentist functionality
+    if (canManageStaff) {
         const editStaffBtn = document.getElementById('editStaffBtn');
         const editStaffModal = document.getElementById('editStaffModal');
         const closeModalBtn = document.querySelector('#editStaffModal .close');
@@ -707,6 +774,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('gender').value = staff.usersgender || 'Male';
                     document.getElementById('access').value = staff.usersaccess || 'user';
                     document.getElementById('occupation').value = staff.usersoccupation || '';
+                    document.getElementById('hire_date').value = staff.usershiredate_formatted || '';
+                    setScheduleDays(staff.usersscheduledays_list || []);
                     
                     // Handle date fields
                     if (staff.usersdob_formatted) {

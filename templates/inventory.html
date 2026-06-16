@@ -402,7 +402,9 @@
                 <li class="active"><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
                 <li><a href="{{ url_for('payments') }}"><i class="fas fa-receipt"></i> Payments</a></li>
+                {% if can_view_dental_charts %}
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                {% endif %}
                 <!-- Admin Only - User Logs -->
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
@@ -440,6 +442,8 @@
                         <button id="printInventoryBtn" class="secondary-btn"><i class="fas fa-print"></i> Print Report</button>
                         {% if session.get('access_level') == 'admin' %}
                         <button id="adminNumberBtn" class="secondary-btn"><i class="fas fa-mobile-screen"></i> Admin Number</button>
+                        {% endif %}
+                        {% if can_manage_inventory %}
                         <button id="addItemBtn" class="primary-btn"><i class="fas fa-plus"></i> Add New Item</button>
                         {% endif %}
                     </div>
@@ -584,7 +588,7 @@
                                             <i class="fas fa-boxes-stacked"></i>
                                         </button>
                                         {% endif %}
-                                        {% if session.get('access_level') == 'admin' %}
+                                        {% if can_manage_inventory %}
                                         {% if item.is_active %}
                                         <button class="edit-btn" title="Edit Item" data-id="{{ item.raw_id }}">
                                             <i class="fas fa-edit"></i>
@@ -613,22 +617,22 @@
                         {% elif status_filter == 'active' %}
                         <h3>No active inventory items found</h3>
                         <p>Start by adding your first inventory item.</p>
-                        {% if session.get('access_level') == 'admin' %}
+                        {% if can_manage_inventory %}
                         <button id="addFirstItemBtn" class="primary-btn">
                             <i class="fas fa-plus"></i> Add First Item
                         </button>
                         {% else %}
-                        <p>Ask an admin to create the first inventory item.</p>
+                        <p>Ask an admin or dentist to create the first inventory item.</p>
                         {% endif %}
                         {% else %}
                         <h3>No inventory items found</h3>
                         <p>Start by adding your first inventory item.</p>
-                        {% if session.get('access_level') == 'admin' %}
+                        {% if can_manage_inventory %}
                         <button id="addFirstItemBtn" class="primary-btn">
                             <i class="fas fa-plus"></i> Add First Item
                         </button>
                         {% else %}
-                        <p>Ask an admin to create inventory items.</p>
+                        <p>Ask an admin or dentist to create inventory items.</p>
                         {% endif %}
                         {% endif %}
                     </div>
@@ -916,7 +920,7 @@
         </div>
     </div>
 
-    {% if session.get('access_level') == 'admin' %}
+    {% if can_manage_inventory %}
     <!-- Inventory Price Modal -->
     <div id="inventoryPricesModal" class="modal">
         <div class="modal-content">
@@ -949,7 +953,9 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if session.get('access_level') == 'admin' %}
     <!-- Admin Number Modal -->
     <div id="adminNumberModal" class="modal">
         <div class="modal-content">
@@ -994,6 +1000,7 @@
             let currentActionItemId = null;
             let currentAction = null; // 'deactivate' or 'reactivate'
             const isAdmin = {{ 'true' if session.get('access_level') == 'admin' else 'false' }};
+            const canManageInventory = {{ 'true' if can_manage_inventory else 'false' }};
 
             function escapeHtml(value) {
                 return String(value || '')
@@ -1801,19 +1808,19 @@
                 }
                 
                 // Edit button
-                if (e.target.closest('.edit-btn') && isAdmin) {
+                if (e.target.closest('.edit-btn') && canManageInventory) {
                     const itemId = e.target.closest('.edit-btn').getAttribute('data-id');
                     editItem(itemId);
                 }
                 
                 // Deactivate button
-                if (e.target.closest('.deactivate-btn') && isAdmin) {
+                if (e.target.closest('.deactivate-btn') && canManageInventory) {
                     const itemId = e.target.closest('.deactivate-btn').getAttribute('data-id');
                     confirmAction(itemId, 'deactivate');
                 }
                 
                 // Reactivate button
-                if (e.target.closest('.reactivate-btn') && isAdmin) {
+                if (e.target.closest('.reactivate-btn') && canManageInventory) {
                     const itemId = e.target.closest('.reactivate-btn').getAttribute('data-id');
                     confirmAction(itemId, 'reactivate');
                 }
@@ -2022,7 +2029,7 @@
                         <div class="detail-row">
                             <strong>Quantity:</strong> ${item.quantity}
                         </div>
-                        ${isAdmin ? `
+                        ${canManageInventory ? `
                         <div class="detail-row">
                             <strong>Buy Price:</strong> ${item.buy_price_display || money(item.buy_price)}
                         </div>
@@ -2056,7 +2063,7 @@
                 
                 // Show/hide edit button based on active status
                 const editBtn = document.getElementById('editFromViewBtn');
-                editBtn.style.display = isAdmin && item.is_active ? 'inline-block' : 'none';
+                editBtn.style.display = canManageInventory && item.is_active ? 'inline-block' : 'none';
             }
 
             function populateEditForm(item) {
@@ -2118,8 +2125,8 @@
                                 <div class="empty-state">
                                     <i class="fas fa-box-open"></i>
                                     <h3>No active inventory items found</h3>
-                                    <p>${isAdmin ? 'Start by adding your first inventory item.' : 'Ask an admin to create inventory items.'}</p>
-                                    ${isAdmin ? `<button id="addFirstItemBtn" class="primary-btn">
+                                    <p>${canManageInventory ? 'Start by adding your first inventory item.' : 'Ask an admin or dentist to create inventory items.'}</p>
+                                    ${canManageInventory ? `<button id="addFirstItemBtn" class="primary-btn">
                                         <i class="fas fa-plus"></i> Add First Item
                                     </button>` : ''}
                                 </div>
@@ -2159,7 +2166,7 @@
                         <button class="view-btn" title="View Details" data-id="${itemId}">
                             <i class="fas fa-eye"></i>
                         </button>
-                        ${isAdmin ? `
+                        ${canManageInventory ? `
                         <button class="reactivate-btn" title="Reactivate Item" data-id="${itemId}">
                             <i class="fas fa-check"></i>
                         </button>
@@ -2212,7 +2219,7 @@
                         <i class="fas fa-boxes-stacked"></i>
                     </button>
                     ` : ''}
-                    ${isAdmin ? (!item.is_active ? `
+                    ${canManageInventory ? (!item.is_active ? `
                     <button class="reactivate-btn" title="Reactivate Item" data-id="${item.raw_id}">
                         <i class="fas fa-check"></i>
                     </button>

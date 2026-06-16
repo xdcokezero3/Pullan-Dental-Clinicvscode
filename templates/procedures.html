@@ -115,6 +115,24 @@
             box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
         }
 
+        .form-grid.two-columns {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .appointment-fields {
+            border: 1px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            padding: 14px;
+            margin-bottom: 16px;
+            background-color: #f8fafc;
+        }
+
+        .appointment-fields.is-hidden {
+            display: none;
+        }
+
         .search-select {
             position: relative;
         }
@@ -744,6 +762,10 @@
         }
 
         @media (max-width: 640px) {
+            .form-grid.two-columns {
+                grid-template-columns: 1fr;
+            }
+
             .form-actions {
                 flex-direction: column-reverse;
             }
@@ -773,7 +795,9 @@
                 <li><a href="{{ url_for('inventory') }}"><i class="fas fa-box"></i> Inventory</a></li>
                 <li class="active"><a href="{{ url_for('procedures') }}"><i class="fas fa-notes-medical"></i> Procedures</a></li>
                 <li><a href="{{ url_for('payments') }}"><i class="fas fa-receipt"></i> Payments</a></li>
+                {% if can_view_dental_charts %}
                 <li><a href="{{ url_for('dental_charts') }}"><i class="fas fa-teeth"></i> Dental Charts</a></li>
+                {% endif %}
                 {% if session.get('access_level') == 'admin' %}
                 <li><a href="{{ url_for('user_logs') }}"><i class="fas fa-history"></i> User Logs</a></li>
                 {% endif %}
@@ -1032,6 +1056,36 @@
                                 <input type="text" id="dentist" name="dentist" class="form-control" value="Dr. Pullan" placeholder="Enter dentist name" required>
                             </div>
 
+                            <div class="form-group next-appointment-group">
+                                <label class="procedure-card next-appointment-toggle">
+                                    <input type="checkbox" id="schedule_next_appointment" name="schedule_next_appointment" value="1">
+                                    <span class="procedure-option">
+                                        <span>
+                                            <span class="procedure-icon"><i class="fas fa-calendar-plus"></i></span>
+                                            <span class="procedure-name">Schedule Next Appointment</span>
+                                            <span class="procedure-note">Create a follow-up appointment for this patient after saving.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div id="nextAppointmentFields" class="appointment-fields is-hidden">
+                                <div class="form-group">
+                                    <label class="form-label" for="next_appointment_date">Next Appointment Date</label>
+                                    <input type="date" id="next_appointment_date" name="next_appointment_date" class="form-control">
+                                </div>
+                                <div class="form-grid two-columns">
+                                    <div class="form-group">
+                                        <label class="form-label" for="next_appointment_start_time">Start Time</label>
+                                        <input type="time" id="next_appointment_start_time" name="next_appointment_start_time" class="form-control" min="08:00" max="17:00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="next_appointment_end_time">End Time</label>
+                                        <input type="time" id="next_appointment_end_time" name="next_appointment_end_time" class="form-control" min="08:00" max="17:00">
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label class="form-label" for="prescription">Prescription</label>
                                 <textarea id="prescription" name="prescription" class="form-control" placeholder="Medicine, dosage, or post-treatment instructions"></textarea>
@@ -1188,7 +1242,12 @@
         const inventoryItems = {{ (inventory_items or [])|tojson }};
         const patientTeethMap = {{ (patient_teeth_map or {})|tojson }};
         const selectedInventory = new Map();
-        const procedureCheckboxes = Array.from(document.querySelectorAll('.procedure-card input[type="checkbox"]'));
+        const procedureCheckboxes = Array.from(document.querySelectorAll('#procedureGrid .procedure-card input[type="checkbox"]'));
+        const scheduleNextAppointment = document.getElementById('schedule_next_appointment');
+        const nextAppointmentFields = document.getElementById('nextAppointmentFields');
+        const nextAppointmentDate = document.getElementById('next_appointment_date');
+        const nextAppointmentStartTime = document.getElementById('next_appointment_start_time');
+        const nextAppointmentEndTime = document.getElementById('next_appointment_end_time');
         const toothSelection = document.getElementById('toothSelection');
         const procedureToothCharts = document.getElementById('procedureToothCharts');
         const selectedTeethByProcedure = new Map();
@@ -1204,15 +1263,41 @@
         };
         const toothSpecificProcedures = ['extraction', 'root_canal', 'dentures', 'filling', 'crowning'];
 
-        function setTodayDate() {
-            if (!procedureDate) return;
+        function getLocalTodayValue() {
             const today = new Date();
             const offset = today.getTimezoneOffset();
             const localDate = new Date(today.getTime() - (offset * 60 * 1000));
-            const todayValue = localDate.toISOString().split('T')[0];
+            return localDate.toISOString().split('T')[0];
+        }
+
+        function setTodayDate() {
+            if (!procedureDate) return;
+            const todayValue = getLocalTodayValue();
             procedureDate.min = todayValue;
             if (!procedureDate.value || procedureDate.value < todayValue) {
                 procedureDate.value = todayValue;
+            }
+        }
+
+        function syncNextAppointmentFields() {
+            if (!scheduleNextAppointment || !nextAppointmentFields) return;
+            const enabled = scheduleNextAppointment.checked;
+            nextAppointmentFields.classList.toggle('is-hidden', !enabled);
+
+            [nextAppointmentDate, nextAppointmentStartTime, nextAppointmentEndTime].forEach((field) => {
+                if (!field) return;
+                field.required = enabled;
+                field.disabled = !enabled;
+            });
+
+            if (nextAppointmentDate) {
+                nextAppointmentDate.min = getLocalTodayValue();
+            }
+            if (enabled && nextAppointmentStartTime && !nextAppointmentStartTime.value) {
+                nextAppointmentStartTime.value = '08:00';
+            }
+            if (enabled && nextAppointmentEndTime && !nextAppointmentEndTime.value) {
+                nextAppointmentEndTime.value = '08:30';
             }
         }
 
@@ -1268,6 +1353,7 @@
             clearSelectedTeeth();
             updateToothChartVisibility();
             updatePatientSummary();
+            syncNextAppointmentFields();
         }
 
         function getInventoryItem(itemId) {
@@ -1699,6 +1785,7 @@
                     clearSelectedInventory();
                     clearSelectedTeeth();
                     updateToothChartVisibility();
+                    syncNextAppointmentFields();
                     clearMessage();
                 }, 0);
             });
@@ -1732,6 +1819,23 @@
                     const missingNames = missingToothSelections.map((procedureKey) => procedureLabels[procedureKey] || procedureKey).join(', ');
                     showMessage(`Please select and save affected teeth for: ${missingNames}.`, 'error');
                     return;
+                }
+
+                if (scheduleNextAppointment && scheduleNextAppointment.checked) {
+                    if (!nextAppointmentDate.value || !nextAppointmentStartTime.value || !nextAppointmentEndTime.value) {
+                        showMessage('Please complete the next appointment date, start time, and end time.', 'error');
+                        return;
+                    }
+                    if (nextAppointmentDate.value < getLocalTodayValue()) {
+                        showMessage('Next appointment date cannot be in the past.', 'error');
+                        nextAppointmentDate.focus();
+                        return;
+                    }
+                    if (nextAppointmentEndTime.value <= nextAppointmentStartTime.value) {
+                        showMessage('Next appointment end time must be later than the start time.', 'error');
+                        nextAppointmentEndTime.focus();
+                        return;
+                    }
                 }
 
                 saveButton.disabled = true;
@@ -1888,7 +1992,12 @@
             });
         }
 
+        if (scheduleNextAppointment) {
+            scheduleNextAppointment.addEventListener('change', syncNextAppointmentFields);
+        }
+
         setTodayDate();
+        syncNextAppointmentFields();
         renderSelectedInventory();
         updatePatientSummary();
         updateToothChartVisibility();

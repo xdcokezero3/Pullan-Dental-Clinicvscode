@@ -50,6 +50,9 @@ BACKUP_DIRECTORY = os.path.join(os.getcwd(), 'backups')
 DEFAULT_DENTIST_NAME = 'Dr. Pullan'
 CLINIC_OPEN_TIME = '8:00 AM'
 CLINIC_CLOSE_TIME = '5:00 PM'
+STAFF_ACCESS_LEVELS = ('admin', 'dentist', 'user')
+STAFF_QUERY_ACCESS_LEVELS = ('admin', 'dentist', 'user')
+STAFF_SCHEDULE_DAYS = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
 
 # Ensure backup directory exists
 if not os.path.exists(BACKUP_DIRECTORY):
@@ -379,10 +382,53 @@ def admin_required(f):
 def current_user_is_admin():
     return session.get('access_level') == 'admin'
 
+def current_user_is_dentist():
+    return session.get('access_level') == 'dentist'
+
+def current_user_is_admin_or_dentist():
+    return session.get('access_level') in ('admin', 'dentist')
+
+def current_user_can_manage_staff():
+    return current_user_is_admin_or_dentist()
+
+def current_user_can_manage_inventory():
+    return current_user_is_admin_or_dentist()
+
+def current_user_can_view_dental_charts():
+    return current_user_is_admin_or_dentist()
+
 def require_admin_json():
     if not current_user_is_admin():
         return jsonify({"success": False, "error": "Administrator access is required."}), 403
     return None
+
+def require_inventory_manager_json():
+    if not current_user_can_manage_inventory():
+        return jsonify({"success": False, "error": "Administrator or dentist access is required."}), 403
+    return None
+
+def require_staff_manager_json():
+    if not current_user_can_manage_staff():
+        return jsonify({"success": False, "error": "Administrator or dentist access is required."}), 403
+    return None
+
+def dentist_or_admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user_is_admin_or_dentist():
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.context_processor
+def inject_role_permissions():
+    return {
+        'can_manage_staff': current_user_can_manage_staff(),
+        'can_manage_inventory': current_user_can_manage_inventory(),
+        'can_view_dental_charts': current_user_can_view_dental_charts(),
+        'is_admin_user': current_user_is_admin(),
+        'is_dentist_user': current_user_is_dentist(),
+    }
 
 # DNS Resolution fix for backup functionality
 def resolve_host(host):
@@ -3980,6 +4026,31 @@ def _format_time_range(start_time, end_time):
 def _format_display_time(time_value):
     return _minutes_to_display_time(_time_to_minutes(time_value))
 
+def normalize_staff_schedule_days(raw_days):
+    selected_days = []
+    valid_days = {day.lower(): day for day in STAFF_SCHEDULE_DAYS}
+
+    for raw_day in raw_days:
+        normalized_day = valid_days.get((raw_day or '').strip().lower())
+        if not normalized_day:
+            raise ValueError("Staff schedules can only include Monday to Friday.")
+        if normalized_day not in selected_days:
+            selected_days.append(normalized_day)
+
+    if not selected_days:
+        raise ValueError("Please select at least one weekday for the staff schedule.")
+
+    return selected_days
+
+def format_staff_schedule_days(schedule_days):
+    if not schedule_days:
+        return 'Not set'
+    if isinstance(schedule_days, str):
+        days = [day.strip() for day in schedule_days.split(',') if day.strip()]
+    else:
+        days = [day for day in schedule_days if day]
+    return ', '.join(days) if days else 'Not set'
+
 def ensure_appointments_schema():
     Appointment.__table__.create(bind=db.engine, checkfirst=True)
     columns = {column['name'] for column in inspect(db.engine).get_columns(Appointment.__tablename__)}
@@ -3988,6 +4059,27 @@ def ensure_appointments_schema():
         db.session.commit()
     if 'appendtime' not in columns:
         db.session.execute(text('ALTER TABLE appointment ADD COLUMN appendtime VARCHAR(20)'))
+        db.session.commit()
+
+def ensure_staff_schema():
+    User.__table__.create(bind=db.engine, checkfirst=True)
+    columns = {column['name'] for column in inspect(db.engine).get_columns(User.__tablename__)}
+    changed = False
+
+    if 'usershiredate' not in columns:
+        db.session.execute(text('ALTER TABLE users ADD COLUMN usershiredate DATE'))
+        changed = True
+    if 'usersschedulestart' not in columns:
+        db.session.execute(text('ALTER TABLE users ADD COLUMN usersschedulestart VARCHAR(20)'))
+        changed = True
+    if 'usersscheduleend' not in columns:
+        db.session.execute(text('ALTER TABLE users ADD COLUMN usersscheduleend VARCHAR(20)'))
+        changed = True
+    if 'usersscheduledays' not in columns:
+        db.session.execute(text('ALTER TABLE users ADD COLUMN usersscheduledays VARCHAR(120)'))
+        changed = True
+
+    if changed:
         db.session.commit()
 
 def is_clinic_open_date(appointment_date):
@@ -4608,10 +4700,11 @@ def print_appointments_report():
 def staff():
     """Staff management page with status filtering"""
     try:
+        ensure_staff_schema()
         status_filter = request.args.get('status', 'active')
-        is_admin_view = current_user_is_admin()
+        is_admin_view = current_user_can_manage_staff()
         
-        base_query = User.query.filter(User.usersaccess.in_(['admin', 'user']))
+        base_query = User.query.filter(User.usersaccess.in_(STAFF_QUERY_ACCESS_LEVELS))
         
         if status_filter == 'active':
             try:
@@ -4622,14 +4715,14 @@ def staff():
                 else:
                     staff_users = db.session.execute(text("""
                         SELECT * FROM users 
-                        WHERE usersaccess IN ('admin', 'user') 
+                        WHERE usersaccess IN ('admin', 'dentist', 'user')
                         AND (is_deleted = FALSE OR is_deleted IS NULL)
                     """)).fetchall()
             except Exception as e:
                 print(f"Error with model query, using raw SQL: {e}")
                 staff_users = db.session.execute(text("""
                     SELECT * FROM users 
-                    WHERE usersaccess IN ('admin', 'user') 
+                    WHERE usersaccess IN ('admin', 'dentist', 'user')
                     AND (is_deleted = FALSE OR is_deleted IS NULL)
                 """)).fetchall()
                 
@@ -4640,14 +4733,14 @@ def staff():
                 else:
                     staff_users = db.session.execute(text("""
                         SELECT * FROM users 
-                        WHERE usersaccess IN ('admin', 'user') 
+                        WHERE usersaccess IN ('admin', 'dentist', 'user')
                         AND is_deleted = TRUE
                     """)).fetchall()
             except Exception as e:
                 print(f"Error with model query, using raw SQL: {e}")
                 staff_users = db.session.execute(text("""
                     SELECT * FROM users 
-                    WHERE usersaccess IN ('admin', 'user') 
+                    WHERE usersaccess IN ('admin', 'dentist', 'user')
                     AND is_deleted = TRUE
                 """)).fetchall()
                 
@@ -4658,7 +4751,7 @@ def staff():
                 print(f"Error with model query, using raw SQL: {e}")
                 staff_users = db.session.execute(text("""
                     SELECT * FROM users 
-                    WHERE usersaccess IN ('admin', 'user')
+                    WHERE usersaccess IN ('admin', 'dentist', 'user')
                 """)).fetchall()
         
         staff_members = []
@@ -4685,10 +4778,11 @@ def staff():
                 'name': get_attr(user, 'usersrealname', 'Unknown'),
                 'email': get_attr(user, 'usersemail', 'No email') if is_admin_view else 'Admin only',
                 'contact': get_attr(user, 'userscontact', 'No contact') if is_admin_view else 'Admin only',
-                'role': "Staff",
+                'role': get_attr(user, 'usersoccupation', 'Staff'),
                 'occupation': get_attr(user, 'usersoccupation', 'Staff'),
                 'access_level': get_attr(user, 'usersaccess', 'user').capitalize(),
-                'join_date': datetime.now(),
+                'join_date': get_attr(user, 'usershiredate', None),
+                'schedule': format_staff_schedule_days(get_attr(user, 'usersscheduledays', '')),
                 'is_active': is_active,
                 'appointment_count': 0,
                 'patient_count': 0,
@@ -4699,24 +4793,24 @@ def staff():
         try:
             if hasattr(User, 'is_deleted'):
                 active_count = User.query.filter(
-                    User.usersaccess.in_(['admin', 'user']),
+                    User.usersaccess.in_(STAFF_QUERY_ACCESS_LEVELS),
                     db.or_(User.is_deleted == False, User.is_deleted.is_(None))
                 ).count()
                 inactive_count = User.query.filter(
-                    User.usersaccess.in_(['admin', 'user']),
+                    User.usersaccess.in_(STAFF_QUERY_ACCESS_LEVELS),
                     User.is_deleted == True
                 ).count()
             else:
                 active_result = db.session.execute(text("""
                     SELECT COUNT(*) as count FROM users 
-                    WHERE usersaccess IN ('admin', 'user') 
+                    WHERE usersaccess IN ('admin', 'dentist', 'user')
                     AND (is_deleted = FALSE OR is_deleted IS NULL)
                 """)).fetchone()
                 active_count = active_result[0] if active_result else 0
                 
                 inactive_result = db.session.execute(text("""
                     SELECT COUNT(*) as count FROM users 
-                    WHERE usersaccess IN ('admin', 'user') 
+                    WHERE usersaccess IN ('admin', 'dentist', 'user')
                     AND is_deleted = TRUE
                 """)).fetchone()
                 inactive_count = inactive_result[0] if inactive_result else 0
@@ -4745,6 +4839,7 @@ def staff():
 def staff_details(staff_id):
     """View details of a specific staff member"""
     try:
+        ensure_staff_schema()
         staff = User.query.get_or_404(staff_id)
         
         staff.is_active = True
@@ -4752,13 +4847,16 @@ def staff_details(staff_id):
             staff.is_active = not staff.is_deleted
         
         if request.args.get('format') == 'json':
-            if not current_user_is_admin():
+            if not current_user_can_manage_staff():
                 return jsonify({
                     'usersid': staff.usersid,
                     'usersusername': staff.usersusername,
                     'usersrealname': staff.usersrealname,
                     'usersaccess': staff.usersaccess,
                     'usersoccupation': staff.usersoccupation if hasattr(staff, 'usersoccupation') else 'Staff',
+                    'usershiredate_formatted': staff.usershiredate.strftime('%Y-%m-%d') if getattr(staff, 'usershiredate', None) else '',
+                    'usersscheduledays': getattr(staff, 'usersscheduledays', '') or '',
+                    'usersscheduledays_list': [day.strip() for day in (getattr(staff, 'usersscheduledays', '') or '').split(',') if day.strip()],
                     'is_active': staff.is_active
                 })
 
@@ -4774,6 +4872,9 @@ def staff_details(staff_id):
                 'usersgender': staff.usersgender,
                 'usersaccess': staff.usersaccess,
                 'usersoccupation': staff.usersoccupation if hasattr(staff, 'usersoccupation') else 'Staff',
+                'usershiredate_formatted': staff.usershiredate.strftime('%Y-%m-%d') if getattr(staff, 'usershiredate', None) else '',
+                'usersscheduledays': getattr(staff, 'usersscheduledays', '') or '',
+                'usersscheduledays_list': [day.strip() for day in (getattr(staff, 'usersscheduledays', '') or '').split(',') if day.strip()],
                 'is_active': staff.is_active
             }
             
@@ -4826,10 +4927,14 @@ def staff_details(staff_id):
         return f"Error loading staff details: {e}", 500
 
 @app.route('/add_staff', methods=['POST'])
-@admin_required
 def add_staff():
-    """Add a new staff member - Admin only"""
+    """Add a new staff member."""
     try:
+        staff_error = require_staff_manager_json()
+        if staff_error:
+            return staff_error
+
+        ensure_staff_schema()
         name = (request.form.get('name') or '').strip()
         email = (request.form.get('email') or '').strip()
         username = (request.form.get('username') or '').strip()
@@ -4840,6 +4945,8 @@ def add_staff():
         zip_digits = re.sub(r'\D', '', city_zipcode)
         access_level = (request.form.get('access') or '').strip()
         occupation = (request.form.get('occupation') or '').strip()
+        hire_date_raw = (request.form.get('hire_date') or '').strip()
+        schedule_days_raw = request.form.getlist('schedule_days')
 
         required_fields = {
             'Full name': name,
@@ -4850,7 +4957,8 @@ def add_staff():
             'Contact number': contact_number,
             'City/Zip Code': city_zipcode,
             'Access level': access_level,
-            'Occupation': occupation
+            'Occupation': occupation,
+            'Hire date': hire_date_raw
         }
         for label, value in required_fields.items():
             if not value:
@@ -4872,8 +4980,20 @@ def add_staff():
         if not re.fullmatch(r'\d{4}', city_zipcode):
             return jsonify({"success": False, "error": "Zipcode must be exactly 4 digits"})
 
-        if access_level not in ('admin', 'user'):
+        if access_level not in STAFF_ACCESS_LEVELS:
             return jsonify({"success": False, "error": "Please select a valid access level"})
+        if current_user_is_dentist() and access_level == 'admin':
+            return jsonify({"success": False, "error": "Only administrators can assign admin access."})
+
+        try:
+            hire_date = datetime.strptime(hire_date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({"success": False, "error": "Please choose a valid hire date."})
+
+        try:
+            schedule_days = normalize_staff_schedule_days(schedule_days_raw)
+        except ValueError as validation_error:
+            return jsonify({"success": False, "error": str(validation_error)})
 
         if User.query.filter_by(usersusername=username).first():
             return jsonify({"success": False, "error": "Username already exists"})
@@ -4889,7 +5009,9 @@ def add_staff():
             usersreligion=request.form.get('religion'),
             usersgender=request.form.get('gender'),
             usersaccess=access_level,
-            usersoccupation=occupation
+            usersoccupation=occupation,
+            usershiredate=hire_date,
+            usersscheduledays=",".join(schedule_days)
         )
         
         dob_str = request.form.get('dob')
@@ -4928,10 +5050,14 @@ def add_staff():
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/update_staff/<int:staff_id>', methods=['POST'])
-@admin_required
 def update_staff(staff_id):
-    """Update staff information - Admin only"""
+    """Update staff information."""
     try:
+        staff_error = require_staff_manager_json()
+        if staff_error:
+            return staff_error
+
+        ensure_staff_schema()
         staff = User.query.get_or_404(staff_id)
         
         old_name = staff.usersrealname
@@ -4942,15 +5068,42 @@ def update_staff(staff_id):
         if not re.fullmatch(r'\d{4}', city_zipcode):
             return jsonify({'success': False, 'error': 'Zipcode must be exactly 4 digits'})
         
+        access_level = (request.form.get('access') or '').strip()
+        if access_level not in STAFF_ACCESS_LEVELS:
+            return jsonify({'success': False, 'error': 'Please select a valid access level'})
+        if current_user_is_dentist() and access_level == 'admin':
+            return jsonify({'success': False, 'error': 'Only administrators can assign admin access.'})
+        if current_user_is_dentist() and staff.usersaccess == 'admin':
+            return jsonify({'success': False, 'error': 'Only administrators can update admin accounts.'})
+
+        email = (request.form.get('email') or '').strip()
+        if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+            return jsonify({'success': False, 'error': 'Please enter a valid email address'})
+
+        hire_date_raw = (request.form.get('hire_date') or '').strip()
+        if hire_date_raw:
+            try:
+                staff.usershiredate = datetime.strptime(hire_date_raw, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Please choose a valid hire date.'})
+        else:
+            staff.usershiredate = None
+
+        try:
+            schedule_days = normalize_staff_schedule_days(request.form.getlist('schedule_days'))
+        except ValueError as validation_error:
+            return jsonify({'success': False, 'error': str(validation_error)})
+
         staff.usersrealname = request.form.get('name')
-        staff.usersemail = request.form.get('email')
+        staff.usersemail = email
         staff.userscontact = contact_number
         staff.usershomeaddress = request.form.get('address')
         staff.userscityzipcode = city_zipcode
         staff.usersreligion = request.form.get('religion')
         staff.usersgender = request.form.get('gender')
-        staff.usersaccess = request.form.get('access')
+        staff.usersaccess = access_level
         staff.usersoccupation = request.form.get('occupation')
+        staff.usersscheduledays = ",".join(schedule_days)
         
         dob_str = request.form.get('dob')
         if dob_str:
@@ -5047,11 +5200,12 @@ def reactivate_staff(staff_id):
 def print_staff_report():
     """Generate a printable staff report with filters"""
     try:
+        ensure_staff_schema()
         status_filter = request.args.get('status', 'all')
         access_filter = request.args.get('access', 'all')
         search_filter = request.args.get('search', '')
         
-        base_query = User.query.filter(User.usersaccess.in_(['admin', 'user']))
+        base_query = User.query.filter(User.usersaccess.in_(STAFF_QUERY_ACCESS_LEVELS))
         
         if status_filter == 'active':
             if hasattr(User, 'is_deleted'):
@@ -5095,6 +5249,8 @@ def print_staff_report():
                 'access_level': user.usersaccess.capitalize(),
                 'gender': user.usersgender or "N/A",
                 'age': user.usersage if hasattr(user, 'usersage') and user.usersage else "N/A",
+                'hire_date': user.usershiredate.strftime('%B %d, %Y') if getattr(user, 'usershiredate', None) else "N/A",
+                'schedule': format_staff_schedule_days(getattr(user, 'usersscheduledays', '')),
                 'is_active': is_active,
                 'raw_id': user.usersid
             })
@@ -5108,6 +5264,7 @@ def print_staff_report():
         access_labels = {
             'all': 'All Access Levels',
             'admin': 'Administrators Only',
+            'dentist': 'Dentists Only',
             'user': 'Users Only'
         }
         
@@ -5126,6 +5283,7 @@ def print_staff_report():
         active_count = len([s for s in formatted_staff if s['is_active']])
         inactive_count = len([s for s in formatted_staff if not s['is_active']])
         admin_count = len([s for s in formatted_staff if s['access_level'].lower() == 'admin'])
+        dentist_count = len([s for s in formatted_staff if s['access_level'].lower() == 'dentist'])
         user_count = len([s for s in formatted_staff if s['access_level'].lower() == 'user'])
         
         current_user = session.get('real_name', session.get('username', 'Unknown User'))
@@ -5157,6 +5315,7 @@ def print_staff_report():
                               active_count=active_count,
                               inactive_count=inactive_count,
                               admin_count=admin_count,
+                              dentist_count=dentist_count,
                               user_count=user_count,
                               current_user=current_user,
                               print_date=print_date,
@@ -5466,9 +5625,9 @@ def get_inventory_item(item_id):
 def add_inventory():
     """Add a new inventory item"""
     try:
-        admin_error = require_admin_json()
-        if admin_error:
-            return admin_error
+        permission_error = require_inventory_manager_json()
+        if permission_error:
+            return permission_error
 
         ensure_inventory_schema()
         quantity = int(request.form.get('quantity', 0))
@@ -5526,9 +5685,9 @@ def add_inventory():
 def update_inventory(item_id):
     """Update an inventory item"""
     try:
-        admin_error = require_admin_json()
-        if admin_error:
-            return admin_error
+        permission_error = require_inventory_manager_json()
+        if permission_error:
+            return permission_error
 
         ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
@@ -5637,9 +5796,9 @@ def add_inventory_stock(item_id):
 def deactivate_inventory(item_id):
     """Deactivate an inventory item (soft delete)"""
     try:
-        admin_error = require_admin_json()
-        if admin_error:
-            return admin_error
+        permission_error = require_inventory_manager_json()
+        if permission_error:
+            return permission_error
 
         ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
@@ -5665,9 +5824,9 @@ def deactivate_inventory(item_id):
 def reactivate_inventory(item_id):
     """Reactivate an inventory item (restore from soft delete)"""
     try:
-        admin_error = require_admin_json()
-        if admin_error:
-            return admin_error
+        permission_error = require_inventory_manager_json()
+        if permission_error:
+            return permission_error
 
         ensure_inventory_schema()
         item = Inventory.query.get_or_404(item_id)
@@ -5712,10 +5871,13 @@ def update_inventory_admin_number():
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/update_inventory_prices', methods=['POST'])
-@admin_required
 def update_inventory_prices():
-    """Allow admins to update inventory item sale prices."""
+    """Allow admins and dentists to update inventory item sale prices."""
     try:
+        permission_error = require_inventory_manager_json()
+        if permission_error:
+            return permission_error
+
         ensure_inventory_schema()
         updated_items = []
         for item in Inventory.query.filter_by(is_deleted=False).order_by(Inventory.invname.asc()).all():
@@ -6640,6 +6802,7 @@ def is_chart_complete(dental_chart):
     return True
 
 @app.route('/dental_charts')
+@dentist_or_admin_required
 def dental_charts():
     """Dental charts overview page"""
     try:
@@ -6685,6 +6848,7 @@ def dental_charts():
         return f"Error loading dental charts: {e}", 500
 
 @app.route('/create_dental_chart_now/<int:patient_id>')
+@dentist_or_admin_required
 def create_dental_chart_now(patient_id):
     """Robust dental chart creation with comprehensive error handling"""
     try:
@@ -6817,6 +6981,7 @@ def create_dental_chart_now(patient_id):
         """, 500
 
 @app.route('/patient_dental_chart/<int:patient_id>')
+@dentist_or_admin_required
 def patient_dental_chart(patient_id):
     """Enhanced dental chart display with message handling"""
     try:
@@ -6974,6 +7139,43 @@ def add_procedure():
         crowning = 1 if request.form.get('crowning') else 0
         
         patient = Patient.query.get_or_404(patient_id)
+        next_appointment_requested = request.form.get('schedule_next_appointment') == '1'
+        next_appointment_date = None
+        next_appointment_start = None
+        next_appointment_end = None
+        next_appointment_time_range = None
+
+        if next_appointment_requested:
+            try:
+                next_appointment_date = datetime.strptime(request.form.get('next_appointment_date'), '%Y-%m-%d').date()
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Please choose a valid next appointment date."})
+
+            if next_appointment_date < date.today():
+                return jsonify({"success": False, "error": "Next appointment date cannot be in the past."})
+            if not is_clinic_open_date(next_appointment_date):
+                return jsonify({"success": False, "error": "The clinic is closed on Saturdays and Sundays. Please choose a weekday for the next appointment."})
+
+            next_appointment_start = request.form.get('next_appointment_start_time')
+            next_appointment_end = request.form.get('next_appointment_end_time')
+            if not next_appointment_start or not next_appointment_end:
+                return jsonify({"success": False, "error": "Next appointment start and end time are required."})
+
+            try:
+                next_appointment_time_range = _format_time_range(next_appointment_start, next_appointment_end)
+            except ValueError as validation_error:
+                return jsonify({"success": False, "error": str(validation_error)})
+
+            overlapping_appointment = _find_overlapping_appointment(
+                next_appointment_date,
+                next_appointment_start,
+                next_appointment_end
+            )
+            if overlapping_appointment:
+                return jsonify({
+                    "success": False,
+                    "error": f"Next appointment overlaps with {overlapping_appointment.apppatient}'s appointment at {overlapping_appointment.apptime}."
+                })
 
         procedure_configs = [
             {'key': 'cleaning', 'label': 'Cleaning', 'selected': cleaning, 'condition': None, 'requires_teeth': False},
@@ -7075,6 +7277,18 @@ def add_procedure():
         
         db.session.add(new_procedure)
 
+        next_appointment = None
+        if next_appointment_requested:
+            next_appointment = Appointment(
+                apppatient=patient.patname,
+                apptime=next_appointment_time_range,
+                appstarttime=_format_display_time(next_appointment_start),
+                appendtime=_format_display_time(next_appointment_end),
+                appdate=next_appointment_date,
+                status='active'
+            )
+            db.session.add(next_appointment)
+
         used_inventory_summary = []
         low_stock_alerts = []
         for inventory_item, used_quantity in inventory_usage:
@@ -7155,6 +7369,15 @@ def add_procedure():
 
         db.session.commit()
 
+        sms_warning = ''
+        if next_appointment:
+            try:
+                sms_reminder = create_or_update_sms_reminder(next_appointment, patient)
+                check_all_appointment_sms_reminders()
+                sms_warning = (sms_reminder_response_summary(sms_reminder) or {}).get('error_message', '')
+            except Exception as sms_error:
+                sms_warning = f"Appointment saved, but SMS reminder setup failed: {sms_error}"
+
         sms_warnings = [
             warning for inventory_item, _previous_quantity in low_stock_alerts
             for warning in [notify_if_item_is_low_stock(inventory_item, 'procedure inventory use')]
@@ -7167,18 +7390,30 @@ def add_procedure():
             f'Added procedure for {patient.patname}: {procedure_summary}'
             + (f' | Inventory used: {", ".join(used_inventory_summary)}' if used_inventory_summary else '')
             + (f' | Updated teeth: {"; ".join(updated_teeth_summary)}' if updated_teeth_summary else '')
+            + (f' | Next appointment: {next_appointment.appdate} at {next_appointment.apptime}' if next_appointment else '')
             + (f' | SMS warnings: {"; ".join(sms_warnings)}' if sms_warnings else '')
         )
         
+        response_message = "Procedure added successfully"
+        if next_appointment:
+            response_message += f" and next appointment scheduled for {next_appointment.appdate.strftime('%B %d, %Y')} at {next_appointment.apptime}"
+        if sms_warning:
+            response_message += f". {sms_warning}"
+
         return jsonify({
             "success": True,
-            "message": "Procedure added successfully",
+            "message": response_message,
             "procedure": {
                 "id": f"PROC-{new_procedure.repid:03d}",
                 "patient": patient.patname,
                 "date": new_procedure.repdate.strftime('%B %d, %Y'),
                 "procedures": procedure_summary
-            }
+            },
+            "next_appointment": {
+                "id": f"APT-{next_appointment.appid:03d}",
+                "date": next_appointment.appdate.strftime('%B %d, %Y'),
+                "time": next_appointment.apptime
+            } if next_appointment else None
         })
     
     except Exception as e:
@@ -7187,6 +7422,7 @@ def add_procedure():
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/update_dental_chart', methods=['POST'])
+@dentist_or_admin_required
 def update_dental_chart():
     """Update patient's dental chart information"""
     try:
@@ -7256,6 +7492,7 @@ def update_dental_chart():
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/print_dental_chart/<int:patient_id>')
+@dentist_or_admin_required
 def print_dental_chart(patient_id):
     """Generate a printable dental chart"""
     try:
@@ -7593,6 +7830,7 @@ def ensure_application_schema():
     db.create_all()
     ensure_default_admin_account()
     ensure_appointments_schema()
+    ensure_staff_schema()
     ensure_sms_reminders_table()
     ensure_inventory_schema()
     ensure_payments_table()
@@ -8487,7 +8725,7 @@ def settings():
             total_patients = Patient.query.filter_by(is_deleted=False).count()
             total_appointments = Appointment.query.count()
             total_procedures = Report.query.count()
-            total_staff = User.query.filter(User.usersaccess.in_(['admin', 'user'])).count()
+            total_staff = User.query.filter(User.usersaccess.in_(STAFF_QUERY_ACCESS_LEVELS)).count()
         except:
             total_patients = 0
             total_appointments = 0

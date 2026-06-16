@@ -393,6 +393,10 @@ class User(db.Model):
     usersage = db.Column(db.Integer)
     usersoccupation = db.Column(db.String(255))
     usersaccess = db.Column(db.String(255))
+    usershiredate = db.Column(db.Date)
+    usersschedulestart = db.Column(db.String(20))
+    usersscheduleend = db.Column(db.String(20))
+    usersscheduledays = db.Column(db.String(120))
     key = db.Column(db.LargeBinary)
     is_deleted = db.Column(db.Boolean, default=False)
     
